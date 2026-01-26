@@ -1,0 +1,38 @@
+spring:
+  application:
+    name: zhongyi-web-management
+  # 数据库连接信息
+  datasource:
+    url: jdbc:mysql://localhost:3306/zhongyi?useUnicode=true&characterEncoding=utf8&useSSL=false&serverTimezone=Asia/Shanghai&allowPublicKeyRetrieval=true
+    driver-class-name: com.mysql.cj.jdbc.Driver
+    username: root
+    password: 2018620530tX@
+    # 可选：Hikari连接池优化配置（提升性能）
+    hikari:
+      maximum-pool-size: 10
+      minimum-idle: 5
+      connection-timeout: 30000
+      idle-timeout: 600000
+
+# MyBatis 配置（注意层级：与spring平级，不是在spring内部）
+mybatis:
+  # 1. 指定 XML 映射文件位置
+  mapper-locations: classpath:mapper/*.xml
+  # 2. 实体类包名（简化XML中的类名引用）
+  type-aliases-package: com.tx.demo.entity
+  # 3. 核心配置
+  configuration:
+    # 开启控制台打印SQL（替代log-impl，更推荐用logging配置）
+    log-impl: org.apache.ibatis.logging.slf4j.Slf4jImpl
+    # 开启驼峰命名自动映射（id_card -> idCard）
+    map-underscore-to-camel-case: true
+    # 可选：开启懒加载、关闭缓存等
+    lazy-loading-enabled: false
+    cache-enabled: false
+
+# 日志配置（可选，增强SQL日志输出）
+logging:
+  level:
+    # 打印你的Mapper接口所在包的SQL日志
+    com.tx.demo.mapper: debug
+

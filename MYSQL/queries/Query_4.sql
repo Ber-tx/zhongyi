@@ -1,0 +1,2 @@
+use test;
+show tables;

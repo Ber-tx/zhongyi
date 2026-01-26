@@ -1,0 +1,34 @@
+{
+    "tongue_types": {
+        "black tongue coating": {
+            "cn": "黑舌苔，舌面呈现深黑色苔层，质地厚重，多见于重症或邪热炽盛。",
+            "en-us": "Black tongue coating, deep black coating layer indicates severe illness or excessive pathogenic heat.",
+            "ja": "黒舌苔、舌面に深黒色の苔層、重症または邪熱盛を示す。"
+        },
+        "map tongue coating": {
+            "cn": "地图舌，舌苔剥落不全，呈地图状分布，反映胃阴不足或气血虚弱。",
+            "en-us": "Map tongue, patchy coating loss with map-like appearance, suggests stomach yin deficiency or qi-blood weakness.",
+            "ja": "地図舌、苔の剥離が不完全で地図状分布、胃陰不足または気血虚弱を反映。"
+        },
+        "purple tongue coating": {
+            "cn": "紫舌苔，舌质呈紫色，苔色深暗，多提示血瘀或寒凝血脉。",
+            "en-us": "Purple tongue coating, purplish tongue with dark coating, indicates blood stasis or cold congealing blood vessels.",
+            "ja": "紫舌苔、紫色の舌質と暗色の苔、瘀血または寒凝血脈を示唆。"
+        },
+        "red tongue yellow fur thick greasy fur": {
+            "cn": "红舌黄毛厚腻苔，舌质红赤，苔色黄厚且腻，提示湿热内蕴。",
+            "en-us": "Red tongue with yellow thick greasy coating, red tongue body with yellow thick coating suggests dampness-heat accumulation.",
+            "ja": "赤舌黄毛厚膩苔、赤い舌質に黄色厚膩の苔、湿熱内蘊を示す。"
+        },
+        "The red tongue is thick and greasy": {
+            "cn": "红舌厚腻苔，舌质红润，苔层厚腻，多见于脾胃湿热或痰湿内阻。",
+            "en-us": "Red tongue with thick greasy coating, red moist tongue with thick coating indicates spleen-stomach dampness-heat or phlegm-dampness obstruction.",
+            "ja": "赤舌厚膩苔、赤潤な舌質に厚膩の苔、脾胃湿熱または痰湿内阻を示す。"
+        },
+        "The white tongue is thick and greasy": {
+            "cn": "白舌厚腻苔，舌质偏淡，苔层白厚腻滑，多提示寒湿内盛或脾阳不足。",
+            "en-us": "White tongue with thick greasy coating, pale tongue with white thick slippery coating suggests cold-dampness excess or spleen yang deficiency.",
+            "ja": "白舌厚膩苔、淡色の舌質に白厚膩滑な苔、寒湿内盛または脾陽不足を示す。"
+        }
+    }
+} 
