@@ -35,6 +35,6 @@ public class WebConfig implements WebMvcConfigurer {
         // 将 URL 以 /uploads/** 开头的请求，映射到磁盘的特定文件夹
         // 这样你访问 http://localhost:8080/uploads/test.jpg 就能看到图片了
         registry.addResourceHandler("/uploads/**")
-                .addResourceLocations("file:E:/项目/zhongyi_uploads/");
+                .addResourceLocations("file:/usr/local/zhongyi_uploads/tcm_temp/");
     }
 }

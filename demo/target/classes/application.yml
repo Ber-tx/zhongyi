@@ -5,8 +5,8 @@ spring:
   datasource:
     url: jdbc:mysql://localhost:3306/zhongyi?useUnicode=true&characterEncoding=utf8&useSSL=false&serverTimezone=Asia/Shanghai&allowPublicKeyRetrieval=true
     driver-class-name: com.mysql.cj.jdbc.Driver
-    username: root
-    password: 2018620530tX@
+    username: tx
+    password: 1234
     # 可选：Hikari连接池优化配置（提升性能）
     hikari:
       maximum-pool-size: 10
