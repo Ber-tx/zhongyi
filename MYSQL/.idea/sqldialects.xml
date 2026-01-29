@@ -2,7 +2,6 @@
 <project version="4">
   <component name="SqlDialectMappings">
     <file url="file://$PROJECT_DIR$/../../MYSQL/queries/Query.sql" dialect="MySQL" />
-    <file url="file://$PROJECT_DIR$/../../export_mysql/zhongyi.sql" dialect="MySQL" />
     <file url="file://$PROJECT_DIR$/queries/Query.sql" dialect="MySQL" />
     <file url="file://$PROJECT_DIR$/queries/Query_1.sql" dialect="MySQL" />
     <file url="file://$PROJECT_DIR$/queries/Query_2.sql" dialect="MySQL" />
