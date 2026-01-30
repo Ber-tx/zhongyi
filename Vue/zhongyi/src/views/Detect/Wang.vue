@@ -240,8 +240,8 @@ const uploadImage = async (base64) => {
       } else {
         analysisResult.value = resultData;
         // 标记此板块已完成
-        const pid = patientInfo.value.id || localStorage.getItem('current_patient_id');
-        localStorage.setItem('wang_finished_id', pid);
+        // 【核心加固】：存储时必须使用 String(pid) 确保 DetectSelect 里的 === 匹配成功
+        localStorage.setItem('wang_finished_id', String(pid));
         isCompleted.value = true;
         ElMessage.success("分析成功！");
       }
@@ -259,6 +259,8 @@ const uploadImage = async (base64) => {
 const reCapture = () => {
   isCompleted.value = false;
   localImageUrl.value = '';
+  // 补丁：如果是重新拍摄，需要重启相机
+  startCamera(); 
   // 注意：这里绝对不重置 patientInfo.value.id，保证重测时 ID 依然有效
 }
 

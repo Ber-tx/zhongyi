@@ -83,9 +83,14 @@
 import { useRouter, useRoute } from 'vue-router'
 import { Right, CircleCheckFilled } from '@element-plus/icons-vue'
 import { ref, onMounted, onActivated, watch } from 'vue';
+import { ElMessage } from 'element-plus'; // 显式引入
 
 const router = useRouter()
 const route = useRoute()
+
+// 1. 核心变量：用来锁定“当前这一场”检测的病人 ID
+const lockedPatientId = ref(null);
+const lockedIdCard = ref('');
 
 // 状态控制
 const wenjuanFinished = ref(false);
@@ -94,18 +99,25 @@ const wenFinished = ref(false);
 const qieFinished = ref(false);
 
 const refreshStatuses = () => {
-  const currentId = localStorage.getItem('current_patient_id');
+  // 始终以锁定在当前页面内存中的 ID 为准，不直接读 localStorage，防止中途被覆盖
+  const currentId = lockedPatientId.value || localStorage.getItem('current_patient_id');
+  
   if (!currentId) return;
-  const wenjuanStatus = localStorage.getItem('wenjuan_finished_id');
-  wenjuanFinished.value = (wenjuanStatus === currentId);
+  
+  // 更新内存中的锁定 ID
+  if (!lockedPatientId.value) {
+    lockedPatientId.value = currentId;
+    lockedIdCard.value = localStorage.getItem('current_patient_idCard') || '';
+  }
 
-  wangFinished.value = localStorage.getItem('wang_finished_id') === currentId;
-  wenFinished.value = localStorage.getItem('wen_finished_id') === currentId;
-  qieFinished.value = localStorage.getItem('qie_finished_id') === currentId;
+  // 状态比对：只有当“已完成 ID”等于“当前锁定 ID”时，才显示完成
+  wangFinished.value = localStorage.getItem('wang_finished_id') === String(currentId);
+  wenFinished.value = localStorage.getItem('wen_finished_id') === String(currentId);
+  wenjuanFinished.value = localStorage.getItem('wenjuan_finished_id') === String(currentId);
+  qieFinished.value = localStorage.getItem('qie_finished_id') === String(currentId);
 }
 
 const goTo = (type) => {
-  // 如果该模块已完成，拦截跳转
   const statusMap = {
     wang: wangFinished.value,
     wen: wenFinished.value,
@@ -117,28 +129,32 @@ const goTo = (type) => {
     ElMessage.info('该检测项目已完成，结果已锁定');
     return;
   }
-  // --- 【从缓存拿 ID 传给下一个页面】 ---
-  const pId = localStorage.getItem('current_patient_id');
-  const pIdCard = localStorage.getItem('current_patient_idCard');
+
+  // --- 【改动重点：使用内存锁定的 ID 传参】 ---
+  // 不再临时从 localStorage 拿，防止拿到了刚登陆的下一个人的 ID
   router.push({
     path: `/detect/${type}`,
     query: { 
-      id: pId, 
-      idCard: pIdCard 
+      id: lockedPatientId.value, 
+      idCard: lockedIdCard.value 
     }
   });
 }
 
-// 首次挂载和被 keep-alive 激活时都刷新状态
 onMounted(() => {
   refreshStatuses();
 });
 
 onActivated(() => {
+  // 每次切回来，检查一下 ID 是否变了（如果是新病人进来了）
+  const latestId = localStorage.getItem('current_patient_id');
+  if (latestId !== lockedPatientId.value) {
+    lockedPatientId.value = latestId;
+    lockedIdCard.value = localStorage.getItem('current_patient_idCard');
+  }
   refreshStatuses();
 });
 
-// 监听路由变化，确保在路由返回/重访时也刷新状态
 watch(() => route.fullPath, () => {
   refreshStatuses();
 });

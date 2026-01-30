@@ -91,11 +91,13 @@
 
 <script setup>
 import { ref, computed, onMounted, watch } from 'vue';
-import { useRouter } from 'vue-router';
+import { useRouter, useRoute } from 'vue-router'; // 【修复】必须引入 useRoute
 import { CircleCheckFilled } from '@element-plus/icons-vue';
-import axios from 'axios';
+import { ElMessage } from 'element-plus'; // 【补充】确保 ElMessage 可用
 import { submitQuestionnaire } from '@/api/detect';
+
 const router = useRouter();
+const route = useRoute(); // 【核心修复】初始化 route 对象
 const audio = new Audio();
 
 // 核心状态
@@ -109,7 +111,7 @@ const bmiHeight = ref(1.72);
 const bmiWeight = ref(65.0);
 const computedBMI = computed(() => (bmiWeight.value / (bmiHeight.value * bmiHeight.value)).toFixed(1));
 
-// 完整题目数据
+// 题目数据（保持不变...）
 const questions = [
   { content: "您精力充沛吗?", remark: "指精神头足, 乐于做事" },
   { content: "您容易疲乏吗?", remark: "指体力如何, 动一下就累" },
@@ -119,7 +121,7 @@ const questions = [
   { content: "您容易精神紧张，焦虑不安吗", remark: "指遇事是否容易紧张" },
   { content: "您因为生活状态改变而感到孤独、失落吗?", remark: "" },
   { content: "您容易感到害怕或受到惊吓吗?", remark: "" },
-  { content: "您感到身体超重不轻松吗", remark: "系统将通过身高体重自动计算BMI指数" }, // Index 8
+  { content: "您感到身体超重不轻松吗", remark: "系统将通过身高体重自动计算BMI指数" }, 
   { content: "您眼睛干涩吗?", remark: "" },
   { content: "您手脚发凉吗?", remark: "不包含因周围温度改变或穿的少导致的手脚发凉" },
   { content: "您胃脘部，背部，或腰膝部怕冷吗?", remark: "" },
@@ -128,8 +130,6 @@ const questions = [
   { content: "您没有感冒时也会鼻塞，流鼻涕吗?", remark: "" },
   { content: "您有口粘口腻，或睡眠打鼾吗?", remark: "" },
   { content: "您过敏的频率是?", remark: "药物、食物、花粉等", options: ["从不", "一年1，2次", "一年3，4次", "一年5，6次", "每次遇到上述原因都过敏"] },
-  
-
   { content: "您的皮肤容易起荨麻疹吗?", remark: "包括风团，风疹块，风疙瘩" },
   { content: "您皮肤在不知不觉间出现青紫瘀斑，皮下出血吗?", remark: "指皮肤没有在外伤的情况下出现" },
   { content: "您的皮肤一抓就红，并出现抓痕吗?", remark: "指被指甲或者钝物划过的反应" },
@@ -154,7 +154,7 @@ const currentQuestion = computed(() => questions[currentIndex.value]);
 const currentOptions = computed(() => currentQuestion.value.options || defaultOpts);
 const progress = computed(() => Math.round(((currentIndex.value + 1) / 33) * 100));
 
-// 音频播放
+// 音频播放逻辑
 const playAudio = () => {
   audio.pause();
   audio.src = `/src/assets/audio/question/${currentIndex.value + 1}.wav`;
@@ -164,8 +164,7 @@ const playAudio = () => {
 // 交互操作
 const handleSelect = (val) => {
   answers.value[currentIndex.value] = val;
-  // 自动跳转下一题
-  if (currentIndex.value < 32 ) {
+  if (currentIndex.value < 32) {
     setTimeout(() => currentIndex.value++, 300);
   }
 };
@@ -174,7 +173,7 @@ const handleBMIFinish = () => {
   const bmiVal = parseFloat(computedBMI.value);
   let score = 1;
   if (bmiVal >= 28) score = 5;
-  else if (bmiVal >= 25) score = 3; // 中医简易BMI评分逻辑
+  else if (bmiVal >= 25) score = 3; 
   answers.value[8] = score;
   currentIndex.value++;
 };
@@ -182,54 +181,63 @@ const handleBMIFinish = () => {
 const goNext = () => currentIndex.value++;
 const goPrev = () => currentIndex.value--;
 
-// 核心：提交到后端并显示引导页
+// 核心提交函数
 const handleFinish = async () => {
   if (submitting.value) return;
   submitting.value = true;
 
   try {
-    // 去缓存拿 ID，不引用那个报错的 patientInfo
-    const pid = localStorage.getItem('current_patient_id');
-    const idCard = localStorage.getItem('current_patient_idcard');
+    // 1. 路由参数优先（从路由获取 ID）
+    const routeId = route.query.id;
+    // 注意：localStorage 建议统一用 idCard (大写C)，这取决于你 DetectSelect 怎么存的
+    const routeIdCard = route.query.idCard;
 
-    console.log("==== [DEBUG] 尝试提交，从缓存获取到的 ID:", pid);
+    // 2. 备选方案（从缓存获取）
+    const storageId = localStorage.getItem('current_patient_id');
+    const storageIdCard = localStorage.getItem('current_patient_idCard') || localStorage.getItem('current_patient_idcard');
 
-    if (!pid) {
-      // 如果没拿到ID，说明你之前的页面没存好，或者你直接刷新的问卷页
-      alert("错误：没找到病人ID，请先去登记病人信息！");
+    // 确定最终使用的 ID
+    const finalPid = routeId || storageId;
+    const finalIdCard = routeIdCard || storageIdCard;
+
+    console.log("==== [DEBUG] 问卷提交会话检查 ====");
+    console.log("路由 ID:", routeId, " 缓存 ID:", storageId);
+    console.log("最终判定 ID:", finalPid);
+
+    if (!finalPid) {
+      ElMessage.error("未找到有效的病人会话，请返回登记！");
       submitting.value = false;
       return;
     }
 
-    // 构造发送给后端的数据
+    // 3. 构造数据
     const postData = {
-      // 这里的 answers 和 computedBMI 确保你组件里有定义这两个变量
       answers: answers.value,
       bmi: computedBMI.value,
-      idCard: idCard,
-      patientId: pid 
+      idCard: finalIdCard,
+      patientId: finalPid 
     };
 
     const res = await submitQuestionnaire(postData);
 
     if (res.data.success || res.data.code === 200) {
-      const pid = localStorage.getItem('current_patient_id');
-      localStorage.setItem('wenjuan_finished_id', pid);
+      // 【关键修复】将完成状态与当前这个 finalPid 绑定，而不是笼统的 true/false
+      localStorage.setItem('wenjuan_finished_id', String(finalPid));
+      
       isDone.value = true;
+      ElMessage.success("问卷提交成功！");
     } else {
-      alert("后端拒收了数据：" + (res.data.msg || "未知原因"));
+      ElMessage.error("提交失败：" + (res.data.msg || "服务器繁忙"));
     }
 
   } catch (err) {
     console.error("提交过程报错:", err);
-    // 这里会打印具体的错误，比如是不是 answers 也没定义
-    alert("提交失败，请按F12查看控制台 Console 的红色错误");
+    ElMessage.error("系统连接失败，请检查网络");
   } finally {
     submitting.value = false;
   }
 };
 
-// 返回选择中心
 const backToCenter = () => {
   router.push('/detect');
 };
