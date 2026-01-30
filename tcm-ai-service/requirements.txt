@@ -3,4 +3,4 @@ uvicorn
 ultralytics
 opencv-python
 python-multipart
-pandas
+pandas 

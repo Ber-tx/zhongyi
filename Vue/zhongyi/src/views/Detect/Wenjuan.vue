@@ -213,8 +213,8 @@ const handleFinish = async () => {
     const res = await submitQuestionnaire(postData);
 
     if (res.data.success || res.data.code === 200) {
-      
-      localStorage.setItem('wenjuan_finished', 'true');
+      const pid = localStorage.getItem('current_patient_id');
+      localStorage.setItem('wenjuan_finished_id', pid);
       isDone.value = true;
     } else {
       alert("后端拒收了数据：" + (res.data.msg || "未知原因"));

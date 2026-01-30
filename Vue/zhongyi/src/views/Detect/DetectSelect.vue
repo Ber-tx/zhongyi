@@ -94,12 +94,14 @@ const wenFinished = ref(false);
 const qieFinished = ref(false);
 
 const refreshStatuses = () => {
-  const wenjuanStatus = localStorage.getItem('wenjuan_finished');
-  wenjuanFinished.value = (wenjuanStatus === 'true' || wenjuanStatus === 'finished');
+  const currentId = localStorage.getItem('current_patient_id');
+  if (!currentId) return;
+  const wenjuanStatus = localStorage.getItem('wenjuan_finished_id');
+  wenjuanFinished.value = (wenjuanStatus === currentId);
 
-  wangFinished.value = localStorage.getItem('wang_finished') === 'true';
-  wenFinished.value = localStorage.getItem('wen_finished') === 'true';
-  qieFinished.value = localStorage.getItem('qie_finished') === 'true';
+  wangFinished.value = localStorage.getItem('wang_finished_id') === currentId;
+  wenFinished.value = localStorage.getItem('wen_finished_id') === currentId;
+  qieFinished.value = localStorage.getItem('qie_finished_id') === currentId;
 }
 
 const goTo = (type) => {

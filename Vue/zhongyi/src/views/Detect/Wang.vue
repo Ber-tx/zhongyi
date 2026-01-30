@@ -240,7 +240,8 @@ const uploadImage = async (base64) => {
       } else {
         analysisResult.value = resultData;
         // 标记此板块已完成
-        localStorage.setItem('wang_finished', 'true');
+        const pid = patientInfo.value.id || localStorage.getItem('current_patient_id');
+        localStorage.setItem('wang_finished_id', pid);
         isCompleted.value = true;
         ElMessage.success("分析成功！");
       }
