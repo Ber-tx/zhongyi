@@ -33,11 +33,19 @@ class TongueAnalyzer:
         results = self.model(img)
         detections = self.format_results(results)
 
-        # 3. 专家辨证 (模块B/C)
-        conclusion, scores = self.engine.analyze_syndrome(detections)
+        # 3. 专家辨证 (模块B/C) - 现在返回 (conclusion, scores, meta)
+        conclusion, scores, meta = self.engine.analyze_syndrome(detections)
 
-        # 4. 可视化 (模块D)
-        radar_img = Visualizer.generate_radar(scores)
+        # 依据 meta.confidence 判断是否给出明确结论
+        overall_conf = meta.get('confidence', 0.0)
+        interpretation = None
+        if overall_conf < self.engine.decision_threshold:
+            interpretation = '本次分析置信度不足，建议重新拍摄或上传多张舌象以提高可信度。'
+
+        # 4. 可视化 (模块D) - 将 interpretation 与置信度传入
+        radar_img = Visualizer.generate_radar(scores,
+                                             interpretation=interpretation,
+                                             overall_confidence=overall_conf)
 
         return {
             "success": True,
@@ -46,6 +54,9 @@ class TongueAnalyzer:
             "data_depth": {
                 "scores": scores,
                 "quality": quality,
-                "feature_count": len(detections)
+                "feature_count": len(detections),
+                "per_detection": meta.get('per_detection', []),
+                "supporting": meta.get('supporting', []),
+                "confidence": overall_conf
             }
         }
