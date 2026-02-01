@@ -50,13 +50,7 @@ class TongueAnalyzer:
         return {
             "success": True,
             "main_result": conclusion,
-            "chart_img": radar_img,
-            "data_depth": {
-                "scores": scores,
-                "quality": quality,
-                "feature_count": len(detections),
-                "per_detection": meta.get('per_detection', []),
-                "supporting": meta.get('supporting', []),
-                "confidence": overall_conf
-            }
+            "chart_img": radar_img
+
+
         }

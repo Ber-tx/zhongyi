@@ -65,6 +65,7 @@
         <div class="conclusion">
           <span class="label">初步辨证结论：</span>
           <span class="value">{{ analysisResult.main_result }}</span>
+          
         </div>
         <div class="charts">
           <div class="img-card">
@@ -72,10 +73,24 @@
             <img :src="localImageUrl" class="preview-img" />
           </div>
           <div class="img-card">
-            <p>辨证模型</p>
-            <img :src="analysisResult.chart_img" class="preview-img" />
+            <p>辨证模型 (点击放大)</p>
+            <el-image 
+              :src="analysisResult.chart_img" 
+              :preview-src-list="[analysisResult.chart_img]"
+              fit="contain"
+              class="preview-img radar-large"
+              preview-teleported
+              :hide-on-click-modal="true"
+            />
           </div>
         </div>
+        
+        <!-- 新增 AI 声明部分 -->
+        <p class="ai-disclaimer">
+          本分析由 <span class="highlight">AI 引擎</span> 提供，仅供健康参考，<br />
+          <span class="warning">不作为临床诊断依据</span>。确诊请咨询 <span class="highlight">专业医师</span>。
+        </p>
+        
         <div class="footer-btns">
           <el-button round @click="reCapture">重新分析</el-button>
           <el-button type="primary" round @click="goBack">完成并返回</el-button>
@@ -86,7 +101,7 @@
 </template>
 
 <script setup>
-import { ref, onUnmounted, onMounted } from 'vue' // 增加 onMounted
+import { ref, onUnmounted, onMounted,h } from 'vue' // 增加 onMounted
 import { useRouter, useRoute } from 'vue-router' // 增加 useRoute
 import { Camera, ArrowLeft, CircleCheckFilled, Picture, VideoCamera } from '@element-plus/icons-vue'
 
@@ -264,6 +279,8 @@ const reCapture = () => {
   // 注意：这里绝对不重置 patientInfo.value.id，保证重测时 ID 依然有效
 }
 
+
+
 onUnmounted(stopCamera);
 </script>
 
@@ -290,31 +307,38 @@ onUnmounted(stopCamera);
 .file-divider { margin: 10px 0; color: #ccc; font-size: 12px; display: flex; align-items: center; width: 100%; }
 .file-divider::before, .file-divider::after { content: ""; flex: 1; height: 1px; background: #eee; margin: 0 10px; }
 
+/* 修改：让布局从左右并排改为上下排列，或者给雷达图更多空间 */
 .charts { 
   display: flex; 
-  gap: 15px; 
+  flex-direction: column; /* 改为纵向排列，让每一张图都足够宽 */
+  gap: 20px; 
   margin-top: 15px;
-  align-items: flex-start; /* 确保图片顶部对齐 */
 }
+
 .img-card { 
-  flex: 1; 
-  font-size: 13px; 
+  width: 100%; /* 占满容器 */
+  font-size: 14px; 
   color: #405d66; 
   font-weight: bold;
-  text-align: center;
+  text-align: left; /* 文字靠左对齐 */
+  background: rgba(255,255,255,0.5);
+  padding: 10px;
+  border-radius: 15px;
 }
+
 .preview-img { 
-  width: 100%;       /* 占满一半的宽度 */
-  height: auto;      /* 高度根据图片比例自动撑开，不再裁剪 */
-  min-height: 120px; /* 设置一个最小高度防止盒子塌陷 */
-  max-height: 220px; /* 限制一个最大高度，防止图片太长把页面撑爆 */
+  width: 100%;       
+  height: auto;      
+  /* 调高最大高度限制，或者直接取消 */
+  max-height: 450px; 
   
-  object-fit: contain; /* 关键：完整显示图片，不裁剪边缘 */
+  object-fit: contain; 
   border-radius: 12px; 
-  border: 1px solid rgba(0,0,0,0.08); 
-  background: #fdfdfd; 
+  border: 1px solid rgba(0,0,0,0.05); 
+  background: #fff; 
   margin-top: 8px;
   display: block;
+  box-shadow: 0 4px 12px rgba(0,0,0,0.05); /* 增加一点阴影提升质感 */
 }
 
 .ai-spinner { width: 40px; height: 40px; border: 3px solid #f3f3f3; border-top: 3px solid #409eff; border-radius: 50%; margin: 20px auto; animation: spin 1s linear infinite; }
@@ -335,5 +359,28 @@ onUnmounted(stopCamera);
   min-width: 120px;
   font-weight: 500;
   border-radius: 20px;      /* 让按钮圆润一点，贴合你的玻璃拟态风格 */
+}
+
+/* 新增 AI 声明的样式 */
+.ai-disclaimer {
+  font-size: 14px;
+  color: #666;
+  line-height: 1.8;
+  text-align: center;
+  background: rgba(255, 255, 255, 0.8);
+  padding: 10px 15px;
+  border-radius: 10px;
+  box-shadow: 0 4px 10px rgba(0, 0, 0, 0.1);
+  margin-top: 20px;
+}
+
+.ai-disclaimer .highlight {
+  color: #409eff;
+  font-weight: bold;
+}
+
+.ai-disclaimer .warning {
+  color: #e74c3c;
+  font-weight: bold;
 }
 </style>
