@@ -158,12 +158,12 @@ class PulseAlgorithm:
 
         # 返回结果字典
         return {
-            "hr": round(hr, 1) if hr else 0,  # 前端需要数字，无值给0
-            "spo2": round(spo2, 1) if spo2 else 0,
-            "hr_valid": hr_valid,
-            "spo2_valid": spo2_valid and correl >= self.min_pearson_correlation,
-            "quality": round(correl, 3),  # 用 Pearson 作为质量显示
-            "is_valid": hr_valid and (correl >= self.min_pearson_correlation)  # 总体有效性
+            "hr": round(float(hr), 1) if hr else 0.0,
+            "spo2": round(float(spo2), 1) if spo2 else 0.0,
+            "hr_valid": bool(hr_valid),
+            "spo2_valid": bool(spo2_valid and correl >= self.min_pearson_correlation),
+            "quality": round(float(correl), 3),
+            "is_valid": bool(hr_valid and (correl >= self.min_pearson_correlation))
         }
 
     def reset(self):

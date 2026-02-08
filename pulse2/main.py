@@ -49,11 +49,11 @@ async def serial_worker():
 
                         # 2. 准备发给 Vue3 的实时数据包
                         payload = {
-                            "wave": ir,  # 用于 ECharts 绘图
-                            "hr": res['hr'],
-                            "spo2": res['spo2'],
-                            "isValid": res['is_valid'],  # 告诉前端是否显示数据
-                            "q": res['quality']  # 信号质量
+                            "wave": [int(x) for x in ir],  # 确保是原生整数列表
+                            "hr": float(res['hr']) if res['hr'] else 0.0,
+                            "spo2": float(res['spo2']) if res['spo2'] else 0.0,
+                            "isValid": bool(res['is_valid']),  # 核心修复：强制转为 Python bool
+                            "q": float(res['quality'])  # 强制转为 Python float
                         }
 
                         # 3. 如果正在正式测量，且数据有效，则记录进内存用于算平均值
