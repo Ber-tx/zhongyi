@@ -3,7 +3,7 @@ from scipy.stats import pearsonr
 
 
 class PulseAlgorithm:
-    def __init__(self, buffer_size=100, fs=100):
+    def __init__(self, buffer_size=50, fs=50):
         # ===== 常量定义 =====
         self.FS = fs
         self.BUFFER_SIZE = buffer_size

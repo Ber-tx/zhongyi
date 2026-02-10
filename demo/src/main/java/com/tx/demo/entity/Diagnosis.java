@@ -13,7 +13,13 @@ public class Diagnosis {
 
     // 存放 Python 返回的诊断文字结果
     private String wangResult;
-
     private String wangImageUrl;   // 存放图片路径或 Base64
+
+    // --- 切诊字段 ---
+    private Double qieHeartRate;
+    private Double qieSpo2;
+    private String qieRawData;  // 存 JSON 字符串
+    private String qieResult;   // 存脉珍 中医结论
+
     private LocalDateTime createTime;
 }

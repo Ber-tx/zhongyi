@@ -30,55 +30,47 @@ BAUD_RATE = 115200
 
 # ===== 后台任务 =====
 async def serial_worker():
-    """ 异步读取串口并运行 RF 算法 """
-    print(f"🔄 正在尝试连接串口 {SERIAL_PORT}...")
+    # 关键：实例化算法时必须匹配 50Hz
+    algo = PulseAlgorithm(buffer_size=100, fs=50)
+    print(f"🔄 串口已连接，算法采样率设定为 50Hz")
+
     try:
         ser = serial.Serial(SERIAL_PORT, BAUD_RATE, timeout=0.1)
-        print(f"✅ 串口 {SERIAL_PORT} 连接成功")
-
         while True:
             if ser.in_waiting:
                 try:
                     line = ser.readline().decode('utf-8', errors='ignore').strip()
                     if line.startswith('{"ir":'):
                         data = json.loads(line)
-                        ir, red = data['ir'], data['red']
+                        ir_list = data['ir']
+                        red_list = data['red']
 
-                        # 1. 调用完整的 RF 算法
-                        res = algo.process(ir, red)
+                        # 循环处理这一小包数据
+                        res = {"hr": 0, "spo2": 0, "is_valid": False, "quality": 0}
+                        for i in range(len(ir_list)):
+                            # 喂入算法
+                            res = algo.process(ir_list[i], red_list[i])
 
-                        # 2. 准备发给 Vue3 的实时数据包
                         payload = {
-                            "wave": [int(x) for x in ir],  # 确保是原生整数列表
+                            "wave": [int(x) for x in ir_list],
                             "hr": float(res['hr']) if res['hr'] else 0.0,
                             "spo2": float(res['spo2']) if res['spo2'] else 0.0,
-                            "isValid": bool(res['is_valid']),  # 核心修复：强制转为 Python bool
-                            "q": float(res['quality'])  # 强制转为 Python float
+                            "isValid": bool(res['is_valid']),
+                            "q": float(res['quality'])
                         }
 
-                        # 3. 如果正在正式测量，且数据有效，则记录进内存用于算平均值
                         if measurement_session["is_measuring"] and res['is_valid']:
                             measurement_session["hr_history"].append(res['hr'])
                             measurement_session["spo2_history"].append(res['spo2'])
-                            # 仅保留最近 10 秒的波形数据作为样本存入库，防止数据过大
-                            if len(measurement_session["raw_wave_buffer"]) < 1000:
-                                measurement_session["raw_wave_buffer"].extend(ir)
 
-                        # 4. WebSocket 广播
                         if active_connections:
-                            msg = json.dumps(payload)
-                            await asyncio.gather(*[ws.send_text(msg) for ws in active_connections])
+                            await asyncio.gather(*[ws.send_text(json.dumps(payload)) for ws in active_connections])
 
-                except json.JSONDecodeError:
-                    pass
-                except Exception as e_inner:
-                    print(f"处理数据错误: {e_inner}")
-
-            await asyncio.sleep(0.01)  # 让出 CPU
-
+                except Exception as e:
+                    print(f"Err: {e}")
+            await asyncio.sleep(0.01)
     except Exception as e:
-        print(f"❌ 串口严重错误: {e}")
-
+        print(f"Serial Error: {e}")
 
 # ===== 生命周期管理 (替代 deprecated 的 on_event) =====
 @asynccontextmanager

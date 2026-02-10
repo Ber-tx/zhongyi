@@ -5,8 +5,8 @@ from scipy.stats import pearsonr
 import time
 
 # ===== RF算法常量（适配你的100Hz + 100样本）=====
-FS = 100  # 采样率
-BUFFER_SIZE = 100  # 缓冲区大小
+FS = 50  # 采样率
+BUFFER_SIZE = 50  # 缓冲区大小
 mean_X = (BUFFER_SIZE - 1) / 2.0  # 49.5
 x_indices = np.arange(BUFFER_SIZE) - mean_X
 sum_X2 = np.sum(x_indices ** 2)  # 预计算：833250.0（精确值）

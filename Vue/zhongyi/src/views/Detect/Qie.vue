@@ -103,16 +103,18 @@ import { Back, User, VideoPlay, SwitchButton, Aim, InfoFilled } from '@element-p
 import axios from 'axios';
 import * as echarts from 'echarts';
 
+// 动画帧 ID（用于 smoothRender）
+let animationId = null;
 
-//在 script 标签顶部定义一个变量记录最后一帧
-let animationFrameId = null;
-
-// ===== 1. 基础状态管理 =====
 const route = useRoute();
 const router = useRouter();
 
 const patientId = ref(route.query.id || '');
 const patientIdCard = ref(route.query.idCard || '');
+
+// 用来存测量过程中的所有有效值
+const hrHistory = ref([]);
+const spo2History = ref([]);
 
 const isStarting = ref(false);   // 正在请求开始
 const isMeasuring = ref(false);  // 正在测量中
@@ -124,7 +126,7 @@ const currentHr = ref(0);
 const currentSpo2 = ref(0);
 const signalQuality = ref(0);    // 0.0 - 1.0
 
-// 计算属性
+// 计算属性（信号状态提示）
 const signalStatus = computed(() => {
   if (signalQuality.value > 0.8) return 'success';
   if (signalQuality.value > 0.5) return 'warning';
@@ -137,13 +139,15 @@ const signalText = computed(() => {
   return '信号干扰严重 / 未检测到手指';
 });
 
-// ===== 2. ECharts 配置 =====
-const chartRef = ref(null);
-let myChart = null;
-// 波形数据缓存池 (用于平滑滚动)
-let waveBuffer = []; 
-const MAX_POINTS = 500; // 屏幕上保留最近5秒的数据 (100Hz * 5)
+// 🔧 修复1: 响应式波形缓冲 + 非响应式渲染队列
+const waveBuffer = ref([]);             // 真正用于 ECharts 的数组 (响应式)
+let renderQueue = [];                   // 待渲染的数据队列 (非响应式，提速)
+const MAX_DISPLAY_POINTS = 500;         // 显示窗口大小（约10秒数据）
 
+let myChart = null;
+const chartRef = ref(null);
+
+// ===== ECharts 初始化 =====
 const initChart = () => {
   if (!chartRef.value) return;
   
@@ -153,12 +157,12 @@ const initChart = () => {
     grid: { left: 50, right: 20, top: 30, bottom: 30 },
     xAxis: {
       type: 'category',
-      show: false, // 隐藏X轴刻度
+      show: false,
       boundaryGap: false,
     },
     yAxis: {
       type: 'value',
-      scale: true, // 自动缩放，不仅是从0开始
+      scale: true,
       splitLine: { show: true, lineStyle: { color: '#eee' } },
       axisLabel: { color: '#999' }
     },
@@ -166,11 +170,11 @@ const initChart = () => {
       name: 'Pulse',
       type: 'line',
       smooth: true,
-      symbol: 'none', // 不显示数据点圆圈
+      symbol: 'none',
       lineStyle: {
         color: new echarts.graphic.LinearGradient(0, 0, 1, 0, [
-          { offset: 0, color: '#4facfe' }, // 渐变色：蓝
-          { offset: 1, color: '#00f2fe' }  // 渐变色：青
+          { offset: 0, color: '#4facfe' },
+          { offset: 1, color: '#00f2fe' }
         ]),
         width: 3
       },
@@ -180,88 +184,77 @@ const initChart = () => {
           { offset: 1, color: 'rgba(0, 242, 254, 0.05)' }
         ])
       },
-      data: new Array(MAX_POINTS).fill(0) // 初始化空数据
+      data: []
     }],
-    animation: false // 关闭默认动画以提高实时性能
+    animation: false  // 关闭自带动画，防止卡顿
   };
   myChart.setOption(option);
   
-  // 响应式大小
-  window.addEventListener('resize', () => myChart.resize());
+  window.addEventListener('resize', () => myChart?.resize());
 };
 
-// 更新图表数据
-const updateChartData = (newWaveData) => {
-  if (!myChart) return;
-  
-  // 1. 将新数据追加到 buffer
-  // Python 传过来的是 int 数组，可能是 [71000, 71200...]
-  // 为了美观，可以减去直流分量（比如减去第一项），或者依靠 scale:true
-  waveBuffer.push(...newWaveData);
-  
-  // 2. 保持 buffer 长度恒定 (滚动窗口)
-  if (waveBuffer.length > MAX_POINTS) {
-    waveBuffer = waveBuffer.slice(waveBuffer.length - MAX_POINTS);
+// 🔧 修复2: 平滑渲染核心（队列 + requestAnimationFrame）
+const smoothRender = () => {
+  if (renderQueue.length > 0) {
+    const points = renderQueue.splice(0, 2); // 每次取少量点，保持流畅
+    waveBuffer.value.push(...points);
+
+    if (waveBuffer.value.length > MAX_DISPLAY_POINTS) {
+      waveBuffer.value.splice(0, points.length);
+    }
+
+    if (myChart) {
+      myChart.setOption({ series: [{ data: waveBuffer.value }] });
+    }
   }
-  
-  // 3. 渲染
-  if (!animationFrameId) {
-    animationFrameId = requestAnimationFrame(() => {
-      myChart.setOption({
-        series: [{ data: waveBuffer }]
-      }, { notMerge: false, lazyUpdate: true });
-      animationFrameId = null; // 渲染完释放标记
-    });
-  }
+  animationId = requestAnimationFrame(smoothRender);
 };
 
-// ===== 3. WebSocket 通讯 =====
+// ===== WebSocket 通讯 =====
 let ws = null;
 
 const connectWebSocket = () => {
-  // 注意：这里的地址要和你的 Python FastAPI 对应
   ws = new WebSocket('ws://localhost:8000/ws/pulse');
   
-  ws.onopen = () => {
-    console.log('✅ 脉诊 WebSocket 已连接');
-  };
+  ws.onopen = () => console.log('✅ 脉诊 WebSocket 已连接');
   
   ws.onmessage = (event) => {
-    
     try {
       const data = JSON.parse(event.data);
-      // data 结构: { wave: [...], hr: 75, isValid: true, q: 0.9 }
-      console.log('收到数据:', data)
-      // 更新数值面板
-      if (data.isValid) {
-        currentHr.value = data.hr;
-        currentSpo2.value = data.spo2;
+      console.log('📡 收到数据:', data);
+
+      // 更新信号质量
+      if (typeof data.q !== 'undefined') {
+        signalQuality.value = Number(data.q) || 0;
       }
-      signalQuality.value = data.q || 0;
       
-      // 更新图表
-      if (data.wave && data.wave.length > 0) {
-        updateChartData(data.wave);
+      // 更新心率/血氧
+      if (data.isValid && data.hr > 40 && data.hr < 180) {
+        currentHr.value = data.hr;
+        currentSpo2.value = data.spo2 || 0;
+        
+        if (isMeasuring.value) {
+          hrHistory.value.push(data.hr);
+          spo2History.value.push(data.spo2 || 0);
+        }
+      }
+      
+      // 波形进入渲染队列
+      if (data.wave && Array.isArray(data.wave) && data.wave.length > 0) {
+        renderQueue.push(...data.wave);
         hasData.value = true;
       }
       
     } catch (e) {
-      console.error('WS 数据解析错误', e);
+      console.error('❌ WS 数据解析错误:', e);
     }
   };
   
-  ws.onerror = () => {
-    ElMessage.error('无法连接传感器服务，请检查 Python 后端是否启动');
-  };
-  
-  ws.onclose = () => {
-    console.log('WebSocket 已断开');
-  };
+  ws.onerror = () => ElMessage.error('无法连接传感器服务，请检查 Python 后端是否启动');
+  ws.onclose = () => console.log('⚠️ WebSocket 已断开');
 };
 
-// ===== 4. 业务逻辑控制 =====
-
-// A. 开始诊断
+// ===== 业务逻辑 =====
 const startDiagnosis = async () => {
   if (!patientId.value) {
     ElMessage.warning('未能获取当前患者ID，请重新选择');
@@ -270,24 +263,24 @@ const startDiagnosis = async () => {
   
   isStarting.value = true;
   try {
-    // 调用 Python 接口：开始记录
     await axios.post('http://localhost:8000/api/pulse/start');
     
-    // 清空旧数据
-    waveBuffer = new Array(MAX_POINTS).fill(0); 
+    hrHistory.value = [];
+    spo2History.value = [];
+    waveBuffer.value = [];
+    renderQueue = [];
     isMeasuring.value = true;
     hasData.value = true;
     
     ElMessage.success('设备已启动，正在采集脉搏信号...');
   } catch (error) {
-    console.error(error);
-    ElMessage.error('启动失败：' + error.message);
+    console.error('❌ 启动失败:', error);
+    ElMessage.error('启动失败：' + (error.response?.data?.message || error.message));
   } finally {
     isStarting.value = false;
   }
 };
 
-// B. 结束并保存
 const stopDiagnosis = async () => {
   try {
     await ElMessageBox.confirm('确定结束本次采集并保存数据吗？', '确认操作', {
@@ -296,73 +289,68 @@ const stopDiagnosis = async () => {
       type: 'warning'
     });
     
+    isMeasuring.value = false;
     isSaving.value = true;
     
-    // 1. 找 Python 要报告 (停止并获取平均值)
-    const pythonRes = await axios.post('http://localhost:8000/api/pulse/stop', null, {
-      params: { user_id: patientId.value }
-    });
+    const calculateAvg = (arr) => arr.length ? parseFloat((arr.reduce((a, b) => a + b, 0) / arr.length).toFixed(1)) : 0;
+    const finalHr = calculateAvg(hrHistory.value);
+    const finalSpo2 = calculateAvg(spo2History.value);
     
-    const reportData = pythonRes.data;
-    
-    if (!reportData || reportData.avg_hr === 0) {
-      throw new Error("有效数据不足，请重新采集");
+    if (finalHr === 0 || hrHistory.value.length < 10) {
+      throw new Error("有效数据不足，请保持手指静止重测");
     }
-
-    // 2. 找 Java Spring Boot 存库
-    // 假设你的 Java 接口是这个，请根据实际情况修改
-    const javaRes = await axios.post('http://localhost:8080/api/medical/record/save', {
-      userId: reportData.user_id, // 注意字段名驼峰转换
-      heartRate: reportData.avg_hr,
-      spo2: reportData.avg_spo2,
-      rawData: reportData.raw_data_json, // 这里存入数据库
-      diagnosis: reportData.suggestion,
-      moduleType: 'qie' // 标识是切诊模块
-    });
-
-    if (javaRes.data.code === 200 || javaRes.status === 200) {
+    
+    const snapshotWave = waveBuffer.value.length > 0 ? waveBuffer.value.slice(-500) : [];
+    
+    const requestData = {
+      userId: patientId.value,
+      heartRate: finalHr,
+      spo2: finalSpo2,
+      rawData: JSON.stringify(snapshotWave)
+    };
+    
+    const res = await axios.post('http://localhost:8080/api/detect/qie/save', requestData);
+    
+    if (res.data.code === 200) {
       ElMessage.success('脉诊数据入库成功！');
-      
-      // 3. 关键：更新 LocalStorage 状态，通知 DetectSelect 页面
       localStorage.setItem('qie_finished_id', String(patientId.value));
-      
-      // 4. 返回选择页
-      router.push('/detect');
+      setTimeout(() => router.push('/detect'), 1000);
     } else {
-      throw new Error(javaRes.data.msg || '入库失败');
+      throw new Error(res.data.msg || '入库失败');
     }
-
   } catch (error) {
     if (error !== 'cancel') {
+      console.error('❌ 保存失败:', error);
       ElMessage.error(error.message || '保存过程中发生错误');
+      isMeasuring.value = true;
     }
   } finally {
     isSaving.value = false;
-    isMeasuring.value = false; // 停止状态
   }
 };
 
 // ===== 生命周期 =====
 onMounted(() => {
-  // 1. 检查 ID
   if (!patientId.value) {
     ElMessage.error('缺少患者信息，正在返回...');
     setTimeout(() => router.push('/detect'), 1500);
     return;
   }
   
-  // 2. 初始化图表
   nextTick(() => {
     initChart();
+    connectWebSocket();
+    smoothRender(); // 启动平滑渲染
   });
-  
-  // 3. 建立 WS 连接 (页面一进来就连，方便看波形，但不记录)
-  connectWebSocket();
 });
 
 onUnmounted(() => {
+  if (animationId) cancelAnimationFrame(animationId);
   if (ws) ws.close();
-  if (myChart) myChart.dispose();
+  if (myChart) {
+    myChart.dispose();
+    myChart = null;
+  }
 });
 </script>
 
