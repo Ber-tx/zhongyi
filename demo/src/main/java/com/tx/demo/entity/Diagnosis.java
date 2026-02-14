@@ -18,8 +18,9 @@ public class Diagnosis {
     // --- 切诊字段 ---
     private Double qieHeartRate;
     private Double qieSpo2;
-    private String qieRawData;  // 存 JSON 字符串
-    private String qieResult;   // 存脉珍 中医结论
+    private Double qieValidRate;        // 【新增】信号有效率（0-100）
+    private Integer qieSampleCount;     // 【新增】有效采样次数
+    private String qieTcmSuggestion;    // 【新增】中医建议（Python 生成）
 
     private LocalDateTime createTime;
 }

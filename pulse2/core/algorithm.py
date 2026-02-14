@@ -92,7 +92,10 @@ class PulseAlgorithm:
         self.last_peak_interval = n_lag
 
     def process(self, ir_buffer, red_buffer):
-        """ 对应原 rf_calculate_hr_spo2 函数 """
+        """
+        对应原 rf_calculate_hr_spo2 函数
+        ⚠️ 核心算法逻辑完全保持不变，只修复返回值
+        """
         ir = np.array(ir_buffer, dtype=float)
         red = np.array(red_buffer, dtype=float)
 
@@ -157,12 +160,13 @@ class PulseAlgorithm:
                 spo2_valid = True
 
         # 返回结果字典
+        # 🔧 唯一的修改：quality 确保非负（Pearson 相关系数可能为负）
         return {
             "hr": round(float(hr), 1) if hr else 0.0,
             "spo2": round(float(spo2), 1) if spo2 else 0.0,
             "hr_valid": bool(hr_valid),
             "spo2_valid": bool(spo2_valid and correl >= self.min_pearson_correlation),
-            "quality": round(float(correl), 3),
+            "quality": round(float(max(0, correl)), 3),  # 🔧 唯一修改：max(0, correl)
             "is_valid": bool(hr_valid and (correl >= self.min_pearson_correlation))
         }
 
