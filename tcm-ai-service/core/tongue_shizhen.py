@@ -26,7 +26,10 @@ class TongueAnalyzer:
         if not is_valid:
             return {
                 "success": False,
-                "main_result": "图像质量不佳（过暗或模糊），请在光线充足处重新拍摄"
+                "msg": "图像质量不佳（过暗或模糊），请在光线充足处重新拍摄",
+                "data": {
+                    "main_result": "图像质量不佳（过暗或模糊），请在光线充足处重新拍摄"
+                }
             }
 
         # 2. 推理 (YOLO)
@@ -49,8 +52,10 @@ class TongueAnalyzer:
 
         return {
             "success": True,
-            "main_result": conclusion,
-            "chart_img": radar_img
-
-
+            "data": {
+                "main_result": conclusion,
+                "chart_img": radar_img,
+                "confidence": overall_conf,
+                "scores": scores
+            }
         }

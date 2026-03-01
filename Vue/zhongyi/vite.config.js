@@ -29,10 +29,9 @@ export default defineConfig({
     // 代理配置
     proxy: {
       '/api': {
-        target: 'http://localhost:8080', // 后端接口地址
+        target: 'http://localhost:5000', // 后端接口地址（FastAPI 运行在 5000 端口）
         changeOrigin: true,             // 是否允许跨域
-        // 如果后端接口本身不带 /api 前缀，请取消下面这一行的注释
-        // rewrite: (path) => path.replace(/^\/api/, '')
+        rewrite: (path) => path.replace(/^\/api/, '')  // 移除 /api 前缀转发给后端
       }
     }
   }
