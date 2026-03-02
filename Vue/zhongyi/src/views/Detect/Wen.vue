@@ -176,7 +176,14 @@
         <!-- 底部按钮 -->
         <div class="footer-btns">
           <el-button round @click="resetAnalysis">重新分析</el-button>
-          <el-button type="primary" round @click="goBack">完成并返回</el-button>
+          <el-button 
+            type="success" 
+            round 
+            :loading="isSavingToDb"
+            @click="saveToDatabase"
+          >
+            确认入库并返回
+          </el-button>
         </div>
       </div>
     </div>
@@ -200,6 +207,7 @@ const isCompleted = ref(false)
 const loading = ref(false)
 const isSubmitting = ref(false)
 const recordingTime = ref(0)
+const isSavingToDb = ref(false)  // 入库状态【新增】
 
 // 音频相关
 const mediaRecorder = ref(null)
@@ -420,6 +428,55 @@ const resetAnalysis = () => {
   isCompleted.value = false
   analysisResult.value = null
   resetRecording()
+}
+
+// ===== 入库操作【新增】=====
+const saveToDatabase = async () => {
+  if (!analysisResult.value) {
+    ElMessage.error('没有分析结果')
+    return
+  }
+
+  try {
+    isSavingToDb.value = true
+
+    // 使用 FormData 发送（与后端 @RequestParam 匹配）
+    const formData = new FormData()
+    formData.append('patientId', patientInfo.value.id)
+    formData.append('idCard', patientInfo.value.idCard)
+    formData.append('conclusion', analysisResult.value.main_finding)
+    formData.append('confidence', analysisResult.value.confidence.toString())
+    formData.append('tags', JSON.stringify(analysisResult.value.constitution_tags))
+    formData.append('features', JSON.stringify(analysisResult.value.features || {}))
+
+    console.log('==== [DEBUG] 发送入库请求:', {
+      patientId: patientInfo.value.id,
+      idCard: patientInfo.value.idCard,
+      conclusion: analysisResult.value.main_finding
+    })
+
+    // 调用 Spring Boot 入库接口
+    const response = await axios.post('/api/wen/save', formData)
+
+    console.log('==== [DEBUG] 后端返回:', response.data)
+
+    if (response.data.code === 0 || response.data.code === 200 || response.data.success) {
+      ElMessage.success('闻诊数据已成功入库，返回中...')
+      // 标记完成
+      localStorage.setItem('wen_finished_id', String(patientInfo.value.id))
+      // 立即返回诊断中心
+      setTimeout(() => {
+        router.push('/detect')
+      }, 800)
+    } else {
+      ElMessage.error(response.data.msg || '入库失败')
+    }
+  } catch (error) {
+    console.error('入库失败:', error)
+    ElMessage.error('入库失败：' + error.message)
+  } finally {
+    isSavingToDb.value = false
+  }
 }
 
 // ===== 返回天诊中心 =====

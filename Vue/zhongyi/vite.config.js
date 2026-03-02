@@ -28,10 +28,37 @@ export default defineConfig({
   server: {
     // 代理配置
     proxy: {
+      // Python AI 服务代理
+      '/api/wen/analyze': {
+        target: 'http://localhost:5000',
+        changeOrigin: true,
+        rewrite: (path) => path.replace(/^\/api/, '')
+      },
+      '/api/tongue/detect': {
+        target: 'http://localhost:5000',
+        changeOrigin: true,
+        rewrite: (path) => path.replace(/^\/api/, '')
+      },
+      // Spring Boot 数据库操作代理
+      '/api/wen/save': {
+        target: 'http://localhost:8080',
+        changeOrigin: true,
+        rewrite: (path) => path
+      },
+      '/api/qie/save': {
+        target: 'http://localhost:8080',
+        changeOrigin: true,
+        rewrite: (path) => path
+      },
+      '/api/wang/save': {
+        target: 'http://localhost:8080',
+        changeOrigin: true,
+        rewrite: (path) => path
+      },
+      // 其他通用 API（默认指向 Spring Boot）
       '/api': {
-        target: 'http://localhost:5000', // 后端接口地址（FastAPI 运行在 5000 端口）
-        changeOrigin: true,             // 是否允许跨域
-        rewrite: (path) => path.replace(/^\/api/, '')  // 移除 /api 前缀转发给后端
+        target: 'http://localhost:8080',
+        changeOrigin: true
       }
     }
   }
