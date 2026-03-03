@@ -72,7 +72,16 @@
       </div>
 
       <div class="report-section" v-if="wenjuanFinished">
-         <el-button type="primary" size="large" round class="report-btn">生成四诊合参报告</el-button>
+         <el-button 
+           type="primary" 
+           size="large" 
+           round 
+           class="report-btn"
+           @click="generateReport"
+           :loading="isGenerating"
+         >
+           生成四诊合参报告
+         </el-button>
       </div>
     </div>
   </div>
@@ -97,6 +106,7 @@ const wenjuanFinished = ref(false);
 const wangFinished = ref(false);
 const wenFinished = ref(false);
 const qieFinished = ref(false);
+const isGenerating = ref(false)  // 【新增】生成报告中的状态
 
 const refreshStatuses = () => {
   // 始终以锁定在当前页面内存中的 ID 为准，不直接读 localStorage，防止中途被覆盖
@@ -158,6 +168,51 @@ onActivated(() => {
 watch(() => route.fullPath, () => {
   refreshStatuses();
 });
+
+// ===== 生成四诊合参报告【新增】=====
+const generateReport = async () => {
+  // 【重要】直接从 localStorage 获取最新的患者ID，确保不为空
+  const patientId = lockedPatientId.value || localStorage.getItem('current_patient_id')
+  const idCard = lockedIdCard.value || localStorage.getItem('current_patient_idCard')
+  
+  console.log('[DEBUG] 准备生成报告，患者ID:', patientId, '身份证:', idCard)
+  
+  if (!patientId) {
+    ElMessage.error('缺少病人ID，请重新登录')
+    return
+  }
+
+  try {
+    isGenerating.value = true
+    
+    // 调用后端 API 生成报告
+    const response = await import('axios').then(mod => 
+      mod.default.post('/api/report/generate', {
+        patientId: Number(patientId),  // 确保转为数字
+        idCard: idCard
+      })
+    )
+
+    if (response.data.code === 200 || response.data.success) {
+      ElMessage.success('报告生成成功，跳转中...')
+      // 跳转到报告详情页
+      router.push({
+        path: '/report',
+        query: { 
+          id: patientId,
+          reportId: response.data.data.reportId
+        }
+      })
+    } else {
+      ElMessage.error(response.data.msg || '报告生成失败')
+    }
+  } catch (error) {
+    console.error('生成报告失败:', error)
+    ElMessage.error('申请失败：' + error.message)
+  } finally {
+    isGenerating.value = false
+  }
+}
 </script>
 // ...existing code...
 

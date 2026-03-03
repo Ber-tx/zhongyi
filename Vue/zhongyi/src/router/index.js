@@ -63,7 +63,13 @@ const routes = [
   },
   { path: '/detect/wang', component: () => import('@/views/Detect/Wang.vue') },
   { path: '/detect/wen', component: () => import('@/views/Detect/Wen.vue') },
-  { path: '/detect/qie', component: () => import('@/views/Detect/Qie.vue') }
+  { path: '/detect/qie', component: () => import('@/views/Detect/Qie.vue') },
+  { 
+    path: '/report', 
+    name: 'Report',
+    component: () => import('@/views/Report.vue'),
+    meta: { title: '诊断报告' }
+  }
 ]
 
 const router = createRouter({

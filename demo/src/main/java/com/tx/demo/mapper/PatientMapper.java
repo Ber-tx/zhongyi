@@ -12,8 +12,14 @@ public interface PatientMapper {
     int update(Patient patient);
 
     int insert(Patient patient);
+    
     // 增加：查询最近一次登记的病人ID
     @Select("SELECT id FROM patients ORDER BY id DESC LIMIT 1")
     Long findLastId();
+    
+    // 增加：根据ID查询患者信息（用于报告生成）
+    @Select("SELECT id, name, gender, birthday, address, id_card as idCard FROM patients WHERE id = #{id}")
+    Patient selectById(@Param("id") Long id);
+
 
 }

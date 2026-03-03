@@ -4,13 +4,27 @@ package com.tx.demo.config;
 //处理跨域问题和文件映射
 
 
+import org.springframework.boot.web.client.RestTemplateBuilder;
+import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
+import org.springframework.web.client.RestTemplate;
 import org.springframework.web.servlet.config.annotation.CorsRegistry;
 import org.springframework.web.servlet.config.annotation.ResourceHandlerRegistry;
 import org.springframework.web.servlet.config.annotation.WebMvcConfigurer;
 
 @Configuration
 public class WebConfig implements WebMvcConfigurer {
+
+    /**
+     * 创建 RestTemplate Bean 用于调用外部服务
+     */
+    @Bean
+    public RestTemplate restTemplate(RestTemplateBuilder builder) {
+        return builder
+                .setConnectTimeout(java.time.Duration.ofSeconds(5))
+                .setReadTimeout(java.time.Duration.ofSeconds(30))
+                .build();
+    }
 
     /**
      * 全局跨域配置
