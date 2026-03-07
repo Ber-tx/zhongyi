@@ -24,7 +24,7 @@ algo = PulseAlgorithm(buffer_size=100, fs=50)
 active_connections = set()
 
 # 串口配置
-SERIAL_PORT = "COM7"
+SERIAL_PORT = "COM9"
 BAUD_RATE = 115200
 
 # 🔧 关键修复：用滑动窗口累积数据

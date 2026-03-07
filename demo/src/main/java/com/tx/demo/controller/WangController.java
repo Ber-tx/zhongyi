@@ -97,13 +97,21 @@ public class WangController {
         try {
             System.out.println("==== [DEBUG] 正在请求 Python 接口... ====");
             String responseStr = restTemplate.postForObject(pythonUrl, requestEntity, String.class);
-            System.out.println("==== [DEBUG] Python 返回内容: " + responseStr);
+            // System.out.println("==== [DEBUG] Python 返回内容: " + responseStr);
 
             // 4. 解析结果
             JSONObject json = JSON.parseObject(responseStr);
 
             if (json != null && json.getBoolean("success")) {
-                String mainResult = json.getString("main_result");//要存入的数据
+
+
+                JSONObject data = json.getJSONObject("data");
+
+
+                String chartImg = data.getString("chart_img");
+                Double confidence = data.getDouble("confidence");
+                JSONObject scores = data.getJSONObject("scores");
+                String mainResult = data.getString("main_result");//要存入的数据
                 String localPath=destFile.getAbsolutePath();
                 // 【业务拦截】如果识别结果无效，不写入数据库，方便用户重测
                 if (mainResult.contains("未检测到") || mainResult.contains("不佳")) {
@@ -140,7 +148,7 @@ public class WangController {
                 // 准备返回前端展示的数据
                 Map<String, Object> resultMap = new HashMap<>();
                 resultMap.put("main_result", mainResult);
-                resultMap.put("chart_img", json.getString("chart_img"));
+                resultMap.put("chart_img",chartImg );
 
                 if(json.containsKey("data_depth")){
                     resultMap.put("details", json.getJSONObject("data_depth"));

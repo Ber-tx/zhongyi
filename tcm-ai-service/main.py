@@ -3,7 +3,8 @@ import uvicorn
 from api import router_tongue
 from api import router_sound  # 新增：闻诊路由
 from api import router_synthesis  # 新增：LLM合成路由
-# from api import router_pulse  # 以后加脉诊就在这注册
+import os
+
 
 app = FastAPI(title="中医 AI 诊断服务")
 

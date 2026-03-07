@@ -9,8 +9,14 @@ from typing import Optional, Dict, Any
 import json
 import os
 from dataclasses import dataclass
-import anthropic
+
 import os
+from openai import OpenAI
+from dotenv import load_dotenv
+
+load_dotenv()
+
+
 
 router = APIRouter(prefix="/api/synthesis", tags=["synthesis"])
 
@@ -122,23 +128,34 @@ def build_tcm_prompt(diagnosis_info: Dict[str, Any]) -> str:
     return prompt
 
 
-def call_claude_api(messages: list, system_prompt: str = None) -> str:
+def call_deepseek_api(messages: list, system_prompt: str = None) -> str:
     """
-    调用 Anthropic Claude API
+    调用 deepseek API
     """
     try:
-        client = anthropic.Anthropic(api_key=os.environ.get('ANTHROPIC_API_KEY'))
-        
-        response = client.messages.create(
-            model="claude-3-5-sonnet-20241022",
-            max_tokens=2000,
-            system=system_prompt or "You are a helpful assistant.",
-            messages=messages
+        client = OpenAI(
+            api_key=os.getenv("DEEPSEEK_API_KEY"),
+            base_url=os.getenv("DEEPSEEK_BASE_URL")
         )
-        
-        return response.content[0].text
+
+        # 如果有 system prompt 就加入 messages
+        if system_prompt:
+            messages.insert(0, {
+                "role": "system",
+                "content": system_prompt
+            })
+
+        response = client.chat.completions.create(
+            model="deepseek-reasoner",
+            messages=messages,
+            max_tokens=2000,
+            temperature=0.3
+        )
+
+        return response.choices[0].message.content
+
     except Exception as e:
-        print(f"[ERROR] Claude API调用失败: {str(e)}")
+        print(f"[ERROR] deepseek API调用失败: {str(e)}")
         raise
 
 
@@ -158,7 +175,7 @@ def generate_tcm_synthesis(diagnosis_info: Dict[str, Any]) -> str:
             }
         ]
         
-        synthesis = call_claude_api(messages)
+        synthesis = call_deepseek_api(messages)
         return synthesis
         
     except Exception as e:
