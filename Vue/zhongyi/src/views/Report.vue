@@ -164,6 +164,9 @@
       <section class="report-footer">
         <p>报告生成时间：{{ formatDate(reportData.createdAt) }}</p>
         <p class="disclaimer">本报告仅供参考，请在医生指导下使用。</p>
+        <div class="footer-actions">
+          <el-button type="primary" size="large" @click="goHome" icon="Home">返回首页</el-button>
+        </div>
       </section>
     </div>
 
@@ -336,6 +339,10 @@ const formatDate = (timestamp) => {
 const goBack = () => {
   router.push({ path: "/detect", query: { id: route.query.id } });
 };
+
+const goHome = () => {
+  router.push({ path: "/" });
+};
 </script>
 
 <style scoped>
@@ -362,6 +369,8 @@ const goBack = () => {
 .report-footer { padding: 30px; background: #f9f9f9; text-align: center; color: #999; font-size: 12px; }
 .report-footer p { margin: 5px 0; }
 .disclaimer { color: #e74c3c; font-size: 11px; }
+.footer-actions { margin-top: 20px; }
+.footer-actions :deep(.el-button) { min-width: 140px; }
 .no-data { padding: 60px 20px; text-align: center; }
 
 /* ============ ✨ 精美加载界面 ============ */
