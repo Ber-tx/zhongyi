@@ -182,36 +182,11 @@ const generateReport = async () => {
     return
   }
 
-  try {
-    isGenerating.value = true
-    
-    // 调用后端 API 生成报告
-    const response = await import('axios').then(mod => 
-      mod.default.post('/api/report/generate', {
-        patientId: Number(patientId),  // 确保转为数字
-        idCard: idCard
-      })
-    )
-
-    if (response.data.code === 200 || response.data.success) {
-      ElMessage.success('报告生成成功，跳转中...')
-      // 跳转到报告详情页
-      router.push({
-        path: '/report',
-        query: { 
-          id: patientId,
-          reportId: response.data.data.reportId
-        }
-      })
-    } else {
-      ElMessage.error(response.data.msg || '报告生成失败')
-    }
-  } catch (error) {
-    console.error('生成报告失败:', error)
-    ElMessage.error('申请失败：' + error.message)
-  } finally {
-    isGenerating.value = false
-  }
+  // 直接跳转，report 页的 onMounted 会自己发请求并显示加载动画
+  router.push({
+    path: '/report',
+    query: { id: patientId }
+  })
 }
 </script>
 // ...existing code...
