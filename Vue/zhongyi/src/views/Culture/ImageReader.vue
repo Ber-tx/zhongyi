@@ -2,7 +2,7 @@
   <div class="archive-overlay">
     <div class="paper-texture"></div>
     
-    <audio ref="audioPlayer" :src="currentAudioSrc" preload="auto"></audio>
+    <audio ref="audioPlayer" preload="none"></audio>
     
     <header class="floating-header">
       <button class="modern-back" @click="handleBack">
@@ -43,7 +43,11 @@
       <div class="scroll-container" ref="scrollContainer" @scroll="handleScroll">
         <div v-for="(item, index) in archiveList" :key="index" class="scroll-item">
           <div class="image-wrapper">
-            <img :src="item.img" class="archive-img" loading="lazy" />
+            <img v-if="Math.abs(index - currentIndex) <= 3"
+              :src="getImageUrl(props.id || '1', item.pageNum)"
+              class="archive-img"
+            />
+            <div v-else class="archive-img-placeholder"></div>
           </div>
         </div>
       </div>
@@ -84,7 +88,7 @@
 </template>
 
 <script setup>
-import { ref, computed, watch, onMounted } from 'vue'
+import { ref, reactive, computed, watch, onMounted } from 'vue'
 import { useRouter, useRoute } from 'vue-router'
 
 // --- 接收 ID 识别板块 ---
@@ -279,7 +283,6 @@ const ARCHIVE_DATA = {
     [32, 38, "产后常见症状的中医膳食调理"],
     [39, 50, "产后抑郁症"]
     ]
-
   },
   "4-2": {
     title: "妇女中医保健",
@@ -290,7 +293,6 @@ const ARCHIVE_DATA = {
     [6, 9, "更年期保健"],
     [10, 17, "乳腺癌预防"]
     ]
-
   },
   "4-3": {
     title: "妇婴保健—婴幼儿",
@@ -322,7 +324,6 @@ const ARCHIVE_DATA = {
     [40, 41, "小儿厌食症"],
     [42, 43, "小儿夜啼"]
     ]
-
   },
   "4-4": {
     title: "妇婴保健—孕妇",
@@ -344,7 +345,6 @@ const ARCHIVE_DATA = {
     [39, 40, "孕妇不宜养猫狗"],
     [41, 42, "过期妊娠不宜胎儿发育"]
     ]
-
   },
   "10-1": {
     title: "四季养生—春季养生",
@@ -360,7 +360,6 @@ const ARCHIVE_DATA = {
     [25, 29, "春季运动养生"],
     [30, 38, "春季疾病预防"]
     ]
-
   },
   "10-2": {
     title: "四季养生—夏季养生",
@@ -377,7 +376,6 @@ const ARCHIVE_DATA = {
     [36, 40, "夏季疾病预防"],
     [41, 42, "夏季养生不宜"]
     ]
-
   },
   "10-3": {
     title: "四季养生—秋季养生",
@@ -393,7 +391,6 @@ const ARCHIVE_DATA = {
     [29, 30, "秋季运动锻炼养生"],
     [31, 37, "秋季疾病预防"]
     ]
-
   },
   "10-4": {
     title: "四季养生—冬季养生",
@@ -411,7 +408,6 @@ const ARCHIVE_DATA = {
     [27, 29, "冬季养生八益"]
     ]
   }
-  
 }
 
 // --- 状态变量 ---
@@ -431,36 +427,50 @@ const currentConfig = computed(() => {
   const activeId = props.id || '1'
   return ARCHIVE_DATA[activeId] || ARCHIVE_DATA["1"]
 })
-/**
- * 核心修改点 1: 动态处理图片路径
- * 使用 new URL(path, import.meta.url).href 
- * 这样 Vite 会在打包阶段自动将路径替换为带哈希的 dist/assets 路径
- */
-const getDynamicImageUrl = (moduleId, fileName) => {
-  // 注意：此处路径必须是【相对路径】，相对于当前这个 .vue 文件
-  // 假设你的组件在 src/components，图片在 src/assets/images
-  // 请根据你实际的文件层级微调前面的 ../
-  return new URL(`../../assets/images/mainShow/imageReader/button_${moduleId}/${fileName}.jpg`, import.meta.url).href
-}
-/**
- * 核心修改点 2: 动态处理音频路径
- */
-const getDynamicAudioUrl = (moduleId, fileName) => {
-  return new URL(`../../assets/audio/imageReader/button_${moduleId}/${fileName}.wav`, import.meta.url).href
+
+// import.meta.glob 懒加载
+const _imgGlob = import.meta.glob(
+  '../../assets/images/mainShow/imageReader/**/*.jpg',
+  { query: '?url', import: 'default', eager: false }
+)
+const _audioGlob = import.meta.glob(
+  '../../assets/audio/imageReader/**/*.wav',
+  { query: '?url', import: 'default', eager: false }
+)
+
+// 图片缓存
+const _imgCache = reactive({})
+const getImageUrl = (moduleId, pageNum) => {
+  const key = `../../assets/images/mainShow/imageReader/button_${moduleId}/${pageNum}.jpg`
+  if (!_imgCache[key]) {
+    _imgGlob[key]?.().then(url => { _imgCache[key] = url })
+  }
+  return _imgCache[key] || ''
 }
 
-// --- 初始化/切换板块逻辑 ---
+// 音频加载
+const loadAndPlayAudio = async () => {
+  if (isMuted.value || !audioPlayer.value) return
+  const activeId = props.id || '1'
+  const key = `../../assets/audio/imageReader/button_${activeId}/${currentIndex.value + 1}.wav`
+  const url = await _audioGlob[key]?.()
+  if (!url) return
+  audioPlayer.value.pause()
+  audioPlayer.value.src = url
+  audioPlayer.value.load()
+  audioPlayer.value.addEventListener('canplay', () => {
+    audioPlayer.value?.play().catch(err => console.warn('翻页播放失败:', err))
+  }, { once: true })
+}
+
+// --- 初始化板块 ---
 const initModule = () => {
   const cfg = currentConfig.value
   const activeId = props.id || '1'
   const list = []
   for (let i = 1; i <= cfg.total; i++) {
     const rule = cfg.rules.find(([s, e]) => i >= s && i <= e)
-    list.push({
-      title: rule ? rule[2] : cfg.title,
-      // 使用动态函数获取路径
-      img: getDynamicImageUrl(activeId, i)
-    })
+    list.push({ title: rule ? rule[2] : cfg.title, pageNum: i })
   }
   archiveList.value = list
   currentIndex.value = 0
@@ -474,31 +484,9 @@ const progress = computed(() => {
   return ((currentIndex.value + 1) / archiveList.value.length) * 100
 })
 
-const currentAudioSrc = computed(() => {
-  const activeId = props.id || '1'
-  const fileName = currentIndex.value + 1
-  // ✅ 正确：调用已经使用了 new URL().href 的函数
-  return getDynamicAudioUrl(activeId, fileName)
-})
-
-// 监听 currentIndex 变化
+// 监听翻页
 watch(currentIndex, () => {
-  // 只有在“非静音”状态下才触发自动逻辑
-  if (!isMuted.value && audioPlayer.value) {
-    // 1. 先暂停
-    audioPlayer.value.pause()
-    
-    // 2. 这里的 src 是 computed 自动更新的，直接手动触发加载
-    audioPlayer.value.load()
-
-    // 3. 关键：监听“可以播放”事件，一旦文件加载好就立刻执行 play
-    // 使用 { once: true } 确保这个监听器只执行一次，不会累积
-    audioPlayer.value.addEventListener('canplay', () => {
-      audioPlayer.value.play().catch(err => {
-        console.warn("翻页播放尝试失败:", err)
-      })
-    }, { once: true })
-  }
+  if (!isMuted.value) loadAndPlayAudio()
 })
 
 onMounted(initModule)
@@ -509,9 +497,7 @@ const handleBack = () => router.back()
 const toggleMute = () => {
   isMuted.value = !isMuted.value
   if (!isMuted.value) {
-    setTimeout(() => {
-      audioPlayer.value?.play().catch(e => console.log("播放被拦截"))
-    }, 100)
+    loadAndPlayAudio()
   } else {
     audioPlayer.value?.pause()
   }
@@ -560,7 +546,6 @@ const handleScrubberClick = () => {
 </script>
 
 <style scoped>
-
 .archive-overlay { 
   background: #f4f1ea; inset: 0; position: fixed; 
   display: flex; flex-direction: column; 
@@ -580,10 +565,17 @@ const handleScrubberClick = () => {
   border: 1px solid rgba(0,0,0,0.05); padding: 8px 18px;
   border-radius: 50px; cursor: pointer; font-weight: 600;
 }
+
+/* ⚠️ 核心修改区：取消了 absolute，将其放入正常的 Flex 布局中排队 */
 .scrubber-container {
-  position: absolute; top: 75px; left: 10vw; right: 10vw;
-  height: 30px; display: flex; align-items: center; z-index: 500; cursor: pointer;
+  position: relative; 
+  width: 80vw;
+  height: 30px; 
+  margin-top: 60px; /* 避开头部绝对定位的按钮 */
+  margin-bottom: 15px; /* 与下方图片的距离 */
+  display: flex; align-items: center; z-index: 500; cursor: pointer;
 }
+
 .scrubber-track {
   width: 100%; height: 4px; background: rgba(0,0,0,0.08);
   border-radius: 4px; position: relative; overflow: hidden;
@@ -615,10 +607,20 @@ const handleScrubberClick = () => {
 .audio-waves.is-active .wave-bar { animation: wave 1s infinite alternate; }
 @keyframes wave { from { height: 20%; } to { height: 100%; } }
 .audio-label { font-size: 12px; font-weight: bold; color: #4A907E; }
-.viewer-layout { display: flex; align-items: center; max-height: 75vh; width: 95vw; z-index: 10; }
+
+/* ⚠️ 核心修改区：限制高度，让给进度条和底栏空间 */
+.viewer-layout { display: flex; align-items: center; max-height: 60vh; width: 95vw; z-index: 10; }
 .scroll-container { flex: 1; display: flex; overflow-x: auto; scroll-snap-type: x mandatory; scrollbar-width: none; }
 .scroll-item { flex: 0 0 100%; display: flex; justify-content: center; scroll-snap-align: center; }
-.archive-img { max-height: 70vh; max-width: 90vw; border-radius: 4px; box-shadow: 0 15px 40px rgba(0,0,0,0.1); }
+
+/* 将图片的高宽上限统一调小 10vh 以避免挤压底部 */
+.archive-img { max-height: 60vh; max-width: 90vw; border-radius: 4px; box-shadow: 0 15px 40px rgba(0,0,0,0.1); }
+.archive-img-placeholder {
+  width: min(90vw, 700px);
+  height: min(60vh, 900px);
+  max-height: 60vh; max-width: 90vw;
+}
+
 .compact-footer {
   margin-top: 18px; width: 84vw; max-width: 850px;
   background: white; padding: 14px 18px; border-radius: 14px;
