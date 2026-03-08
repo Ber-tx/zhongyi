@@ -94,7 +94,7 @@
           <h3>望诊（舌象分析）</h3>
           <el-card>
             <div v-if="reportData.diagnosis.wang && reportData.diagnosis.wang.imageUrl" class="diagnosis-image">
-              <img :src="reportData.diagnosis.wang.imageUrl" alt="舌象图片" style="max-width: 100%; height: auto;" />
+              <img :src="resolveImageUrl(reportData.diagnosis.wang.imageUrl)" alt="舌象图片" style="max-width: 100%; height: auto;" />
               <p><strong>舌苔图</strong></p>
             </div>
             <p class="diagnosis-result">
@@ -312,20 +312,77 @@ const generateReport = async (patientId) => {
   }
 };
 
-const exportPDF = () => {
+const exportPDF = async () => {
   if (!reportRef.value) { ElMessage.error("报告数据加载失败"); return; }
   isExporting.value = true;
+
+  // 隐藏 header，不让它进入 PDF
+  const header = document.querySelector('.header');
+  if (header) header.style.display = 'none';
+  const footerActions = document.querySelector('.footer-actions');
+  if (footerActions) footerActions.style.display = 'none';
+
+  // ① 将图片转为 base64（直接操作原始节点，导出后还原）
+  const imgs = reportRef.value.querySelectorAll('img');
+  const originalSrcs = [];
+  await Promise.all([...imgs].map(async (img, i) => {
+    originalSrcs[i] = img.src;
+    if (!img.src || img.src.startsWith('data:')) return;
+    try {
+      const res = await fetch(img.src);
+      const blob = await res.blob();
+      await new Promise((resolve) => {
+        const reader = new FileReader();
+        reader.onload = () => { img.src = reader.result; resolve(); };
+        reader.onerror = () => resolve();
+        reader.readAsDataURL(blob);
+      });
+    } catch (e) {
+      console.warn('图片转换失败，跳过：', img.src);
+    }
+  }));
+
+  // ② 为 el-tag 注入内联样式，解决 CSS 变量无法被 html2canvas 渲染的问题
+  const tags = reportRef.value.querySelectorAll('.el-tag');
+  tags.forEach(tag => {
+    tag.style.cssText += ';display:inline-block;padding:2px 9px;border-radius:4px;font-size:12px;line-height:1.8;background-color:#ecf5ff;color:#409eff;border:1px solid #d9ecff;margin:3px 4px 3px 0;white-space:nowrap;';
+  });
+
   const opt = {
     margin: 10,
     filename: `诊断报告_${reportData.value.patientInfo.name}_${formatDate(reportData.value.createdAt)}.pdf`,
-    image: { type: "jpeg", quality: 0.98 },
-    html2canvas: { scale: 2 },
-    jsPDF: { orientation: "portrait", unit: "mm", format: "a4" },
+    image: { type: 'jpeg', quality: 0.98 },
+    html2canvas: { scale: 2, useCORS: true, allowTaint: false, logging: false },
+    jsPDF: { orientation: 'portrait', unit: 'mm', format: 'a4' },
   };
-  html2pdf().set(opt).from(reportRef.value).save().finally(() => {
+
+  try {
+    await html2pdf().set(opt).from(reportRef.value).save();
+    ElMessage.success('PDF 导出成功');
+  } catch (e) {
+    ElMessage.error('PDF 导出失败：' + e.message);
+  } finally {
+    // ③ 还原图片和标签样式，显示 header
+    imgs.forEach((img, i) => { if (originalSrcs[i]) img.src = originalSrcs[i]; });
+    tags.forEach(tag => { tag.style.cssText = ''; });
+    if (header) header.style.display = '';
+    if (footerActions) footerActions.style.display = '';
     isExporting.value = false;
-    ElMessage.success("PDF导出成功");
-  });
+  }
+};
+
+// 将后端返回的磁盘绝对路径转为可访问的 HTTP URL
+const resolveImageUrl = (url) => {
+  if (!url) return '';
+  // 已经是 http/https/base64，直接用
+  if (url.startsWith('http') || url.startsWith('data:')) return url;
+  // file:// 或 Windows 绝对路径：提取文件名，拼接后端静态服务地址
+  // 提取 zhongyi_uploads/ 之后的相对路径部分
+  const normalized = url.replace(/\\/g, '/');
+  const marker = 'zhongyi_uploads/';
+  const idx = normalized.indexOf(marker);
+  const relativePath = idx !== -1 ? normalized.slice(idx + marker.length) : normalized.split('/').pop();
+  return `/uploads/${relativePath}`;
 };
 
 const markdownToHtml = (markdown) => markdown ? marked.parse(markdown) : "";
