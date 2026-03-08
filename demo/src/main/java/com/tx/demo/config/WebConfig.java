@@ -7,6 +7,7 @@ package com.tx.demo.config;
 import org.springframework.boot.web.client.RestTemplateBuilder;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
+import org.springframework.http.client.SimpleClientHttpRequestFactory;
 import org.springframework.web.client.RestTemplate;
 import org.springframework.web.servlet.config.annotation.CorsRegistry;
 import org.springframework.web.servlet.config.annotation.ResourceHandlerRegistry;
@@ -19,11 +20,11 @@ public class WebConfig implements WebMvcConfigurer {
      * 创建 RestTemplate Bean 用于调用外部服务
      */
     @Bean
-    public RestTemplate restTemplate(RestTemplateBuilder builder) {
-        return builder
-                .setConnectTimeout(java.time.Duration.ofSeconds(5))
-                .setReadTimeout(java.time.Duration.ofSeconds(30))
-                .build();
+    public RestTemplate restTemplate() {
+        SimpleClientHttpRequestFactory factory = new SimpleClientHttpRequestFactory();
+        factory.setConnectTimeout(10_000);   // 连接超时 10秒
+        factory.setReadTimeout(120_000);     // 读取超时 120秒（等 DeepSeek 返回）
+        return new RestTemplate(factory);
     }
 
     /**

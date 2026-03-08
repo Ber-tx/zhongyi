@@ -146,7 +146,7 @@ def call_deepseek_api(messages: list, system_prompt: str = None) -> str:
             })
 
         response = client.chat.completions.create(
-            model="deepseek-reasoner",
+            model="deepseek-chat",
             messages=messages,
             max_tokens=2000,
             temperature=0.3
@@ -167,7 +167,7 @@ def generate_tcm_synthesis(diagnosis_info: Dict[str, Any]) -> str:
         # 构建提示词
         prompt = build_tcm_prompt(diagnosis_info)
         
-        # 调用Claude API
+        # 调deepseek API
         messages = [
             {
                 "role": "user",
@@ -176,6 +176,7 @@ def generate_tcm_synthesis(diagnosis_info: Dict[str, Any]) -> str:
         ]
         
         synthesis = call_deepseek_api(messages)
+        #print(synthesis)
         return synthesis
         
     except Exception as e:
