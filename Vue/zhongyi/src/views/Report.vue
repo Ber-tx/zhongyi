@@ -27,10 +27,10 @@
             {{ reportData.patientInfo.gender }}
           </el-descriptions-item>
           <el-descriptions-item label="年龄">
-            {{ reportData.patientInfo.age }}岁
+            {{ reportData.patientInfo.age || '' }}岁
           </el-descriptions-item>
           <el-descriptions-item label="生日">
-            {{ reportData.patientInfo.birthday }}
+            {{ reportData.patientInfo.birthday || '' }}
           </el-descriptions-item>
           <el-descriptions-item label="住址" :span="3">
             {{ reportData.patientInfo.address }}
@@ -43,21 +43,25 @@
         <h2>四诊初步诊断</h2>
 
         <!-- 望诊 -->
-        <div v-if="reportData.diagnosis.wang" class="diagnosis-item">
+        <div class="diagnosis-item">
           <h3>望诊（舌象分析）</h3>
           <el-card>
-            <p v-if="reportData.diagnosis.wang.imageUrl" class="diagnosis-image">
-              <img :src="reportData.diagnosis.wang.imageUrl" alt="舌象图片" />
+            <div v-if="reportData.diagnosis.wang && reportData.diagnosis.wang.imageUrl" class="diagnosis-image">
+              <img :src="reportData.diagnosis.wang.imageUrl" alt="舌象图片" style="max-width: 100%; height: auto;" />
+              <p><strong>舌苔图</strong></p>
+            </div>
+            <p class="diagnosis-result">
+              
+              {{ reportData.diagnosis.wang ? reportData.diagnosis.wang.result : '暂未进行舌象检查，请补充望诊数据以获得更准确的诊断。' }}
             </p>
-            <p class="diagnosis-result">{{ reportData.diagnosis.wang.result }}</p>
           </el-card>
         </div>
 
         <!-- 闻诊 -->
-        <div v-if="reportData.diagnosis.wen_audio" class="diagnosis-item">
+        <div class="diagnosis-item">
           <h3>闻诊（体质诊断）</h3>
           <el-card>
-            <el-row :gutter="20">
+            <el-row v-if="reportData.diagnosis.wen_audio" :gutter="20">
               <el-col :span="12">
                 <div>
                   <strong>诊断结论：</strong>
@@ -80,24 +84,34 @@
                     {{ tag }}
                   </el-tag>
                 </div>
+                <div v-if="reportData.diagnosis.wen_audio.audioUrl" style="margin-top: 10px;">
+                  <strong>音频：</strong>
+                  <audio controls style="width: 100%;">
+                    <source :src="reportData.diagnosis.wen_audio.audioUrl" type="audio/wav">
+                    您的浏览器不支持音频播放。
+                  </audio>
+                </div>
               </el-col>
             </el-row>
+            <div v-else>
+              暂未进行声音分析，请补充闻诊数据。
+            </div>
           </el-card>
         </div>
 
         <!-- 问诊 -->
-        <div v-if="reportData.diagnosis.wen_questionnaire" class="diagnosis-item">
+        <div class="diagnosis-item">
           <h3>问诊（症状问卷）</h3>
           <el-card>
-            <p>{{ reportData.diagnosis.wen_questionnaire.conclusion }}</p>
+            <p>{{ reportData.diagnosis.wen_questionnaire ? reportData.diagnosis.wen_questionnaire.conclusion : '暂未进行症状问卷调查，请补充问诊数据。' }}</p>
           </el-card>
         </div>
 
         <!-- 切诊 -->
-        <div v-if="reportData.diagnosis.qie" class="diagnosis-item">
+        <div class="diagnosis-item">
           <h3>切诊（脉搏检测）</h3>
           <el-card>
-            <el-row :gutter="20">
+            <el-row v-if="reportData.diagnosis.qie" :gutter="20">
               <el-col :span="12">
                 <div>
                   <strong>心率：</strong>
@@ -122,9 +136,12 @@
                 </div>
               </el-col>
             </el-row>
-            <div v-if="reportData.diagnosis.qie.tcmSuggestion" class="tcm-suggestion">
+            <div v-if="reportData.diagnosis.qie && reportData.diagnosis.qie.tcmSuggestion" class="tcm-suggestion">
               <strong>中医建议：</strong>
               <p>{{ reportData.diagnosis.qie.tcmSuggestion }}</p>
+            </div>
+            <div v-else-if="!reportData.diagnosis.qie">
+              暂未进行脉搏检测，请补充切诊数据。
             </div>
           </el-card>
         </div>
@@ -134,7 +151,7 @@
       <section class="report-section synthesis">
         <h2>综合诊断建议</h2>
         <el-card shadow="hover">
-          <div class="synthesis-content" v-html="markdownToHtml(reportData.synthesis)"></div>
+          <div class="synthesis-content" v-html="reportData.synthesis ? markdownToHtml(reportData.synthesis) : '暂无综合诊断建议，请确保所有四诊数据完整。'"></div>
         </el-card>
       </section>
 
