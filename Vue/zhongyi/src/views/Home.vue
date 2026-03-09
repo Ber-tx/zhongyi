@@ -205,8 +205,11 @@ const form = reactive({
 // 左侧板块点击跳转
 const navigateTo = (type) => {
   if (type === 'history') {
-    // 这里的 'history' 对应你 HTML 里第二个卡片的传参
     router.push('/culture'); 
+  } else if (type === 'intro') {
+    router.push('/intro');
+  } else if (type === 'hardware') {
+    router.push('/hardware');
   } else {
     ElMessage.info(`跳转到 ${type} 详情页 (功能待开发)`);
   }
