@@ -319,6 +319,10 @@ const exportPDF = async () => {
   // 隐藏 header，不让它进入 PDF
   const header = document.querySelector('.header');
   if (header) header.style.display = 'none';
+  const footerActions = document.querySelector('.footer-actions');
+  if (footerActions) footerActions.style.display = 'none';
+  
+  
 
   // ① 将图片转为 base64（直接操作原始节点，导出后还原）
   const imgs = reportRef.value.querySelectorAll('img');
@@ -364,6 +368,8 @@ const exportPDF = async () => {
     imgs.forEach((img, i) => { if (originalSrcs[i]) img.src = originalSrcs[i]; });
     tags.forEach(tag => { tag.style.cssText = ''; });
     if (header) header.style.display = '';
+    if (footerActions) footerActions.style.display = '';
+    if (footerActions) footerActions.style.display = '';
     isExporting.value = false;
   }
 };
