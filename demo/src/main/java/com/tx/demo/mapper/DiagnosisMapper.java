@@ -17,11 +17,11 @@ public interface DiagnosisMapper {
      * 基础插入：创建新记录
      */
     @Insert("INSERT INTO diagnosis(patient_id, status, create_time, " +
-            "wen_scores, wen_conclusion, wen_audio_conclusion, wen_audio_features, wen_audio_confidence, wen_audio_tags, " +
+            "wen_scores, wen_conclusion, wen_audio_conclusion, wen_audio_features, wen_audio_confidence, wen_audio_tags,wen_audio_url, " +
             "wang_result, wang_image_url, " +
             "qie_heart_rate, qie_spo2, qie_valid_rate, qie_sample_count, qie_tcm_suggestion) " +
             "VALUES(#{patientId}, 0, NOW(), " +
-            "#{wenScores}, #{wenConclusion}, #{wenAudioConclusion}, #{wenAudioFeatures}, #{wenAudioConfidence}, #{wenAudioTags}, " +
+            "#{wenScores}, #{wenConclusion}, #{wenAudioConclusion}, #{wenAudioFeatures}, #{wenAudioConfidence}, #{wenAudioTags},#{wenAudioUrl}, " +
             "#{wangResult}, #{wangImageUrl}, " +
             "#{qieHeartRate}, #{qieSpo2}, #{qieValidRate}, #{qieSampleCount}, #{qieTcmSuggestion})")
     @Options(useGeneratedKeys = true, keyProperty = "id")

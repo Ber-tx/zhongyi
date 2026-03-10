@@ -16,7 +16,8 @@ public class Diagnosis {
     private String wenAudioConclusion;  // 闻诊结论（体质判断）
     private String wenAudioFeatures;    // 闻诊音频特征 JSON
     private Double wenAudioConfidence;  // 闻诊置信度
-    private String wenAudioTags;        // 闻诊体质标签（JSON数组）
+    private String wenAudioTags;
+    private String wenAudioUrl;// 闻诊体质标签（JSON数组）
     
     private Integer status;
 

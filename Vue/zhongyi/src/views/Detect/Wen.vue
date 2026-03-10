@@ -37,7 +37,7 @@
                 请点击下方按钮开始录制。先说出您的姓名，然后进行3-5次深呼吸。
               </p>
               <p v-else class="recording-hint">
-                ✓ 保持清晰音量 | ✓ 自然呼声 | ✓ 约15秒即可
+                ✓ 保持清晰音量 | ✓ 自然呼吸 | ✓ 约15秒即可
               </p>
             </div>
           </div>
@@ -45,23 +45,23 @@
           <!-- 控制按钮 -->
           <div class="controls">
             <div v-if="!hasRecording" class="start-controls">
-              <el-button 
+              <el-button
                 v-if="!isRecording"
-                type="success" 
-                size="large" 
-                round 
-                icon="Microphone"
+                type="success"
+                size="large"
+                round
+                :icon="Microphone"
                 @click="startRecording"
                 class="action-btn"
               >
                 开始录制
               </el-button>
-              <el-button 
+              <el-button
                 v-else
-                type="danger" 
-                size="large" 
-                round 
-                icon="Close"
+                type="danger"
+                size="large"
+                round
+                :icon="Close"
                 @click="stopRecording"
                 class="action-btn"
               >
@@ -77,25 +77,25 @@
               </div>
 
               <div class="action-group">
-                <el-button 
+                <el-button
                   type="primary"
                   size="large"
                   round
-                  icon="VideoPlay"
+                  :icon="VideoPlay"
                   @click="playRecording"
                 >
                   播放
                 </el-button>
-                <el-button 
+                <el-button
                   type="info"
                   size="large"
                   round
-                  icon="RefreshRight"
+                  :icon="RefreshRight"
                   @click="resetRecording"
                 >
                   重新录制
                 </el-button>
-                <el-button 
+                <el-button
                   type="success"
                   size="large"
                   round
@@ -123,7 +123,7 @@
       <!-- 分析结果展示 -->
       <div v-else class="result-module">
         <div class="success-banner">
-          <el-icon><CircleCheckFilled /></el-icon> 
+          <el-icon><CircleCheckFilled /></el-icon>
           闻诊分析完成
         </div>
 
@@ -135,8 +135,8 @@
             </div>
             <div class="metric-item">
               <span class="metric-label">置信度：</span>
-              <el-progress 
-                :percentage="Math.round(analysisResult.confidence * 100)" 
+              <el-progress
+                :percentage="Math.round(analysisResult.confidence * 100)"
                 :color="getConfidenceColor"
                 class="metric-value"
               />
@@ -144,8 +144,8 @@
             <div class="metric-item">
               <span class="metric-label">体质倾向：</span>
               <div class="constitution-tags">
-                <el-tag 
-                  v-for="tag in analysisResult.constitution_tags" 
+                <el-tag
+                  v-for="tag in analysisResult.constitution_tags"
                   :key="tag"
                   type="info"
                   class="tag"
@@ -176,13 +176,12 @@
         <!-- 底部按钮 -->
         <div class="footer-btns">
           <el-button round @click="resetAnalysis">重新分析</el-button>
-          <el-button 
-            type="success" 
-            round 
-            :loading="isSavingToDb"
+          <el-button
+            type="success"
+            round
             @click="saveToDatabase"
           >
-            确认入库并返回
+            确认并返回
           </el-button>
         </div>
       </div>
@@ -194,119 +193,133 @@
 import { ref, onMounted, onUnmounted } from 'vue'
 import { useRouter, useRoute } from 'vue-router'
 import { ElMessage } from 'element-plus'
-import { ArrowLeft, CircleCheckFilled, Microphone, Close, DocumentCopy, VideoPlay, RefreshRight } from '@element-plus/icons-vue'
+import {
+  ArrowLeft,
+  CircleCheckFilled,
+  Microphone,
+  Close,
+  DocumentCopy,
+  VideoPlay,
+  RefreshRight
+} from '@element-plus/icons-vue'
 import axios from 'axios'
 
 const router = useRouter()
-const route = useRoute()
+const route  = useRoute()
 
 // ===== 响应式状态 =====
-const isRecording = ref(false)
+const isRecording  = ref(false)
 const hasRecording = ref(false)
-const isCompleted = ref(false)
-const loading = ref(false)
+const isCompleted  = ref(false)
+const loading      = ref(false)
 const isSubmitting = ref(false)
 const recordingTime = ref(0)
-const isSavingToDb = ref(false)  // 入库状态【新增】
 
 // 音频相关
-const mediaRecorder = ref(null)
-const audioChunks = ref([])
-const audioBlob = ref(null)
-const playbackAudio = ref(null)
+const mediaRecorder  = ref(null)
+const audioChunks    = ref([])
+const audioBlob      = ref(null)
+const playbackAudio  = ref(null)
 const waveformCanvas = ref(null)
-const audioContext = ref(null)
-const analyser = ref(null)
+const audioContext   = ref(null)
+const analyser       = ref(null)
 
 // 分析结果
 const analysisResult = ref(null)
 
 // 病人信息
-const patientInfo = ref({
-  id: null,
-  idCard: ''
-})
+const patientInfo = ref({ id: null, idCard: '' })
 
-// 录制计时器
+// 计时器句柄
 let recordingTimer = null
 
 // ===== 生命周期 =====
+// 【修复1】onMounted 不再初始化 AudioContext，改为懒加载
 onMounted(() => {
-  // 获取病人信息
-  let qId = route.query.id
+  let qId     = route.query.id
   let qIdCard = route.query.idCard
-
-  if (!qId) qId = localStorage.getItem('current_patient_id')
+  if (!qId)     qId     = localStorage.getItem('current_patient_id')
   if (!qIdCard) qIdCard = localStorage.getItem('current_patient_idCard')
-
-  patientInfo.value.id = qId
+  patientInfo.value.id     = qId
   patientInfo.value.idCard = qIdCard
-
   console.log('==== [DEBUG] 闻诊页最终锁定的病人 ID:', patientInfo.value.id)
-
-  // 初始化音频上下文
-  initAudioContext()
 })
 
 onUnmounted(() => {
-  stopRecording()
+  if (mediaRecorder.value && isRecording.value) {
+    mediaRecorder.value.stop()
+  }
   if (recordingTimer) clearInterval(recordingTimer)
 })
 
-// ===== 音频上下文初始化 =====
-const initAudioContext = () => {
-  try {
+// ===== 【修复1】AudioContext 懒加载，在用户点击时才创建/恢复 =====
+const ensureAudioContext = async () => {
+  if (!audioContext.value) {
     audioContext.value = new (window.AudioContext || window.webkitAudioContext)()
-  } catch (error) {
-    console.error('AudioContext 初始化失败:', error)
+  }
+  // 浏览器在无用户手势时会 suspend，点击后必须 resume
+  if (audioContext.value.state === 'suspended') {
+    await audioContext.value.resume()
   }
 }
 
 // ===== 开始录制 =====
 const startRecording = async () => {
   try {
-    const stream = await navigator.mediaDevices.getUserMedia({ audio: true })
-    
+    // 【修复1】先确保 AudioContext 就绪（在用户手势内，不会被浏览器拦截）
+    await ensureAudioContext()
+
+    // 请求麦克风权限，细分错误提示
+    let stream
+    try {
+      stream = await navigator.mediaDevices.getUserMedia({ audio: true })
+    } catch (permError) {
+      if (permError.name === 'NotAllowedError' || permError.name === 'PermissionDeniedError') {
+        ElMessage.error('麦克风权限被拒绝，请在浏览器地址栏左侧允许麦克风访问后重试')
+      } else if (permError.name === 'NotFoundError') {
+        ElMessage.error('未检测到麦克风设备，请检查设备连接')
+      } else {
+        ElMessage.error('麦克风访问失败：' + permError.message)
+      }
+      return
+    }
+
     mediaRecorder.value = new MediaRecorder(stream)
-    audioChunks.value = []
+    audioChunks.value   = []
     recordingTime.value = 0
-    isRecording.value = true
-    hasRecording.value = false
+    isRecording.value   = true
+    hasRecording.value  = false
+    analyser.value      = null   // 每次录制前重置，避免旧引用残留
 
     // 绘制波形
-    if (audioContext.value && !analyser.value) {
-      analyser.value = audioContext.value.createAnalyser()
-      const source = audioContext.value.createMediaStreamAudioSource(stream)
-      source.connect(analyser.value)
-      drawWaveform()
-    }
+    analyser.value = audioContext.value.createAnalyser()
+    const source   = audioContext.value.createMediaStreamSource(stream)
+    source.connect(analyser.value)
+    drawWaveform()
 
     mediaRecorder.value.ondataavailable = (event) => {
       audioChunks.value.push(event.data)
     }
 
     mediaRecorder.value.onstop = () => {
-      audioBlob.value = new Blob(audioChunks.value, { type: 'audio/webm' })
+      audioBlob.value    = new Blob(audioChunks.value, { type: 'audio/webm' })
       hasRecording.value = true
-      isRecording.value = false
-
-      // 停止流
+      isRecording.value  = false
       stream.getTracks().forEach((track) => track.stop())
     }
 
     mediaRecorder.value.start()
 
-    // 启动计时器
     recordingTimer = setInterval(() => {
       recordingTime.value++
-      if (recordingTime.value >= 30) {
-        stopRecording()
-      }
+      if (recordingTime.value >= 30) stopRecording()
     }, 1000)
 
     ElMessage.success('录制已开始')
   } catch (error) {
-    ElMessage.error('无法访问麦克风：' + error.message)
+    isRecording.value = false
+    console.error('录制启动异常:', error)
+    ElMessage.error('录制启动失败：' + error.message)
   }
 }
 
@@ -315,10 +328,10 @@ const stopRecording = () => {
   if (mediaRecorder.value && isRecording.value) {
     mediaRecorder.value.stop()
     isRecording.value = false
-    if (recordingTimer) {
-      clearInterval(recordingTimer)
-      recordingTimer = null
-    }
+  }
+  if (recordingTimer) {
+    clearInterval(recordingTimer)
+    recordingTimer = null
   }
 }
 
@@ -326,10 +339,10 @@ const stopRecording = () => {
 const drawWaveform = () => {
   if (!waveformCanvas.value || !analyser.value || !isRecording.value) return
 
-  const canvas = waveformCanvas.value
-  const ctx = canvas.getContext('2d')
+  const canvas      = waveformCanvas.value
+  const ctx         = canvas.getContext('2d')
   const bufferLength = analyser.value.frequencyBinCount
-  const dataArray = new Uint8Array(bufferLength)
+  const dataArray   = new Uint8Array(bufferLength)
 
   const draw = () => {
     if (!isRecording.value) return
@@ -339,7 +352,7 @@ const drawWaveform = () => {
     ctx.fillStyle = 'rgba(255, 255, 255, 0.1)'
     ctx.fillRect(0, 0, canvas.width, canvas.height)
 
-    ctx.lineWidth = 2
+    ctx.lineWidth   = 2
     ctx.strokeStyle = '#5d9cec'
     ctx.beginPath()
 
@@ -348,14 +361,8 @@ const drawWaveform = () => {
 
     for (let i = 0; i < bufferLength; i++) {
       const v = dataArray[i] / 128.0
-      const y = (v * canvas.height) / 2
-
-      if (i === 0) {
-        ctx.moveTo(x, y)
-      } else {
-        ctx.lineTo(x, y)
-      }
-
+      const y = (canvas.height / 2) + (v - 1) * (canvas.height / 2)
+      i === 0 ? ctx.moveTo(x, y) : ctx.lineTo(x, y)
       x += sliceWidth
     }
 
@@ -379,10 +386,10 @@ const playRecording = () => {
 
 // ===== 重置录制 =====
 const resetRecording = () => {
-  audioBlob.value = null
+  audioBlob.value    = null
   hasRecording.value = false
   recordingTime.value = 0
-  audioChunks.value = []
+  audioChunks.value  = []
 }
 
 // ===== 提交录制 =====
@@ -394,95 +401,53 @@ const submitRecording = async () => {
 
   try {
     isSubmitting.value = true
-    loading.value = true
+    loading.value      = true
 
     const formData = new FormData()
-    formData.append('file', audioBlob.value, 'recording.webm')
-    formData.append('patient_id', patientInfo.value.id)
-    formData.append('patient_idcard', patientInfo.value.idCard)
+    formData.append('file',            audioBlob.value, 'recording.webm')
+    formData.append('patient_id',      patientInfo.value.id)
+    formData.append('patient_idcard',  patientInfo.value.idCard)
 
     const response = await axios.post('/api/wen/analyze', formData, {
-      headers: {
-        'Content-Type': 'multipart/form-data'
-      }
+      headers: { 'Content-Type': 'multipart/form-data' },
+      timeout: 60000,
     })
 
-    if (response.data.success) {
-      analysisResult.value = response.data.data
-      isCompleted.value = true
+    const res = response.data
+    // 【修复2】Java Result 返回的是 code 字段，不是 success 字段
+    if (res.code === 0 || res.code === 200) {
+      analysisResult.value = res.data
+      isCompleted.value    = true
       ElMessage.success('分析完成')
     } else {
-      ElMessage.error(response.data.msg || '分析失败')
+      ElMessage.error(res.msg || '分析失败')
     }
   } catch (error) {
     console.error('提交失败:', error)
     ElMessage.error('提交失败：' + error.message)
   } finally {
     isSubmitting.value = false
-    loading.value = false
+    loading.value      = false
   }
 }
 
 // ===== 重新分析 =====
 const resetAnalysis = () => {
-  isCompleted.value = false
+  isCompleted.value    = false
   analysisResult.value = null
   resetRecording()
 }
 
-// ===== 入库操作【新增】=====
-const saveToDatabase = async () => {
-  if (!analysisResult.value) {
-    ElMessage.error('没有分析结果')
-    return
-  }
-
-  try {
-    isSavingToDb.value = true
-
-    // 使用 FormData 发送（与后端 @RequestParam 匹配）
-    const formData = new FormData()
-    formData.append('patientId', patientInfo.value.id)
-    formData.append('idCard', patientInfo.value.idCard)
-    formData.append('conclusion', analysisResult.value.main_finding)
-    formData.append('confidence', analysisResult.value.confidence.toString())
-    formData.append('tags', JSON.stringify(analysisResult.value.constitution_tags))
-    formData.append('features', JSON.stringify(analysisResult.value.features || {}))
-
-    console.log('==== [DEBUG] 发送入库请求:', {
-      patientId: patientInfo.value.id,
-      idCard: patientInfo.value.idCard,
-      conclusion: analysisResult.value.main_finding
-    })
-
-    // 调用 Spring Boot 入库接口
-    const response = await axios.post('/api/wen/save', formData)
-
-    console.log('==== [DEBUG] 后端返回:', response.data)
-
-    if (response.data.code === 0 || response.data.code === 200 || response.data.success) {
-      ElMessage.success('闻诊数据已成功入库，返回中...')
-      // 标记完成
-      localStorage.setItem('wen_finished_id', String(patientInfo.value.id))
-      // 立即返回诊断中心
-      setTimeout(() => {
-        router.push('/detect')
-      }, 800)
-    } else {
-      ElMessage.error(response.data.msg || '入库失败')
-    }
-  } catch (error) {
-    console.error('入库失败:', error)
-    ElMessage.error('入库失败：' + error.message)
-  } finally {
-    isSavingToDb.value = false
-  }
+// ===== 确认并返回 =====
+// 【修复3】分析时已经同步入库，这里只需跳转
+const saveToDatabase = () => {
+  localStorage.setItem('wen_finished_id', String(patientInfo.value.id))
+  ElMessage.success('闻诊已完成，返回中...')
+  setTimeout(() => router.push('/detect'), 800)
 }
 
-// ===== 返回天诊中心 =====
-const goBack = () => {
-  router.push('/detect')
-}
+// ===== 返回诊断中心 =====
+const goBack = () => router.push('/detect')
 
 // ===== 置信度颜色 =====
 const getConfidenceColor = (percentage) => {
@@ -558,9 +523,7 @@ const getConfidenceColor = (percentage) => {
   box-shadow: 0 8px 32px rgba(31, 38, 135, 0.37);
 }
 
-.back-btn {
-  flex-shrink: 0;
-}
+.back-btn { flex-shrink: 0; }
 
 .header .title {
   flex-grow: 1;
@@ -648,14 +611,8 @@ const getConfidenceColor = (percentage) => {
 }
 
 @keyframes pulse-ring {
-  0% {
-    transform: scale(1);
-    opacity: 1;
-  }
-  100% {
-    transform: scale(1.5);
-    opacity: 0;
-  }
+  0%   { transform: scale(1); opacity: 1; }
+  100% { transform: scale(1.5); opacity: 0; }
 }
 
 .recording-text {
@@ -673,10 +630,7 @@ const getConfidenceColor = (percentage) => {
   font-family: 'Monaco', 'Courier New', monospace;
 }
 
-.instructions {
-  text-align: center;
-  width: 100%;
-}
+.instructions { text-align: center; width: 100%; }
 
 .instruction-text,
 .recording-hint {
@@ -742,7 +696,7 @@ const getConfidenceColor = (percentage) => {
 }
 
 @keyframes spin {
-  0% { transform: rotate(0deg); }
+  0%   { transform: rotate(0deg); }
   100% { transform: rotate(360deg); }
 }
 
@@ -810,9 +764,7 @@ const getConfidenceColor = (percentage) => {
   flex-wrap: wrap;
 }
 
-.tag {
-  margin: 0;
-}
+.tag { margin: 0; }
 
 .detail-section {
   margin-top: 25px;
@@ -833,9 +785,7 @@ const getConfidenceColor = (percentage) => {
   line-height: 1.8;
 }
 
-.analysis-details li {
-  margin-bottom: 10px;
-}
+.analysis-details li { margin-bottom: 10px; }
 
 .ai-disclaimer {
   margin: 25px 0 0 0;
@@ -848,15 +798,8 @@ const getConfidenceColor = (percentage) => {
   line-height: 1.6;
 }
 
-.highlight {
-  color: #f56c6c;
-  font-weight: bold;
-}
-
-.warning {
-  color: #e6a23c;
-  font-weight: bold;
-}
+.highlight { color: #f56c6c; font-weight: bold; }
+.warning   { color: #e6a23c; font-weight: bold; }
 
 .footer-btns {
   display: flex;
@@ -866,37 +809,23 @@ const getConfidenceColor = (percentage) => {
 }
 
 @media (max-width: 768px) {
-  .content-box {
-    padding: 10px;
-  }
+  .content-box { padding: 10px; }
 
   .header {
     flex-direction: column;
     text-align: center;
   }
 
-  .header .title {
-    font-size: 20px;
-  }
+  .header .title { font-size: 20px; }
 
-  .main-body {
-    padding: 20px;
-  }
+  .main-body { padding: 20px; }
 
-  .waveform-container {
-    height: 200px;
-  }
+  .waveform-container { height: 200px; }
 
-  .playback-controls .action-group {
-    flex-direction: column;
-  }
+  .playback-controls .action-group { flex-direction: column; }
 
-  .playback-controls .action-group :deep(.el-button) {
-    width: 100%;
-  }
+  .playback-controls .action-group :deep(.el-button) { width: 100%; }
 
-  .footer-btns {
-    flex-direction: column;
-  }
+  .footer-btns { flex-direction: column; }
 }
 </style>

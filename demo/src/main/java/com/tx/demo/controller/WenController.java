@@ -8,6 +8,7 @@ import com.tx.demo.mapper.DiagnosisMapper;
 import com.tx.demo.mapper.PatientMapper;
 import com.tx.demo.utils.Result;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.core.io.FileSystemResource;
 import org.springframework.http.HttpEntity;
 import org.springframework.http.HttpHeaders;
 import org.springframework.http.MediaType;
@@ -19,7 +20,6 @@ import org.springframework.web.multipart.MultipartFile;
 
 import java.io.File;
 import java.io.IOException;
-import java.nio.file.Files;
 import java.time.LocalDateTime;
 import java.util.UUID;
 
@@ -33,156 +33,130 @@ public class WenController {
     @Autowired
     private DiagnosisMapper diagnosisMapper;
 
-    // 定义临时存储路径
-    private static final String UPLOAD_PATH = "E:/项目/zhongyi_uploads/tcm_temp/";
+    // 音频存储路径（与望诊分开目录，便于管理）
+    private static final String UPLOAD_PATH = "E:/项目/zhongyi_uploads/audio/";
 
-    @PostMapping("/save")
-    public Result handleWenSave(
-            @RequestParam("patientId") Long patientId,
-            @RequestParam("idCard") String idCard,
-            @RequestParam("conclusion") String conclusion,
-            @RequestParam("confidence") Double confidence,
-            @RequestParam(value = "tags", required = false) String tags,
-            @RequestParam(value = "features", required = false) String features,
-            @RequestParam(value = "file", required = false) MultipartFile file) {
-        
-        System.out.println("==== [DEBUG] 开始执行闻诊入库逻辑 ====");
-        System.out.println("==== [DEBUG] 病人ID: " + patientId + ", 身份证: " + idCard);
+    // =====================================================================
+    // 分析 + 入库（一步完成，与 WangController 结构完全一致）
+    // =====================================================================
+    @PostMapping("/analyze")
+    public Result handleWen(
+            @RequestParam(value = "patient_id", required = false) Long patientId,
+            @RequestParam(value = "patient_idcard", required = false) String idCard,
+            @RequestParam("file") MultipartFile file) {
 
-        // 1. 补齐 ID 逻辑
+        System.out.println("==== [闻诊] 开始执行业务逻辑 ====");
+        System.out.println("==== [闻诊] 患者ID: " + patientId + ", 身份证: " + idCard);
+
+        // ---- 1. 补齐病人 ID（与 WangController 逻辑完全一致）----
         if (patientId == null || patientId == 0) {
             if (idCard != null && !idCard.isEmpty()) {
                 Patient existing = patientMapper.findByIdCard(idCard);
                 if (existing != null) {
                     patientId = existing.getId();
-                    System.out.println("==== [DEBUG] 通过身份证匹配到病人 ID: " + patientId);
+                    System.out.println("==== [闻诊] 通过身份证匹配到患者 ID: " + patientId);
                 } else {
-                    System.out.println("==== [DEBUG] 警告：身份证 " + idCard + " 在库中不存在！");
+                    System.out.println("==== [闻诊] 警告：身份证 " + idCard + " 在库中不存在！");
                     return Result.error("请先完成病人信息登记再进行分析");
                 }
             } else {
-                System.out.println("==== [DEBUG] 警告：未能获取到有效的病人 ID ====");
+                System.out.println("==== [闻诊] 警告：未能获取到有效的病人 ID");
                 return Result.error("缺少病人ID，无法保存记录");
             }
         }
 
+        // ---- 2. 保存音频文件到本地（与望诊保存图片逻辑一致）----
+        File tempDir = new File(UPLOAD_PATH);
+        if (!tempDir.exists()) tempDir.mkdirs();
+
+        String originalFilename = file.getOriginalFilename();
+        String suffix = (originalFilename != null && originalFilename.contains("."))
+                ? originalFilename.substring(originalFilename.lastIndexOf("."))
+                : ".webm";
+        String fileName = UUID.randomUUID().toString() + suffix;
+        File destFile = new File(UPLOAD_PATH + fileName);
+
         try {
-            // 2. 查找今天是否已有记录
-            Diagnosis record = diagnosisMapper.findTodayRecord(patientId);
-
-            if (record != null) {
-                // 【情况A】已有记录（其他板块先开始了），直接补充闻诊结果
-                System.out.println("==== [合并数据] 正在将闻诊结果更新至已有记录 ID: " + record.getId());
-                
-                record.setWenAudioConclusion(conclusion);
-                record.setWenAudioConfidence(confidence);
-                record.setWenAudioTags(tags);
-                record.setWenAudioFeatures(features);
-
-                int rows = diagnosisMapper.updateWenAudio(record);
-                if (rows > 0) {
-                    System.out.println("==== [成功] 闻诊数据已合并至记录 ID: " + record.getId());
-                    return Result.success(record);
-                } else {
-                    System.out.println("==== [失败] 更新闻诊数据失败");
-                    return Result.error("数据保存失败");
-                }
-            } else {
-                // 【情况B】今天还没有任何记录，创建新记录
-                System.out.println("==== [新增记录] 创建新的诊断记录");
-                
-                Diagnosis diagnosis = new Diagnosis();
-                diagnosis.setPatientId(patientId);
-                diagnosis.setStatus(0);
-                diagnosis.setCreateTime(LocalDateTime.now());
-                
-                diagnosis.setWenAudioConclusion(conclusion);
-                diagnosis.setWenAudioConfidence(confidence);
-                diagnosis.setWenAudioTags(tags);
-                diagnosis.setWenAudioFeatures(features);
-
-                int rows = diagnosisMapper.insert(diagnosis);
-                if (rows > 0) {
-                    System.out.println("==== [成功] 闻诊数据已入库，记录 ID: " + diagnosis.getId());
-                    return Result.success(diagnosis);
-                } else {
-                    System.out.println("==== [失败] 新建诊断记录失败");
-                    return Result.error("数据保存失败");
-                }
-            }
-
-        } catch (Exception e) {
-            System.out.println("==== [异常] 闻诊入库异常: " + e.getMessage());
-            e.printStackTrace();
-            return Result.error("服务器错误: " + e.getMessage());
+            file.transferTo(destFile);
+            System.out.println("==== [闻诊] 音频文件已保存: " + destFile.getAbsolutePath());
+        } catch (IOException e) {
+            return Result.error("音频文件保存失败: " + e.getMessage());
         }
-    }
 
-    /**
-     * 备选方案：前端先调用 Python AI 服务，再调用此接口入库
-     * 此方案不再需要中间调用 Python
-     */
-    @PostMapping("/save-direct")
-    public Result saveWenDirect(
-            @RequestParam("patientId") Long patientId,
-            @RequestParam("idCard") String idCard,
-            @RequestBody String analysisResultJson) {
-        
-        System.out.println("==== [DEBUG] 直接保存闻诊结果 ====");
-        System.out.println("==== [DEBUG] 分析结果: " + analysisResultJson);
+        // ---- 3. 调用 Python 闻诊分析服务 ----
+        RestTemplate restTemplate = new RestTemplate();
+        String pythonUrl = "http://localhost:5000/wen/analyze";
+
+        HttpHeaders headers = new HttpHeaders();
+        headers.setContentType(MediaType.MULTIPART_FORM_DATA);
+
+        MultiValueMap<String, Object> body = new LinkedMultiValueMap<>();
+
+        body.add("file", new FileSystemResource(destFile));
+        body.add("patient_id", String.valueOf(patientId));      // 新增
+        body.add("patient_idcard", idCard != null ? idCard : ""); // 新增
+
+        HttpEntity<MultiValueMap<String, Object>> requestEntity = new HttpEntity<>(body, headers);
 
         try {
-            // 解析前端传来的 AI 分析结果
-            JSONObject analysisResult = JSON.parseObject(analysisResultJson);
-            
-            if (analysisResult == null || !analysisResult.containsKey("main_finding")) {
-                return Result.error("分析结果格式不正确");
-            }
+            System.out.println("==== [闻诊] 正在请求 Python 接口: " + pythonUrl);
+            String responseStr = restTemplate.postForObject(pythonUrl, requestEntity, String.class);
 
-            // 补齐 ID
-            if (patientId == null || patientId == 0) {
-                Patient existing = patientMapper.findByIdCard(idCard);
-                if (existing != null) {
-                    patientId = existing.getId();
+            // ---- 4. 解析 Python 返回结果 ----
+            JSONObject json = JSON.parseObject(responseStr);
+
+            if (json != null && Boolean.TRUE.equals(json.getBoolean("success"))) {
+
+                JSONObject data       = json.getJSONObject("data");
+                String mainFinding    = data.getString("main_finding");
+                Double confidence     = data.getDouble("confidence");
+                String tags           = data.getJSONArray("constitution_tags") != null
+                        ? data.getJSONArray("constitution_tags").toJSONString() : null;
+                String features       = data.getJSONObject("features") != null
+                        ? data.getJSONObject("features").toJSONString() : null;
+                String localPath      = destFile.getAbsolutePath();
+
+                System.out.println("==== [闻诊] 分析结果: " + mainFinding + "，置信度: " + confidence);
+
+                // ---- 5. 入库（与 WangController 完全一致的合并/新建逻辑）----
+                Diagnosis record = diagnosisMapper.findTodayRecord(patientId);
+
+                if (record != null) {
+                    // 情况A：今天已有记录，补充闻诊字段
+                    System.out.println("==== [闻诊][合并] 更新至已有记录 ID: " + record.getId());
+                    record.setWenAudioConclusion(mainFinding);
+                    record.setWenAudioConfidence(confidence);
+                    record.setWenAudioTags(tags);
+                    record.setWenAudioFeatures(features);
+
+                    diagnosisMapper.updateWenAudio(record);
                 } else {
-                    return Result.error("请先完成病人信息登记");
+                    // 情况B：闻诊是今天第一个板块，新建记录
+                    System.out.println("==== [闻诊][新建] 闻诊作为首个板块开始执行");
+                    Diagnosis newOne = new Diagnosis();
+                    newOne.setPatientId(patientId);
+                    newOne.setWenAudioConclusion(mainFinding);
+                    newOne.setWenAudioConfidence(confidence);
+                    newOne.setWenAudioTags(tags);
+                    newOne.setWenAudioFeatures(features);
+                    newOne.setWenAudioUrl(localPath);
+                    newOne.setCreateTime(LocalDateTime.now());
+                    newOne.setStatus(0);
+                    diagnosisMapper.insert(newOne);
                 }
-            }
 
-            // 查找或创建记录
-            Diagnosis record = diagnosisMapper.findTodayRecord(patientId);
-            
-            String conclusion = analysisResult.getString("main_finding");
-            Double confidence = analysisResult.getDouble("confidence");
-            String tags = analysisResult.getJSONArray("constitution_tags").toJSONString();
-            String features = analysisResult.getJSONObject("features").toJSONString();
+                // ---- 6. 把分析结果透传给前端展示 ----
+                return Result.success(data);
 
-            if (record != null) {
-                record.setWenAudioConclusion(conclusion);
-                record.setWenAudioConfidence(confidence);
-                record.setWenAudioTags(tags);
-                record.setWenAudioFeatures(features);
-                diagnosisMapper.updateWenAudio(record);
             } else {
-                Diagnosis diagnosis = new Diagnosis();
-                diagnosis.setPatientId(patientId);
-                diagnosis.setStatus(0);
-                diagnosis.setCreateTime(LocalDateTime.now());
-                diagnosis.setWenAudioConclusion(conclusion);
-                diagnosis.setWenAudioConfidence(confidence);
-                diagnosis.setWenAudioTags(tags);
-                diagnosis.setWenAudioFeatures(features);
-                diagnosisMapper.insert(diagnosis);
-                record = diagnosis;
+                String msg = (json != null) ? json.getString("msg") : "AI 服务返回空值";
+                System.out.println("==== [闻诊] 分析失败: " + msg);
+                return Result.error("分析失败: " + msg);
             }
-
-            System.out.println("==== [成功] 闻诊数据已入库");
-            return Result.success();
 
         } catch (Exception e) {
-            System.out.println("==== [异常] " + e.getMessage());
             e.printStackTrace();
-            return Result.error("服务器错误: " + e.getMessage());
+            return Result.error("算法服务访问失败，请检查 Python 后端状态");
         }
     }
 }

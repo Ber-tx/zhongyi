@@ -27,12 +27,12 @@ export default defineConfig({
   },
   server: {
   proxy: {
-    // 1. 特殊处理：指向 Python 的 AI 服务 (最长匹配放在最前面)
+    /* 1. 特殊处理：指向 Python 的 AI 服务 (最长匹配放在最前面)
     '/api/wen/analyze': {
       target: 'http://localhost:5000',
       changeOrigin: true,
       rewrite: (path) => path.replace(/^\/api/, '')
-    },
+    },*/
 
     // 2. 统一处理：所有其他 /api 请求全部指向 Java 8080
     // 删掉之前的 /api/tongue, /api/wen/save 等零碎规则，统一归到 /api 下
