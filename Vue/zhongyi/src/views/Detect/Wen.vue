@@ -293,6 +293,7 @@ const startRecording = async () => {
 
     // 绘制波形
     analyser.value = audioContext.value.createAnalyser()
+    
     const source   = audioContext.value.createMediaStreamSource(stream)
     source.connect(analyser.value)
     drawWaveform()
@@ -341,35 +342,33 @@ const drawWaveform = () => {
 
   const canvas      = waveformCanvas.value
   const ctx         = canvas.getContext('2d')
-  const bufferLength = analyser.value.frequencyBinCount
+  const bufferLength = analyser.value.fftSize
   const dataArray   = new Uint8Array(bufferLength)
 
   const draw = () => {
     if (!isRecording.value) return
+    requestAnimationFrame(draw)
 
-    analyser.value.getByteFrequencyData(dataArray)
+    // 用时域数据，静音时值为128，天然居中
+    analyser.value.getByteTimeDomainData(dataArray)
 
-    ctx.fillStyle = 'rgba(255, 255, 255, 0.1)'
-    ctx.fillRect(0, 0, canvas.width, canvas.height)
+    ctx.clearRect(0, 0, canvas.width, canvas.height)
 
     ctx.lineWidth   = 2
     ctx.strokeStyle = '#5d9cec'
     ctx.beginPath()
 
-    const sliceWidth = (canvas.width * 1.0) / bufferLength
+    const sliceWidth = canvas.width / bufferLength
     let x = 0
 
     for (let i = 0; i < bufferLength; i++) {
-      const v = dataArray[i] / 128.0
-      const y = (canvas.height / 2) + (v - 1) * (canvas.height / 2)
+      // 128 对应中线，0-255 映射到 canvas 上下
+      const y = (dataArray[i] / 255.0) * canvas.height
       i === 0 ? ctx.moveTo(x, y) : ctx.lineTo(x, y)
       x += sliceWidth
     }
 
-    ctx.lineTo(canvas.width, canvas.height / 2)
     ctx.stroke()
-
-    requestAnimationFrame(draw)
   }
 
   draw()
