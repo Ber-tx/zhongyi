@@ -2,6 +2,7 @@ import asyncio
 import json
 import time
 import serial
+import serial.tools.list_ports
 from collections import deque
 from fastapi import FastAPI, WebSocket, WebSocketDisconnect
 from fastapi.middleware.cors import CORSMiddleware
@@ -24,8 +25,32 @@ algo = PulseAlgorithm(buffer_size=100, fs=50)
 active_connections = set()
 
 # 串口配置
-SERIAL_PORT = "COM9"
 BAUD_RATE = 115200
+
+
+def auto_detect_serial_port():
+    """
+    自动检测串口。
+    优先匹配常见芯片关键词（CH340、CP210x、Arduino 等），
+    若无匹配则降级使用第一个可用串口，找不到返回 None。
+    """
+    KEYWORDS = ["CH340", "CP210", "Arduino", "USB Serial", "UART", "Silicon"]
+
+    ports = serial.tools.list_ports.comports()
+    if not ports:
+        print("❌ 未找到任何串口设备，请检查连接")
+        return None
+
+    for port in ports:
+        desc = (port.description or "") + (port.manufacturer or "")
+        if any(kw.lower() in desc.lower() for kw in KEYWORDS):
+            print(f"✅ 自动匹配串口: {port.device}  [{port.description}]")
+            return port.device
+
+    # 降级：取第一个串口
+    fallback = ports[0]
+    print(f"⚠️ 未匹配关键词，使用第一个可用串口: {fallback.device}  [{fallback.description}]")
+    return fallback.device
 
 # 🔧 关键修复：用滑动窗口累积数据
 ir_window = deque(maxlen=100)
@@ -40,10 +65,15 @@ async def serial_worker():
     2. 每次只发送少量波形点（减少传输量，提高频率）
     3. 确保 q 字段正确传递
     """
-    print(f"🔄 串口已连接: {SERIAL_PORT}, 算法采样率: 50Hz")
+    serial_port = auto_detect_serial_port()
+    if not serial_port:
+        print("❌ 串口自动检测失败，后台任务退出")
+        return
+
+    print(f"🔄 串口已连接: {serial_port}, 算法采样率: 50Hz")
 
     try:
-        ser = serial.Serial(SERIAL_PORT, BAUD_RATE, timeout=0.1)
+        ser = serial.Serial(serial_port, BAUD_RATE, timeout=0.1)
 
         while True:
             if ser.in_waiting:
