@@ -4,9 +4,14 @@
     <div class="header">
       <el-button @click="goBack" icon="ArrowLeft">返回</el-button>
       <h1>四诊合参诊断报告</h1>
-      <el-button type="primary" @click="exportPDF" :loading="isExporting" icon="Download">
-        导出PDF
-      </el-button>
+      <div class="header-buttons">
+        <el-button type="primary" @click="exportPDF" :loading="isExporting" icon="Download">
+          导出PDF
+        </el-button>
+        <el-button @click="handlePrint" icon="Printer">
+          打印
+        </el-button>
+      </div>
     </div>
 
     <!-- ✨ 全新精美加载状态 -->
@@ -403,6 +408,10 @@ const goBack = () => {
 const goHome = () => {
   router.push({ path: "/" });
 };
+
+const handlePrint = () => {
+  window.print();
+};
 </script>
 
 <style scoped>
@@ -410,6 +419,7 @@ const goHome = () => {
 .report-container { max-width: 1000px; margin: 0 auto; padding: 20px; background: linear-gradient(135deg, #f5f7fa 0%, #c3cfe2 100%); min-height: 100vh; }
 .header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 30px; background: white; padding: 20px; border-radius: 8px; box-shadow: 0 2px 12px rgba(0,0,0,0.1); }
 .header h1 { flex: 1; text-align: center; margin: 0; color: #333; }
+.header-buttons { display: flex; gap: 10px; }
 .report-content { background: white; border-radius: 8px; overflow: hidden; box-shadow: 0 2px 12px rgba(0,0,0,0.1); }
 .report-section { padding: 30px; border-bottom: 1px solid #eee; }
 .report-section:last-child { border-bottom: none; }
@@ -788,5 +798,105 @@ const goHome = () => {
   .steps { gap: 10px; }
   .step-icon { width: 44px; height: 44px; border-radius: 13px; }
   .step-char { font-size: 18px; }
+}
+
+/* 打印样式 */
+@media print {
+  .report-container {
+    background: white;
+    padding: 0;
+    max-width: 100%;
+  }
+  .header {
+    display: none !important;
+  }
+  .footer-actions {
+    display: none !important;
+  }
+  .report-content {
+    box-shadow: none;
+    border-radius: 0;
+  }
+  .report-section {
+    border: none;
+    padding: 8px 0;
+    margin: 0;
+    page-break-inside: auto;
+  }
+  .report-section h2 {
+    page-break-after: avoid;
+    margin: 10px 0 8px 0;
+    font-size: 15px;
+    padding-bottom: 3px;
+    border-width: 2px !important;
+  }
+  .diagnosis-item {
+    margin-bottom: 8px;
+    page-break-inside: auto;
+  }
+  .diagnosis-item h3 {
+    page-break-after: avoid;
+    margin: 8px 0 6px 0;
+    font-size: 13px;
+  }
+  .el-card {
+    box-shadow: none !important;
+    border: 1px solid #ddd;
+    margin: 0;
+    padding: 10px !important;
+  }
+  .el-descriptions {
+    font-size: 12px !important;
+  }
+  .diagnosis-result, .tcm-suggestion {
+    font-size: 12px;
+    line-height: 1.5;
+    margin: 5px 0;
+  }
+  .synthesis-content {
+    font-size: 12px;
+    line-height: 1.5;
+  }
+  .synthesis-content :deep(h3) {
+    font-size: 13px;
+    margin: 8px 0 4px 0;
+  }
+  .synthesis-content :deep(ul), .synthesis-content :deep(ol) {
+    margin: 5px 0;
+    padding-left: 15px;
+  }
+  .synthesis-content :deep(li) {
+    margin: 2px 0;
+  }
+  .report-footer {
+    font-size: 10px;
+    padding: 8px 0;
+    margin-top: 10px;
+    page-break-before: avoid;
+  }
+  .loading-wrapper {
+    display: none !important;
+  }
+  body {
+    background: white;
+    font-size: 12px;
+  }
+  .tag {
+    margin: 2px 2px 2px 0 !important;
+    padding: 1px 6px !important;
+    font-size: 11px !important;
+  }
+  img {
+    max-width: 150px !important;
+    height: auto !important;
+  }
+  .diagnosis-image {
+    page-break-inside: auto;
+    text-align: center;
+  }
+  .diagnosis-image p {
+    margin: 3px 0 !important;
+    font-size: 11px;
+  }
 }
 </style>
