@@ -36,3 +36,12 @@ logging:
     # 打印你的Mapper接口所在包的SQL日志
     com.tx.demo.mapper: debug
 
+# =============================================
+# 把以下内容追加到 application.yml 末尾（与 spring: 平级）
+# =============================================
+
+jwt:
+  # 密钥：至少32字符（256位），上线前务必换成随机字符串
+  secret: "ZhongYiAdminSecretKey2024@#$!xTx"
+  # Token 有效期：8小时（毫秒）
+  expiration: 28800000

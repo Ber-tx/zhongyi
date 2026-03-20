@@ -79,7 +79,21 @@ const routes = [
     name: 'Report',
     component: () => import('@/views/Report.vue'),
     meta: { title: '诊断报告' }
-  }
+  },
+  //管理员路径
+  {
+    path: '/admin/login',
+    name: 'AdminLogin',
+    component: () => import('@/views/Admin/AdminLogin.vue'),
+    meta: { title: '管理员登录' }
+  },
+  {
+    path: '/admin',
+    name: 'AdminDashboard',
+    component: () => import('@/views/Admin/AdminDashboard.vue'),
+    meta: { title: '管理后台', requiresAdmin: true }
+  },
+
 ]
 
 const router = createRouter({
@@ -90,5 +104,16 @@ const router = createRouter({
 router.afterEach(() => {
   window.scrollTo(0, 0)
 })
+
+
+// ===== ：管理员路由守卫 =====
+router.beforeEach((to, from, next) => {
+  if (to.meta.requiresAdmin) {
+    const token = localStorage.getItem('admin_token')
+    if (!token) return next('/admin/login')
+  }
+  next()
+})
+
 
 export default router

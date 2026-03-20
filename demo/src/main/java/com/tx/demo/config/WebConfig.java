@@ -4,18 +4,22 @@ package com.tx.demo.config;
 //处理跨域问题和文件映射
 
 
+import com.tx.demo.interceptor.AdminInterceptor;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.web.client.RestTemplateBuilder;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.http.client.SimpleClientHttpRequestFactory;
 import org.springframework.web.client.RestTemplate;
 import org.springframework.web.servlet.config.annotation.CorsRegistry;
+import org.springframework.web.servlet.config.annotation.InterceptorRegistry;
 import org.springframework.web.servlet.config.annotation.ResourceHandlerRegistry;
 import org.springframework.web.servlet.config.annotation.WebMvcConfigurer;
 
 @Configuration
 public class WebConfig implements WebMvcConfigurer {
-
+    @Autowired
+    private AdminInterceptor adminInterceptor;
     /**
      * 创建 RestTemplate Bean 用于调用外部服务
      */
@@ -52,4 +56,14 @@ public class WebConfig implements WebMvcConfigurer {
         registry.addResourceHandler("/uploads/**")
                 .addResourceLocations("file:E:/项目/zhongyi_uploads/");
     }
+    @Override
+    public void addInterceptors(InterceptorRegistry registry) {
+        registry.addInterceptor(adminInterceptor)
+                // 只拦截 /api/admin/** 下的请求
+                .addPathPatterns("/api/admin/**")
+                // 登录接口不拦截
+                .excludePathPatterns("/api/admin/login");
+    }
+
+
 }

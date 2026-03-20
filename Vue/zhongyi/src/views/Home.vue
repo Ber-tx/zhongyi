@@ -10,6 +10,14 @@
   <span class="music-text">{{ isPlaying ? '背景音乐: 开' : '背景音乐: 关' }}</span>
 </div>
 
+
+<!-- 加在 .music-control div 的下面 -->
+<div class="admin-entry" @click="router.push('/admin/login')">
+  <el-icon><Setting /></el-icon>
+  <span>管理员</span>
+</div>
+
+
 <audio ref="audioRef" loop>
   <source src="../assets/audio/bgm/梁祝.wav" type="audio/mpeg">
 </audio>
@@ -120,7 +128,7 @@ import { ref, reactive,onMounted } from 'vue'
 import { useRouter } from 'vue-router'
 
 import { ElMessage } from 'element-plus'
-import { VideoPlay, VideoPause, Guide, Collection, Cpu, Postcard } from '@element-plus/icons-vue'
+import { VideoPlay, VideoPause, Guide, Collection, Cpu, Postcard, Setting } from '@element-plus/icons-vue'
 //登录接口，传入信息到数据库
 import { loginAndSave } from '@/api/auth'
 
@@ -454,6 +462,33 @@ onMounted(() => {
 .music-icon {
   display: flex;
   margin-right: 8px;
+}
+
+
+/*管理员图标*/
+.admin-entry {
+  position: absolute;
+  top: 80px;        /* music-control 下方 */
+  right: 30px;
+  z-index: 100;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  background: rgba(0, 0, 0, 0.25);
+  backdrop-filter: blur(8px);
+  padding: 6px 14px;
+  border-radius: 30px;
+  cursor: pointer;
+  border: 1px solid rgba(255, 255, 255, 0.15);
+  transition: all 0.3s ease;
+  color: rgba(255, 255, 255, 0.6);
+  font-size: 13px;
+}
+
+.admin-entry:hover {
+  background: rgba(0, 0, 0, 0.5);
+  color: white;
+  border-color: rgba(255, 255, 255, 0.3);
 }
 
 /* 播放时的旋转动画 */
