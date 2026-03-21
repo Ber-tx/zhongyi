@@ -419,125 +419,118 @@ onUnmounted(() => {
 </script>
 
 <style scoped>
-/* 样式重点优化了“测量中”和“结果展示”的视觉差异 */
-
+/* ── 与主系统统一的暖棕色调 ── */
 .qie-container {
   height: 100vh;
-  background-color: #f5f7fa;
-  display: flex;
-  flex-direction: column;
+  background: radial-gradient(ellipse at top, #f5e8c8 0%, #fdf3dc 45%, #fef9f0 100%);
+  display: flex; flex-direction: column;
+  font-family: 'Noto Serif SC', "Source Han Serif CN", serif;
 }
 
+/* 页头 */
 .header-bar {
   height: 60px;
-  background: #fff;
-  box-shadow: 0 2px 12px rgba(0,0,0,0.05);
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  padding: 0 24px;
+  background: linear-gradient(180deg, #6b2d12 0%, #8b3d1a 100%);
+  border-bottom: 2px solid #c8a020;
+  box-shadow: 0 2px 12px rgba(60,20,0,.25);
+  display: flex; justify-content: space-between; align-items: center; padding: 0 24px;
 }
-.page-title { font-size: 18px; font-weight: 600; margin-left: 12px; color: #303133; }
-.patient-card { background: #f0f9eb; padding: 6px 16px; border-radius: 20px; color: #67c23a; font-size: 14px; font-weight: bold; }
-
-.main-content {
-  flex: 1;
-  display: flex;
-  padding: 24px;
-  gap: 24px;
-  overflow: hidden;
+.page-title { font-size: 17px; font-weight: 600; margin-left: 12px; color: #fdeabb; letter-spacing: 1px; }
+.patient-card {
+  background: rgba(200,160,32,.15); padding: 5px 16px; border-radius: 20px;
+  color: #fdeabb; font-size: 13px; font-weight: bold;
+  border: 1px solid rgba(200,160,32,.3);
+  display: flex; align-items: center; gap: 8px;
 }
 
-.control-panel {
-  width: 400px;
-  display: flex;
-  flex-direction: column;
-  gap: 20px;
-  overflow-y: auto; /* 允许小屏滚动 */
-}
+.main-content { flex: 1; display: flex; padding: 20px; gap: 20px; overflow: hidden; }
 
-/* 状态显示区 */
+.control-panel { width: 400px; display: flex; flex-direction: column; gap: 18px; overflow-y: auto; }
+
+/* 状态监控区 */
 .status-monitor {
-  background: white;
-  border-radius: 12px;
-  padding: 24px;
-  box-shadow: 0 4px 12px rgba(0,0,0,0.05);
-  display: flex;
-  flex-direction: column;
-  gap: 20px;
+  background: rgba(255,252,242,.92);
+  border-radius: 10px; padding: 22px;
+  border: 1px solid #c8a96e;
+  box-shadow: 0 3px 12px rgba(100,60,10,.08);
+  display: flex; flex-direction: column; gap: 18px;
 }
 
-.monitor-item .label { color: #909399; font-size: 14px; margin-bottom: 8px; display: block; }
+.monitor-item .label { color: #8b6030; font-size: 13px; margin-bottom: 8px; display: block; }
 
-.value-display {
-  height: 50px;
-  display: flex;
-  align-items: center;
-}
+.value-display { height: 50px; display: flex; align-items: center; }
 
-/* 测量中的动画状态 */
-.measuring-state {
-  display: flex;
-  align-items: center;
-  gap: 10px;
-  color: #409eff;
-}
-.anim-text { font-size: 16px; font-weight: 500; animation: blink 1.5s infinite; }
+/* 测量中 */
+.measuring-state { display: flex; align-items: center; gap: 10px; color: #8b3d1a; }
+.anim-text { font-size: 15px; font-weight: 500; animation: blink 1.5s infinite; }
 .mini-progress { width: 150px; }
 
-/* 结果状态 */
-.result-state .number { font-size: 40px; font-weight: bold; color: #303133; line-height: 1; }
-.result-state .number.blue { color: #409eff; }
+/* 结果 */
+.result-state .number { font-size: 40px; font-weight: bold; color: #3d2b10; line-height: 1; }
+.result-state .number.blue { color: #4a7060; }
 
-/* 空闲状态 */
-.idle-state { font-size: 32px; color: #dcdfe6; font-weight: bold; }
+/* 空闲 */
+.idle-state { font-size: 32px; color: #d4b483; font-weight: bold; }
 
-/* 信号质量条 */
+/* 信号质量 */
 .flex-between { display: flex; justify-content: space-between; margin-bottom: 6px; }
 .signal-val { font-size: 12px; }
-.text-success { color: #67c23a; }
-.text-warning { color: #e6a23c; }
-.text-danger { color: #f56c6c; }
+.text-success { color: #4a7060; }
+.text-warning { color: #c8a020; }
+.text-danger  { color: #c0392b; }
 
-/* 中医卡片 */
+/* 中医脉象卡片 */
 .tcm-card {
-  background: linear-gradient(135deg, #fdfbf5 0%, #fff 100%);
-  border: 1px solid #faecd8;
-  border-radius: 12px;
-  padding: 20px;
-  box-shadow: 0 4px 12px rgba(230, 162, 60, 0.1);
+  background: linear-gradient(135deg, #fdf8ef 0%, #faf3e0 100%);
+  border: 1px solid #c8a96e; border-radius: 10px; padding: 18px;
+  box-shadow: 0 3px 12px rgba(100,60,10,.08);
 }
-.card-header { 
-  display: flex; align-items: center; gap: 8px; 
-  color: #d35400; font-weight: bold; font-size: 16px; margin-bottom: 12px; border-bottom: 1px dashed #faecd8; padding-bottom: 10px;
+.card-header {
+  display: flex; align-items: center; gap: 8px;
+  color: #8b3d1a; font-weight: bold; font-size: 15px;
+  margin-bottom: 12px; border-bottom: 1px dashed #e8d5a0; padding-bottom: 10px;
 }
 .tcm-text {
-  font-size: 15px; line-height: 1.8; color: #606266;
-  white-space: pre-wrap; /* 关键：保留换行符 */
-  font-family: 'KaiTi', 'SimKai', serif; /* 楷体更有中医感 */
+  font-size: 14px; line-height: 1.9; color: #5a2d00;
+  white-space: pre-wrap;
+  font-family: 'KaiTi', 'SimKai', serif;
 }
 
-/* 按钮区 */
+/* 按钮操作区 */
 .action-area {
-  background: white;
-  border-radius: 12px;
-  padding: 24px;
-  box-shadow: 0 4px 12px rgba(0,0,0,0.05);
+  background: rgba(255,252,242,.92);
+  border-radius: 10px; padding: 22px;
+  border: 1px solid #c8a96e;
+  box-shadow: 0 3px 12px rgba(100,60,10,.08);
   margin-top: auto;
 }
-.instruction-text { background: #f4f4f5; color: #909399; padding: 10px; border-radius: 6px; font-size: 13px; margin-bottom: 15px; display: flex; align-items: center; gap: 6px; }
+.instruction-text {
+  background: #faf3e0; color: #8b6030;
+  padding: 10px; border-radius: 6px; border: 1px solid #e8d5a0;
+  font-size: 13px; margin-bottom: 14px;
+  display: flex; align-items: center; gap: 6px;
+}
 .button-group { display: flex; flex-direction: column; gap: 12px; }
-.action-btn { height: 48px; font-size: 16px; width: 100%; border-radius: 8px; }
+.action-btn { height: 46px; font-size: 15px; width: 100%; border-radius: 6px; }
 .result-btns { display: flex; flex-wrap: wrap; gap: 12px; }
 .flex-1 { flex: 1; }
 
-/* 右侧图表 */
-.chart-panel { flex: 1; background: white; border-radius: 12px; display: flex; flex-direction: column; overflow: hidden; }
-.chart-header { height: 50px; border-bottom: 1px solid #EBEEF5; display: flex; justify-content: space-between; align-items: center; padding: 0 20px; }
-.chart-title { font-weight: 600; color: #303133; }
-.live-indicator { color: #f56c6c; font-weight: bold; font-size: 12px; display: flex; align-items: center; gap: 6px; }
-.dot { width: 8px; height: 8px; background: #f56c6c; border-radius: 50%; animation: blink 1s infinite; }
+/* 右侧图表面板 */
+.chart-panel {
+  flex: 1; background: rgba(255,252,242,.92);
+  border-radius: 10px; border: 1px solid #c8a96e;
+  display: flex; flex-direction: column; overflow: hidden;
+  box-shadow: 0 3px 12px rgba(100,60,10,.08);
+}
+.chart-header {
+  height: 50px; border-bottom: 1px solid #e8d5a0;
+  display: flex; justify-content: space-between; align-items: center; padding: 0 20px;
+  background: linear-gradient(180deg, #f5e4a8 0%, #ebd07a 100%);
+}
+.chart-title { font-weight: 700; color: #5a2d00; font-size: 14px; }
+.live-indicator { color: #c0392b; font-weight: bold; font-size: 12px; display: flex; align-items: center; gap: 6px; }
+.dot { width: 8px; height: 8px; background: #c0392b; border-radius: 50%; animation: blink 1s infinite; }
 .echarts-box { flex: 1; width: 100%; }
 
-@keyframes blink { 0% { opacity: 1; } 50% { opacity: 0.4; } 100% { opacity: 1; } }
+@keyframes blink { 0% { opacity: 1; } 50% { opacity: .4; } 100% { opacity: 1; } }
 </style>

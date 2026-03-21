@@ -303,102 +303,123 @@ onUnmounted(stopCamera);
 </script>
 
 <style scoped>
-/* 样式保留你的玻璃拟态风格 */
-.wang-container { min-height: 100vh; position: relative; background: #f0f2f5; display: flex; justify-content: center; align-items: center; overflow: hidden; }
-.content-box { position: relative; z-index: 10; width: 92%; max-width: 550px; background: rgba(255,255,255,0.75); backdrop-filter: blur(20px); border-radius: 30px; padding: 25px; border: 1px solid rgba(255,255,255,0.5); box-shadow: 0 20px 50px rgba(0,0,0,0.1); }
+/* ── 与主系统统一的暖棕色调 ── */
+.wang-container {
+  min-height: 100vh;
+  position: relative;
+  background: radial-gradient(ellipse at top, #f5e8c8 0%, #fdf3dc 45%, #fef9f0 100%);
+  display: flex; justify-content: center; align-items: center;
+  overflow: hidden;
+  font-family: 'Noto Serif SC', "Source Han Serif CN", serif;
+}
+
+/* 宣纸纹理 */
+.wang-container::before {
+  content: ''; position: fixed; inset: 0; pointer-events: none;
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='300' height='300'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.75' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='300' height='300' filter='url(%23n)' opacity='0.035'/%3E%3C/svg%3E");
+}
+
+.content-box {
+  position: relative; z-index: 10;
+  width: 92%; max-width: 560px;
+  background: rgba(255, 252, 242, 0.92);
+  backdrop-filter: blur(16px);
+  border-radius: 12px;
+  padding: 26px;
+  border: 1px solid #c8a96e;
+  box-shadow: 0 20px 50px rgba(100,60,10,.14),
+              inset 0 1px 0 rgba(255,248,220,.8);
+}
+
+/* 顶部金线 */
+.content-box::before {
+  content: ''; position: absolute; top: 0; left: 0; right: 0; height: 3px;
+  background: linear-gradient(90deg, transparent, #c8a020 50%, transparent);
+  border-radius: 12px 12px 0 0;
+}
+
 .header { text-align: center; margin-bottom: 20px; position: relative; }
 .back-btn { position: absolute; left: 0; top: 5px; }
-.title { font-size: 1.5rem; margin: 0; font-family: "Source Han Serif CN", serif; }
+.title { font-size: 1.5rem; margin: 0; font-family: 'Noto Serif SC', "Source Han Serif CN", serif; color: #3d2b10; }
 
-.video-wrapper { position: relative; width: 100%; aspect-ratio: 3/4; background: #1a1a1a; border-radius: 20px; overflow: hidden; }
+/* 摄像头区域 */
+.video-wrapper {
+  position: relative; width: 100%; aspect-ratio: 3/4;
+  background: #2a1a0a; border-radius: 12px; overflow: hidden;
+  border: 1px solid #c8a96e;
+}
 .live-video, .static-preview { width: 100%; height: 100%; object-fit: cover; }
 .live-video { transform: scaleX(-1); }
 
-.placeholder-view { height: 100%; display: flex; flex-direction: column; justify-content: center; align-items: center; color: #909399; background: #f8f9fa; }
-.scan-overlay { position: absolute; inset: 0; pointer-events: none; display: flex; justify-content: center; align-items: center; }
-.tongue-guide { width: 160px; height: 240px; border: 2px dashed rgba(64,158,255,0.7); border-radius: 50% 50% 45% 45%; }
-.scan-line { position: absolute; width: 100%; height: 3px; background: linear-gradient(to right, transparent, #409eff, transparent); animation: scan 3s infinite linear; }
+.placeholder-view {
+  height: 100%; display: flex; flex-direction: column;
+  justify-content: center; align-items: center;
+  color: #9a7040; background: #faf3e0;
+}
+
+.scan-overlay {
+  position: absolute; inset: 0; pointer-events: none;
+  display: flex; justify-content: center; align-items: center;
+}
+.tongue-guide {
+  width: 160px; height: 240px;
+  border: 2px dashed rgba(200,160,32,.7);
+  border-radius: 50% 50% 45% 45%;
+}
+.scan-line {
+  position: absolute; width: 100%; height: 3px;
+  background: linear-gradient(to right, transparent, #c8a020, transparent);
+  animation: scan 3s infinite linear;
+}
 @keyframes scan { 0% { top: 0; } 100% { top: 100%; } }
 
-.controls { text-align: center; margin-top: 25px; }
+.controls { text-align: center; margin-top: 22px; }
 .action-group { display: flex; flex-direction: column; align-items: center; gap: 10px; }
-.file-divider { margin: 10px 0; color: #ccc; font-size: 12px; display: flex; align-items: center; width: 100%; }
-.file-divider::before, .file-divider::after { content: ""; flex: 1; height: 1px; background: #eee; margin: 0 10px; }
-
-/* 修改：让布局从左右并排改为上下排列，或者给雷达图更多空间 */
-.charts { 
-  display: flex; 
-  flex-direction: column; /* 改为纵向排列，让每一张图都足够宽 */
-  gap: 20px; 
-  margin-top: 15px;
+.file-divider {
+  margin: 10px 0; color: #c8a96e; font-size: 12px;
+  display: flex; align-items: center; width: 100%;
+}
+.file-divider::before, .file-divider::after {
+  content: ""; flex: 1; height: 1px; background: #e8d5a0; margin: 0 10px;
 }
 
-.img-card { 
-  width: 100%; /* 占满容器 */
-  font-size: 14px; 
-  color: #405d66; 
-  font-weight: bold;
-  text-align: left; /* 文字靠左对齐 */
-  background: rgba(255,255,255,0.5);
-  padding: 10px;
-  border-radius: 15px;
+.charts { display: flex; flex-direction: column; gap: 20px; margin-top: 15px; }
+
+.img-card {
+  width: 100%; font-size: 14px; color: #5a2d00; font-weight: bold;
+  text-align: left; background: rgba(250,243,224,.7);
+  padding: 10px; border-radius: 8px;
+  border: 1px solid #e8d5a0;
 }
 
-.preview-img { 
-  width: 100%;       
-  height: auto;      
-  /* 调高最大高度限制，或者直接取消 */
-  max-height: 450px; 
-  
-  object-fit: contain; 
-  border-radius: 12px; 
-  border: 1px solid rgba(0,0,0,0.05); 
-  background: #fff; 
-  margin-top: 8px;
-  display: block;
-  box-shadow: 0 4px 12px rgba(0,0,0,0.05); /* 增加一点阴影提升质感 */
+.preview-img {
+  width: 100%; height: auto; max-height: 450px;
+  object-fit: contain; border-radius: 8px;
+  border: 1px solid #e8d5a0; background: #fffdf5;
+  margin-top: 8px; display: block;
+  box-shadow: 0 4px 12px rgba(100,60,10,.08);
 }
 
-.ai-spinner { width: 40px; height: 40px; border: 3px solid #f3f3f3; border-top: 3px solid #409eff; border-radius: 50%; margin: 20px auto; animation: spin 1s linear infinite; }
+.ai-spinner {
+  width: 40px; height: 40px;
+  border: 3px solid #e8d5a0; border-top: 3px solid #8b3d1a;
+  border-radius: 50%; margin: 20px auto; animation: spin 1s linear infinite;
+}
 @keyframes spin { 100% { transform: rotate(360deg); } }
-/* --- 专门针对底部按钮的居中补丁 --- */
+
 .footer-btns {
-  display: flex;            /* 开启弹性布局 */
-  justify-content: center;  /* 水平居中 */
-  align-items: center;      /* 垂直居中 */
-  gap: 20px;                /* 按钮之间的间距，你可以根据喜好调大调小 */
-  margin-top: 30px;         /* 与上方图片的距离 */
-  width: 100%;              /* 确保占满容器宽度 */
+  display: flex; justify-content: center; align-items: center;
+  gap: 20px; margin-top: 30px; width: 100%;
 }
-
-
 .footer-btns .el-button {
-  padding: 12px 25px;
-  min-width: 120px;
-  font-weight: 500;
-  border-radius: 20px;      /* 让按钮圆润一点，贴合你的玻璃拟态风格 */
+  padding: 12px 25px; min-width: 120px; font-weight: 500; border-radius: 8px;
 }
 
-/* 新增 AI 声明的样式 */
 .ai-disclaimer {
-  font-size: 14px;
-  color: #666;
-  line-height: 1.8;
-  text-align: center;
-  background: rgba(255, 255, 255, 0.8);
-  padding: 10px 15px;
-  border-radius: 10px;
-  box-shadow: 0 4px 10px rgba(0, 0, 0, 0.1);
-  margin-top: 20px;
+  font-size: 13px; color: #6b4c24; line-height: 1.8; text-align: center;
+  background: #faf3e0; padding: 10px 15px; border-radius: 8px;
+  border: 1px solid #e8d5a0; margin-top: 20px;
 }
-
-.ai-disclaimer .highlight {
-  color: #409eff;
-  font-weight: bold;
-}
-
-.ai-disclaimer .warning {
-  color: #e74c3c;
-  font-weight: bold;
-}
+.ai-disclaimer .highlight { color: #8b3d1a; font-weight: bold; }
+.ai-disclaimer .warning  { color: #c0392b; font-weight: bold; }
 </style>
