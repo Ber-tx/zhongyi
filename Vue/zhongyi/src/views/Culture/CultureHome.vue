@@ -1,19 +1,29 @@
 <template>
   <div class="tcm-ai-hub" :class="{ 'is-focus': activeModule !== null, 'fade-out': isLeaving }">
+
+    <!-- 背景：宣纸暖黄 -->
     <div class="aura-bg">
-      <div class="breath-sphere s-qi"></div>    <div class="breath-sphere s-blood"></div> <div class="paper-grain"></div>
+      <div class="breath-sphere s-qi"></div>
+      <div class="breath-sphere s-blood"></div>
+      <div class="paper-grain"></div>
     </div>
 
+    <!-- 页眉 -->
     <header class="hero-section">
+      <el-button class="back-btn" @click="router.push('/')">← 返回主页</el-button>
       <div class="hero-content">
         <h1 class="hero-title">岐黄 · 智御</h1>
         <p class="hero-subtitle">万物波动，皆有定数。在这里，用算法触碰生命的律动。</p>
       </div>
     </header>
 
+    <!-- Bento 卡片网格 -->
     <div class="bento-container">
-      
-      <div class="bento-item span-2-2 has-bg" :class="{ active: activeModule === 1 }" @click="handleModuleClick(1)" :style="{ backgroundImage: `url(${diag1})`, backgroundSize: 'cover', backgroundPosition: 'center' }">
+
+      <div class="bento-item span-2-2 has-bg"
+        :class="{ active: activeModule === 1 }"
+        @click="handleModuleClick(1)"
+        :style="{ backgroundImage: `url(${diag1})` }">
         <div class="label">MODULE 01 / 中医治未病</div>
         <h3 class="section-title">未病之域 · 生命预演</h3>
         <div class="visual-box fusion-visual">
@@ -24,7 +34,7 @@
               <circle class="node pulse-node" cx="100" cy="30" r="5" />
               <circle class="node pulse-node" cx="170" cy="100" r="5" />
               <circle class="node pulse-node" cx="100" cy="170" r="5" />
-              <circle class="node pulse-node" cx="30" cy="100" r="5" />
+              <circle class="node pulse-node" cx="30"  cy="100" r="5" />
             </g>
           </svg>
         </div>
@@ -32,7 +42,7 @@
       </div>
 
       <div class="bento-item" :class="{ active: activeModule === 2 }" @click="handleModuleClick(2)">
-        <div class="label">MUSIC/音乐养生</div>
+        <div class="label">MUSIC / 音乐养生</div>
         <h3 class="section-title">声律共振 · 气机调和</h3>
         <div class="visual-box pulse-visual">
           <svg class="pulse-svg" viewBox="0 0 200 60">
@@ -46,9 +56,11 @@
         <div class="label">儿童调养</div>
         <h3 class="section-title">稚阳初生 · 生长守护</h3>
         <div class="visual-box logic-visual">
-          <div class="gallery-mask small"><img class="soft-img" src="../../assets/images/mainShow/3.jpg" alt="儿童" /></div>
+          <div class="gallery-mask small">
+            <img class="soft-img" src="../../assets/images/mainShow/3.jpg" alt="儿童" />
+          </div>
           <div class="neural-nodes">
-            <span v-for="i in 3" :key="i" :style="{ animationDelay: i*0.2+'s' }"></span>
+            <span v-for="i in 3" :key="i" :style="{ animationDelay: i * 0.2 + 's' }"></span>
           </div>
         </div>
       </div>
@@ -56,7 +68,9 @@
       <div class="bento-item span-2" :class="{ active: activeModule === 4 }" @click="handleModuleClick(4)">
         <div class="label">妇婴保健</div>
         <div class="flex-row">
-          <div class="gallery-mask"><img class="soft-img" src="../../assets/images/mainShow/4.jpg" alt="妇婴" /></div>
+          <div class="gallery-mask">
+            <img class="soft-img" src="../../assets/images/mainShow/4.jpg" alt="妇婴" />
+          </div>
           <div>
             <h3 class="section-title">阴阳承续 · 温养之源</h3>
             <p class="desc">👉 呵护孕期与产后，支持生命延续</p>
@@ -72,9 +86,9 @@
         </div>
       </div>
 
-      <div class="bento-item span-2 theme-ink-jade" :class="{ active: activeModule === 6 }" @click="handleModuleClick(6)">
+      <div class="bento-item span-2 theme-ink" :class="{ active: activeModule === 6 }" @click="handleModuleClick(6)">
         <div class="label">情志调摄</div>
-        <div class="inner-glow"></div> 
+        <div class="inner-glow"></div>
         <p class="advice-text">情绪内观 · 心神安位</p>
         <div class="advice-meta">
           <span class="status-dot"></span>
@@ -83,33 +97,35 @@
       </div>
 
       <div class="bento-item" :class="{ active: activeModule === 7 }" @click="handleModuleClick(7)">
-        <div class="label">SLEEP/睡眠养生</div>
+        <div class="label">SLEEP / 睡眠养生</div>
         <h3 class="section-title">昼夜归序 · 深度修复</h3>
         <div class="ripple-visual">
           <div class="r r1"></div><div class="r r2"></div>
         </div>
-        <div class="gallery-mask small"><img class="soft-img" src="../../assets/images/mainShow/7.jpg" alt="睡眠" /></div>
+        <div class="gallery-mask small">
+          <img class="soft-img" src="../../assets/images/mainShow/7.jpg" alt="睡眠" />
+        </div>
       </div>
 
       <div class="bento-item" :class="{ active: activeModule === 8 }" @click="handleModuleClick(8)">
         <div class="label">休闲养生</div>
         <h3 class="section-title">松弛之域 · 日常回养</h3>
         <div class="growth-node"></div>
-        <div class="gallery-mask small"><img class="soft-img" src="../../assets/images/mainShow/8.jpg" alt="休闲" /></div>
+        <div class="gallery-mask small">
+          <img class="soft-img" src="../../assets/images/mainShow/8.jpg" alt="休闲" />
+        </div>
       </div>
 
-      <div class="bento-item has-bg" :class="{ active: activeModule === 9 }" @click="handleModuleClick(9)" :style="{ backgroundImage: `url(${solar})`, backgroundSize: 'cover', backgroundPosition: 'center' }">
+      <div class="bento-item has-bg" :class="{ active: activeModule === 9 }" @click="handleModuleClick(9)"
+        :style="{ backgroundImage: `url(${solar})` }">
         <div class="label">节气养生</div>
         <h3 class="section-title">时令感知 · 天地同频</h3>
-        <div class="follow-data-bar"></div>
-        
       </div>
 
-      <div class="bento-item has-bg" :class="{ active: activeModule === 10 }" @click="handleModuleClick(10)" :style="{ backgroundImage: `url(${seasons})`, backgroundSize: 'cover', backgroundPosition: 'center' }">
+      <div class="bento-item has-bg" :class="{ active: activeModule === 10 }" @click="handleModuleClick(10)"
+        :style="{ backgroundImage: `url(${seasons})` }">
         <div class="label">四季养生</div>
         <h3 class="section-title">四时循环 · 生命长波</h3>
-        <div class="zen-dot"></div>
-        
       </div>
 
     </div>
@@ -123,186 +139,283 @@
 
 <script setup>
 import { ref } from 'vue'
-import { useRouter } from 'vue-router' // 1. 引入路由
-import solar from '/src/assets/images/mainShow/9.jpg'
+import { useRouter } from 'vue-router'
+import solar  from '/src/assets/images/mainShow/9.jpg'
 import seasons from '/src/assets/images/mainShow/10.jpg'
-import diag1 from '/src/assets/images/mainShow/1.jpg'
-const isLeaving = ref(false)
-const router = useRouter() // 2. 初始化
+import diag1  from '/src/assets/images/mainShow/1.jpg'
+
+const isLeaving    = ref(false)
+const router       = useRouter()
 const activeModule = ref(null)
 
-// 3. 统一跳转函数
 const handleModuleClick = (id) => {
   activeModule.value = id
-  // 延迟一小会儿跳转，让用户看到点击反馈动画（可选，比如 300ms）
   setTimeout(() => {
-      // 2. 触发全屏淡出效果
-      isLeaving.value = true 
-      
-      // 3. 在淡出动画进行到一半或结束时，再真正执行路由跳转
-      setTimeout(() => {
-        if (id === 1) {
-          router.push('/culture/preventive')
-        } else {
-          // 路径会匹配你路由表中的 /culture/module/:id
-          // 如果 id 是 4 或 8，路由表会自动分发到对应的 ModuleFour/Eight 组件
-          router.push(`/culture/module/${id}`)
-        }
-      }, 800) // 延迟和 CSS 的 transition 时间匹配
-    }, 400) 
-  }
+    isLeaving.value = true
+    setTimeout(() => {
+      if (id === 1) router.push('/culture/preventive')
+      else          router.push(`/culture/module/${id}`)
+    }, 800)
+  }, 400)
+}
 </script>
 
 <style scoped>
-/* 一、色彩与质感定义 */
-:host, .tcm-ai-hub {
-  --c-paper: #FBFBF9;
-  --c-ink-jade: #1E2622;  /* 墨玉色：深绿入墨 */
-  --c-qi: #4A907E;        /* 生机青 */
-  --c-blood: #A64444;     /* 律动红 */
-  --c-warm: #D9A05B;      /* 温阳金 */
-  --ease-slow: cubic-bezier(0.34, 1.56, 0.64, 1);
-}
-
+/* ── 色彩变量（与 Home.vue 保持一致）── */
 .tcm-ai-hub {
-  background-color: var(--c-paper);
-  color: #1A1C1E;
+  --c-paper:   #fdf8ef;
+  --c-border:  #c8a96e;
+  --c-gold:    #c8a020;
+  --c-ink:     #3d2b10;
+  --c-ink-lt:  #6b4c24;
+  --c-brown:   #8b3d1a;
+  --c-qi:      #4a7060;   /* 比原来更暗、更沉稳的青绿 */
+  --c-blood:   #8b3020;   /* 比原来更暗的砖红 */
+  --c-warm:    #c8a020;   /* 金色 */
+  --ease-slow: cubic-bezier(0.34, 1.56, 0.64, 1);
+
+  background: radial-gradient(ellipse at top, #f5e8c8 0%, #fdf3dc 45%, #fef9f0 100%);
+  color: var(--c-ink);
   min-height: 100vh;
-  font-family: "PingFang SC", "Noto Serif SC", serif;
+  font-family: 'Noto Serif SC', "Source Han Serif CN", serif;
 }
 
-/* 二、动态气场背景 */
-.aura-bg { position: fixed; inset: 0; z-index: 0; overflow: hidden; }
+/* ── 背景气场 ── */
+.aura-bg { position: fixed; inset: 0; z-index: 0; overflow: hidden; pointer-events: none; }
+
 .breath-sphere {
-  position: absolute; border-radius: 50%; filter: blur(120px); opacity: 0.22;
+  position: absolute; border-radius: 50%;
+  filter: blur(120px); opacity: 0.12;   /* 比原来更透，不抢主体 */
   animation: float 12s infinite alternate ease-in-out;
 }
-.s-qi { width: 60vw; height: 60vw; background: var(--c-qi); top: -20%; left: -10%; }
-.s-blood { width: 45vw; height: 45vw; background: var(--c-blood); bottom: -10%; right: -5%; animation-delay: -3s; }
+.s-qi    { width: 60vw; height: 60vw; background: #4a7060; top: -20%;  left: -10%; }
+.s-blood { width: 45vw; height: 45vw; background: #8b3020; bottom: -10%; right: -5%; animation-delay: -3s; }
+
 .paper-grain {
   position: absolute; inset: 0; opacity: 0.04; pointer-events: none;
-  background-image: url("data:image/svg+xml,%3Csvg viewBox='0 0 200 200' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.8'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)'/%3E%3C/svg%3E");
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='300' height='300'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.75' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='300' height='300' filter='url(%23n)' opacity='1'/%3E%3C/svg%3E");
 }
-
 @keyframes float { from { transform: translate(0,0); } to { transform: translate(40px, 60px); } }
 
-/* 三、Hero 区域压缩 */
-.hero-section { padding: 60px 4vw 30px; position: relative; z-index: 10; }
-.hero-title { font-size: 3.2rem; font-family: "Noto Serif SC", serif; letter-spacing: 0.1em; }
-.hero-subtitle { color: #888; font-weight: 300; margin-top: 8px; }
-
-/* 四、Bento 容器交互 */
-.bento-container {
-  display: grid; grid-template-columns: repeat(4, 1fr); gap: 18px;
-  padding: 0 4vw 60px; position: relative; z-index: 10;
+/* ── 页眉 ── */
+.hero-section {
+  padding: 36px 4vw 24px;
+  position: relative; z-index: 10;
+  border-bottom: 1px solid #e8d5a0;
+  margin-bottom: 4px;
 }
 
+.back-btn {
+  background: rgba(139,61,26,.08) !important;
+  color: #6b4c24 !important;
+  border: 1px solid #c8a96e !important;
+  border-radius: 4px !important;
+  font-family: inherit !important;
+  font-size: 13px !important;
+  margin-bottom: 16px;
+}
+.back-btn:hover { background: rgba(139,61,26,.16) !important; }
+
+.hero-content { text-align: center; }
+.hero-title {
+  font-size: 2.8rem;
+  font-family: "Noto Serif SC", serif;
+  letter-spacing: 0.12em;
+  color: var(--c-ink);
+  margin: 0 0 8px;
+  text-shadow: 0 1px 3px rgba(100,50,0,.1);
+}
+.hero-subtitle { color: var(--c-ink-lt); font-weight: 300; margin: 0; font-size: 14px; }
+
+/* ── Bento 容器 ── */
+.bento-container {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 16px;
+  padding: 20px 4vw 60px;
+  position: relative; z-index: 10;
+}
+
+/* ── 卡片基础 ── */
 .bento-item {
-  background: rgba(255, 255, 255, 0.7);
-  backdrop-filter: blur(25px);
-  border: 1px solid rgba(255, 255, 255, 0.6);
-  padding: 26px; border-radius: 20px;
-  transition: all 0.5s var(--ease-slow);
-  cursor: pointer; display: flex; flex-direction: column;
+  background: rgba(255, 252, 242, 0.88);
+  border: 1px solid #d4b483;
+  border-radius: 16px;
+  padding: 22px;
+  cursor: pointer;
+  display: flex; flex-direction: column;
+  box-shadow: 0 3px 12px rgba(100,60,10,.07),
+              inset 0 1px 0 rgba(255,248,220,.7);
+  transition: all 0.4s var(--ease-slow);
+  position: relative;
+}
+
+/* 顶部金线 */
+.bento-item::before {
+  content: '';
+  position: absolute; top: 0; left: 0; right: 0; height: 2px;
+  background: linear-gradient(90deg, transparent, #c8a020 50%, transparent);
+  border-radius: 16px 16px 0 0; opacity: .4;
 }
 
 .bento-item:hover {
   transform: translateY(-6px);
-  background: #FFF;
-  border-color: var(--c-qi);
-  box-shadow: 0 20px 40px rgba(74, 144, 126, 0.1);
+  background: #fffdf5;
+  border-color: var(--c-gold);
+  box-shadow: 0 16px 36px rgba(100,60,10,.14);
 }
 
-/* 背景图卡片遮罩，提升可读性 */
-.bento-item.has-bg { position: relative; }
-.bento-item.has-bg::before {
+/* 背景图卡片 */
+.bento-item.has-bg { background-size: cover; background-position: center; }
+.bento-item.has-bg::after {
   content: "";
-  position: absolute;
-  inset: 0;
-  background: linear-gradient(rgba(0,0,0,0.45), rgba(0,0,0,0.25));
+  position: absolute; inset: 0;
+  background: linear-gradient(rgba(30,15,5,.55), rgba(30,15,5,.3));
   border-radius: inherit;
-  pointer-events: none;
-  z-index: 0;
+  pointer-events: none; z-index: 0;
 }
-.bento-item.has-bg * { position: relative; z-index: 1; }
+.bento-item.has-bg > * { position: relative; z-index: 1; }
+/* 覆盖顶部金线，防止两个 pseudo 冲突 */
+.bento-item.has-bg::before { opacity: 0; }
 
-/* 尺寸与圆角节奏 */
-.span-2-2 { grid-column: span 2; grid-row: span 2; border-radius: 60px 20px; }
-.span-2 { grid-column: span 2; border-radius: 20px 40px; }
+/* 尺寸变体 */
+.span-2-2 { grid-column: span 2; grid-row: span 2; border-radius: 24px 12px; }
+.span-2   { grid-column: span 2; border-radius: 12px 24px; }
 
-/* 01 四诊视觉 */
-.fusion-visual { height: 160px; position: relative; display: flex; align-items: center; justify-content: center; }
-.core-glow { position: absolute; width: 50px; height: 50px; background: var(--c-qi); filter: blur(30px); opacity: 0.2; }
-.orbit-path { fill: none; stroke: var(--c-qi); stroke-opacity: 0.1; stroke-dasharray: 4; }
-.pulse-node { fill: var(--c-qi); animation: nodePulse 2s infinite; }
+/* ── 聚焦态 ── */
+.is-focus .bento-item:not(.active) {
+  opacity: 0.25; filter: grayscale(1) blur(3px); transform: scale(0.97);
+}
+.bento-item.active {
+  transform: scale(1.04); z-index: 50;
+  border-color: var(--c-gold);
+  box-shadow: 0 24px 50px rgba(100,60,10,.18);
+}
+
+/* ── 通用文字 ── */
+.label {
+  font-size: 10px; font-weight: 800; color: var(--c-ink-lt);
+  letter-spacing: 2px; margin-bottom: 6px;
+}
+.bento-item.has-bg .label { color: rgba(255,240,200,.7); }
+
+.section-title {
+  font-family: "Noto Serif SC", serif;
+  font-size: 1.2rem; margin: 8px 0;
+  color: var(--c-ink);
+}
+.bento-item.has-bg .section-title { color: #fdeabb; text-shadow: 0 1px 4px rgba(0,0,0,.4); }
+
+.desc { font-size: 12px; color: var(--c-ink-lt); line-height: 1.6; margin: 0; }
+.bento-item.has-bg .desc { color: rgba(255,240,200,.8); }
+
+/* ── 视觉元素 ── */
+.fusion-visual {
+  height: 150px; position: relative;
+  display: flex; align-items: center; justify-content: center;
+}
+.core-glow {
+  position: absolute; width: 50px; height: 50px;
+  background: var(--c-gold); filter: blur(28px); opacity: .25;
+}
+.orbit-path { fill: none; stroke: var(--c-gold); stroke-opacity: .2; stroke-dasharray: 4; }
+.pulse-node { fill: var(--c-gold); animation: nodePulse 2s infinite; }
 @keyframes nodePulse { 50% { r: 7; opacity: 1; } }
 
-/* 02 脉象视觉 */
-.wave-path { fill: none; stroke: var(--c-blood); stroke-width: 2; stroke-dasharray: 200; animation: wave 4s infinite linear; }
+.wave-path {
+  fill: none; stroke: var(--c-blood); stroke-width: 2;
+  stroke-dasharray: 200; animation: wave 4s infinite linear;
+}
 @keyframes wave { to { stroke-dashoffset: -400; } }
 
-/* 06 墨玉调理方案 (重点修改：不再突兀) */
-.theme-ink-jade {
-  background: linear-gradient(135deg, #242D28 0%, #1A1F1D 100%) !important;
-  color: #E2E8E4 !important;
-  border: 1px solid rgba(107, 143, 113, 0.2) !important;
-  position: relative; overflow: hidden;
+/* 情志卡片（深色主题） */
+.theme-ink {
+  background: linear-gradient(135deg, #2e1e0e 0%, #1e150a 100%) !important;
+  border-color: rgba(200,160,32,.25) !important;
+  color: #f0e0c0 !important;
+  overflow: hidden;
 }
+.theme-ink .label { color: rgba(200,160,32,.6); }
+.theme-ink .section-title { color: #fdeabb; }
 .inner-glow {
   position: absolute; inset: -50%;
-  background: radial-gradient(circle at center, rgba(74, 144, 126, 0.08) 0%, transparent 50%);
+  background: radial-gradient(circle at center, rgba(200,160,32,.08) 0%, transparent 50%);
   animation: rotate 15s infinite linear;
 }
 @keyframes rotate { from { transform: rotate(0); } to { transform: rotate(360deg); } }
-.advice-text { font-family: "Noto Serif SC", serif; font-size: 1.25rem; line-height: 1.7; margin: 20px 0; position: relative; }
-.advice-meta { font-size: 11px; opacity: 0.5; display: flex; align-items: center; gap: 8px; position: relative; }
-.status-dot { width: 4px; height: 4px; background: var(--c-qi); border-radius: 50%; box-shadow: 0 0 8px var(--c-qi); }
+.advice-text {
+  font-family: "Noto Serif SC", serif; font-size: 1.2rem;
+  line-height: 1.7; margin: 16px 0; position: relative;
+  color: #fdeabb;
+}
+.advice-meta {
+  font-size: 11px; opacity: .6;
+  display: flex; align-items: center; gap: 8px; position: relative;
+}
+.status-dot {
+  width: 4px; height: 4px; background: var(--c-gold);
+  border-radius: 50%; box-shadow: 0 0 6px var(--c-gold);
+}
 
-/* 05 体质球视觉 */
-.state-orb { 
-  width: 70px; height: 70px; border-radius: 50%; margin: 20px auto;
-  background: radial-gradient(circle at 30% 30%, var(--c-warm), var(--c-blood));
+/* 体质球 */
+.state-orb {
+  width: 64px; height: 64px; border-radius: 50%; margin: 16px auto;
+  background: radial-gradient(circle at 30% 30%, #c8a020, #8b3020);
   filter: blur(8px); animation: breath 4s infinite alternate;
 }
-@keyframes breath { from { transform: scale(0.9); opacity: 0.7; } to { transform: scale(1.15); opacity: 1; } }
+@keyframes breath { from { transform: scale(.9); opacity: .7; } to { transform: scale(1.15); opacity: 1; } }
 
-/* 聚焦态控制 */
-.is-focus .bento-item:not(.active) { opacity: 0.2; filter: grayscale(1) blur(4px); transform: scale(0.96); }
-.bento-item.active { transform: scale(1.04); z-index: 50; border-color: var(--c-qi); box-shadow: 0 30px 60px rgba(0,0,0,0.1); }
+/* 涟漪 */
+.ripple-visual { position: relative; height: 40px; margin: 8px 0; }
+.r {
+  position: absolute; border-radius: 50%;
+  border: 1px solid var(--c-gold); opacity: 0;
+  animation: ripple 3s infinite ease-out;
+  top: 50%; left: 50%; transform: translate(-50%, -50%);
+}
+.r1 { width: 30px; height: 30px; }
+.r2 { width: 30px; height: 30px; animation-delay: 1.5s; }
+@keyframes ripple {
+  0%   { width: 20px; height: 20px; opacity: .6; }
+  100% { width: 70px; height: 70px; opacity: 0; }
+}
 
-/* 基础通用 */
-.label { font-size: 10px; font-weight: 800; color: #AAA; letter-spacing: 2px; }
-.section-title { font-family: "Noto Serif SC", serif; font-size: 1.3rem; margin: 10px 0; }
-.desc { font-size: 12px; color: #999; line-height: 1.5; }
-.flex-row { display: flex; align-items: center; gap: 20px; }
+/* 生长节点 */
+.growth-node {
+  width: 12px; height: 12px; border-radius: 50%;
+  background: var(--c-gold);
+  margin: 12px 0;
+  box-shadow: 0 0 12px rgba(200,160,32,.5);
+  animation: breath 2s infinite alternate;
+}
+
+/* 图片遮罩 */
+.flex-row { display: flex; align-items: center; gap: 18px; }
 .gallery-mask {
-  width: clamp(100px, 18vw, 220px);
-  height: clamp(100px, 18vw, 220px);
+  width: clamp(80px, 16vw, 200px);
+  height: clamp(80px, 16vw, 200px);
   border-radius: 50%;
-  border: 1px solid var(--c-qi);
-  overflow: hidden;
+  border: 2px solid var(--c-gold);
+  overflow: hidden; flex-shrink: 0;
+}
+.gallery-mask.small {
+  width: clamp(60px, 10vw, 120px);
+  height: clamp(60px, 10vw, 120px);
 }
 .soft-img { width: 100%; height: 100%; display: block; object-fit: cover; }
-.gallery-mask.small {
-  width: clamp(70px, 12vw, 140px);
-  height: clamp(70px, 12vw, 140px);
-  border-radius: 50%;
+
+/* ── 页脚 ── */
+.philosophy-footer {
+  padding: 30px 4vw;
+  border-top: 1px solid #e8d5a0;
+  position: relative; z-index: 10;
 }
+.copyright { font-size: 11px; color: var(--c-ink-lt); letter-spacing: 3px; }
 
-.philosophy-footer { padding: 40px 4vw; border-top: 1px solid rgba(0,0,0,0.05); }
-.copyright { font-size: 10px; color: #BBB; letter-spacing: 2px; }
-
-/* 定义一个离开动画 */
+/* ── 离开动画 ── */
 .fade-out {
-  opacity: 0;
-  filter: blur(10px);
-  transform: scale(1.1); /* 稍微放大一点点，更有穿透感 */
+  opacity: 0; filter: blur(10px); transform: scale(1.06);
   transition: all 0.6s ease-out;
 }
-
-/* 确保容器有 transition 属性 */
-.tcm-ai-hub {
-  transition: opacity 0.8s ease;
-}
+.tcm-ai-hub { transition: opacity 0.8s ease; }
 </style>
-
