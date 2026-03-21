@@ -93,7 +93,12 @@
         
         <div class="footer-btns">
           <el-button round @click="reCapture">重新分析</el-button>
-          <el-button type="primary" round @click="goBack">完成并返回</el-button>
+          <el-button type="primary" round @click="goToNextOrReport">
+            继续下一个诊断
+          </el-button>
+          <el-button type="success" round @click="generatePartialReport">
+            生成当前报告
+          </el-button>
         </div>
       </div>
     </div>
@@ -104,6 +109,7 @@
 import { ref, onUnmounted, onMounted,h } from 'vue' // 增加 onMounted
 import { useRouter, useRoute } from 'vue-router' // 增加 useRoute
 import { Camera, ArrowLeft, CircleCheckFilled, Picture, VideoCamera } from '@element-plus/icons-vue'
+import axios from 'axios'
 
 import { ElMessage, ElMessageBox } from 'element-plus'; // 增加 ElMessageBox 引入
 import { uploadTongue } from '@/api/detect';
@@ -279,9 +285,46 @@ const reCapture = () => {
   // 注意：这里绝对不重置 patientInfo.value.id，保证重测时 ID 依然有效
 }
 
+// 新增：继续下一个诊断或返回诊断选择页面
+const goToNextOrReport = () => {
+  stopCamera();
+  router.push('/detect');
+}
+
+// 新增：生成当前（部分完成）的诊断报告
+const generatePartialReport = async () => {
+  const patientId = patientInfo.value.id || localStorage.getItem('current_patient_id');
+  const idCard = patientInfo.value.idCard || localStorage.getItem('current_patient_idCard');
+  
+  if (!patientId) {
+    ElMessage.error("患者ID丢失，无法生成报告");
+    return;
+  }
+
+  try {
+    // 调用后端的报告生成接口，指定已完成的类型为 'wang'
+    const response = await axios.post("/api/report/generate", {
+      patientId: Number(patientId),
+      idCard: idCard,
+      completedTypes: 'wang'  // 仅指定望诊完成
+    });
+
+    if (response.data.code === 200 || response.data.success) {
+      // 保存报告数据到localStorage，然后跳转到Report页面
+      localStorage.setItem('reportData', JSON.stringify(response.data.data));
+      router.push(`/report?id=${patientId}`);
+    } else {
+      ElMessage.error(response.data.msg || "生成报告失败");
+    }
+  } catch (error) {
+    ElMessage.error("生成报告失败：" + error.message);
+  }
+}
 
 
 onUnmounted(stopCamera);
+
+
 </script>
 
 <style scoped>

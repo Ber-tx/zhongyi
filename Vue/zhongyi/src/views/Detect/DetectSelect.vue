@@ -71,8 +71,21 @@
         </div>
       </div>
 
-      <div class="report-section" v-if="wenjuanFinished">
+      <div class="report-section">
+         <!-- 显示已完成的板块 -->
+         <div v-if="completedCount > 0" class="completed-info">
+           <p class="completion-status">已完成 <span class="count-badge">{{ completedCount }}/4</span> 个诊断板块</p>
+           <div class="completed-types">
+             <el-tag v-if="wangFinished" type="success" effect="light">✓ 望诊</el-tag>
+             <el-tag v-if="wenFinished" type="success" effect="light">✓ 闻诊</el-tag>
+             <el-tag v-if="wenjuanFinished" type="success" effect="light">✓ 问诊</el-tag>
+             <el-tag v-if="qieFinished" type="success" effect="light">✓ 切诊</el-tag>
+           </div>
+         </div>
+         
+         <!-- 生成报告按钮 -->
          <el-button 
+           v-if="completedCount > 0"
            type="primary" 
            size="large" 
            round 
@@ -80,8 +93,12 @@
            @click="generateReport"
            :loading="isGenerating"
          >
-           生成四诊合参报告
+           {{ completedCount === 4 ? '生成四诊合参报告' : `生成报告 (${completedCount}个板块)` }}
          </el-button>
+         
+         <p v-if="completedCount === 0" class="no-data-tip">
+           请完成至少一个诊断板块后生成报告
+         </p>
       </div>
     </div>
   </div>
@@ -108,6 +125,18 @@ const wenFinished = ref(false);
 const qieFinished = ref(false);
 const isGenerating = ref(false)  // 【新增】生成报告中的状态
 
+// 新增：计算已完成的诊断板块数
+const completedCount = ref(0);
+
+const calculateCompletedCount = () => {
+  let count = 0;
+  if (wangFinished.value) count++;
+  if (wenFinished.value) count++;
+  if (wenjuanFinished.value) count++;
+  if (qieFinished.value) count++;
+  completedCount.value = count;
+};
+
 const refreshStatuses = () => {
   // 始终以锁定在当前页面内存中的 ID 为准，不直接读 localStorage，防止中途被覆盖
   const currentId = lockedPatientId.value || localStorage.getItem('current_patient_id');
@@ -124,8 +153,9 @@ const refreshStatuses = () => {
   wangFinished.value = localStorage.getItem('wang_finished_id') === String(currentId);
   wenFinished.value = localStorage.getItem('wen_finished_id') === String(currentId);
   wenjuanFinished.value = localStorage.getItem('wenjuan_finished_id') === String(currentId);
-  qieFinished.value = localStorage.getItem('qie_finished_id') === String(currentId);
-}
+  qieFinished.value = localStorage.getItem('qie_finished_id') === String(currentId);  
+  // 新增：计算完成数
+  calculateCompletedCount();}
 
 const goTo = (type) => {
   const statusMap = {
@@ -169,7 +199,7 @@ watch(() => route.fullPath, () => {
   refreshStatuses();
 });
 
-// ===== 生成四诊合参报告【新增】=====
+// ===== 生成四诊报告【已改造：支持部分板块】=====
 const generateReport = async () => {
   // 【重要】直接从 localStorage 获取最新的患者ID，确保不为空
   const patientId = lockedPatientId.value || localStorage.getItem('current_patient_id')
@@ -182,10 +212,20 @@ const generateReport = async () => {
     return
   }
 
-  // 直接跳转，report 页的 onMounted 会自己发请求并显示加载动画
+  // 获取已完成的诊断类型
+  const completedTypes = [];
+  if (wangFinished.value) completedTypes.push('wang');
+  if (wenFinished.value) completedTypes.push('wen_audio');
+  if (wenjuanFinished.value) completedTypes.push('wen_questionnaire');
+  if (qieFinished.value) completedTypes.push('qie');
+
+  // 跳转到报告页面，传递已完成的诊断类型
   router.push({
     path: '/report',
-    query: { id: patientId }
+    query: { 
+      id: patientId,
+      completedTypes: completedTypes.join(',')
+    }
   })
 }
 </script>
@@ -272,8 +312,57 @@ const generateReport = async () => {
 .wenjuan .icon-wrapper { background: linear-gradient(135deg, #e6a23c, #f3d19e); }
 .qie .icon-wrapper { background: linear-gradient(135deg, #f56c6c, #fab6b6); }
 
-.report-section { text-align: center; margin-top: 50px; }
-.report-btn { padding: 25px 50px; font-size: 18px; box-shadow: 0 10px 20px rgba(64, 158, 255, 0.3); }
+.report-section { 
+  text-align: center; 
+  margin-top: 50px;
+  background: rgba(255, 255, 255, 0.7);
+  backdrop-filter: blur(15px);
+  border-radius: 20px;
+  padding: 30px;
+  border: 1px solid rgba(255, 255, 255, 0.5);
+}
+
+/* 新增：已完成信息样式 */
+.completed-info {
+  margin-bottom: 20px;
+}
+
+.completion-status {
+  font-size: 16px;
+  color: #333;
+  margin: 0 0 15px 0;
+  font-weight: 600;
+}
+
+.count-badge {
+  display: inline-block;
+  background: linear-gradient(135deg, #409eff, #73b9ff);
+  color: white;
+  padding: 4px 12px;
+  border-radius: 12px;
+  font-size: 14px;
+  margin-left: 8px;
+}
+
+.completed-types {
+  display: flex;
+  justify-content: center;
+  gap: 10px;
+  margin: 0;
+  flex-wrap: wrap;
+}
+
+.no-data-tip {
+  color: #999;
+  font-size: 14px;
+  margin: 0;
+}
+
+.report-btn { 
+  padding: 25px 50px; 
+  font-size: 18px; 
+  box-shadow: 0 10px 20px rgba(64, 158, 255, 0.3); 
+}
 
 /* Hover 交互特效 */
 .detect-card:not(.is-finished):hover {

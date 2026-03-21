@@ -3,7 +3,13 @@
     <!-- 返回按钮 -->
     <div class="header">
       <el-button @click="goBack" icon="ArrowLeft">返回</el-button>
-      <h1>四诊合参诊断报告</h1>
+      <h1>{{ reportTitle }}</h1>
+      <div class="completion-badge">
+        <span v-if="completionPercentage < 100" class="badge incomplete">
+          {{ completionPercentage }}% 完成度
+        </span>
+        <span v-else class="badge complete">✓ 四诊完整</span>
+      </div>
       <div class="header-buttons">
         <el-button type="primary" @click="exportPDF" :loading="isExporting" icon="Download">
           导出PDF
@@ -198,6 +204,48 @@ const isLoading = ref(false);
 const isExporting = ref(false);
 const reportRef = ref(null);
 
+// 新增：计算报告标题和完成度
+const reportTitle = ref("四诊合参诊断报告");
+const completionPercentage = ref(100);
+
+// 计算完成度
+const calculateCompletion = () => {
+  if (!reportData.value || !reportData.value.diagnosis) {
+    completionPercentage.value = 0;
+    return;
+  }
+  
+  const diagnosis = reportData.value.diagnosis;
+  let completedCount = 0;
+  const diagnoses = ['wang', 'wen_audio', 'wen_questionnaire', 'qie'];
+  
+  diagnoses.forEach(type => {
+    if (diagnosis[type]) {
+      completedCount++;
+    }
+  });
+  
+  completionPercentage.value = Math.round((completedCount / 4) * 100);
+  
+  // 更新报告标题
+  if (completedCount === 4) {
+    reportTitle.value = "四诊合参诊断报告";
+  } else if (completedCount === 1) {
+    reportTitle.value = `单板块诊断报告 - ${getCompletedType(diagnosis)}`;
+  } else {
+    reportTitle.value = `部分诊断报告 (${completedCount}/4板块)`;
+  }
+};
+
+// 获取已完成的诊断类型名称
+const getCompletedType = (diagnosis) => {
+  if (diagnosis.wang) return "望诊";
+  if (diagnosis.wen_audio) return "闻诊";
+  if (diagnosis.wen_questionnaire) return "问诊";
+  if (diagnosis.qie) return "切诊";
+  return "诊断";
+};
+
 // ===== 加载动画状态 =====
 const steps = ref([
   { char: '望', label: '舌象分析', state: 'pending' },
@@ -257,16 +305,29 @@ onUnmounted(() => {
   clearInterval(stepTimer);
 });
 
-// ===== 数据获取逻辑（原有，保持不变）=====
+// ===== 数据获取逻辑（改造：支持部分板块）=====
 onMounted(async () => {
   const patientId = route.query.id || localStorage.getItem('current_patient_id');
+  const completedTypesParam = route.query.completedTypes; // 新增：从URL获取已完成类型
+  
   if (!patientId) {
-    ElMessage.error("缺少患者ID，请先完成四诊操作");
+    ElMessage.error("缺少患者ID，请先完成诊断操作");
     goBack();
     return;
   }
+  
+  // 保存completedTypes到本地，供generateReport使用
+  if (completedTypesParam) {
+    localStorage.setItem('_temp_completedTypes', completedTypesParam);
+  }
+  
   await fetchReportData(patientId);
 });
+
+// 获取generateReport中使用的completedTypes
+const getCompletedTypes = () => {
+  return localStorage.getItem('_temp_completedTypes') || '';
+};
 
 const fetchReportData = async (patientId) => {
   isLoading.value = true;
@@ -288,6 +349,7 @@ const fetchReportData = async (patientId) => {
       stopLoadingAnimation();
       await new Promise(r => setTimeout(r, 600));
       reportData.value = response.data.data;
+      calculateCompletion(); // 新增：计算完成度
     }
   } catch (error) {
     ElMessage.error("获取报告失败：" + error.message);
@@ -299,7 +361,10 @@ const fetchReportData = async (patientId) => {
 const generateReport = async (patientId) => {
   try {
     const idCard = localStorage.getItem('current_patient_idCard') || '';
+    const completedTypes = getCompletedTypes(); // 新增：获取已完成的诊断类型
+    
     const response = await axios.post("/api/report/generate", {
+      
       patientId: Number(patientId),
       idCard
     });
@@ -419,6 +484,33 @@ const handlePrint = () => {
 .report-container { max-width: 1000px; margin: 0 auto; padding: 20px; background: linear-gradient(135deg, #f5f7fa 0%, #c3cfe2 100%); min-height: 100vh; }
 .header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 30px; background: white; padding: 20px; border-radius: 8px; box-shadow: 0 2px 12px rgba(0,0,0,0.1); }
 .header h1 { flex: 1; text-align: center; margin: 0; color: #333; }
+
+/* 新增：完成度徽章样式 */
+.completion-badge { 
+  position: absolute;
+  right: 20px;
+  top: 20px;
+}
+
+.badge {
+  display: inline-block;
+  padding: 6px 16px;
+  border-radius: 20px;
+  font-size: 12px;
+  font-weight: 600;
+  letter-spacing: 0.5px;
+}
+
+.badge.incomplete {
+  background: linear-gradient(135deg, #ffa500 0%, #ff8c00 100%);
+  color: white;
+}
+
+.badge.complete {
+  background: linear-gradient(135deg, #67c26a 0%, #40ad50 100%);
+  color: white;
+}
+
 .header-buttons { display: flex; gap: 10px; }
 .report-content { background: white; border-radius: 8px; overflow: hidden; box-shadow: 0 2px 12px rgba(0,0,0,0.1); }
 .report-section { padding: 30px; border-bottom: 1px solid #eee; }
