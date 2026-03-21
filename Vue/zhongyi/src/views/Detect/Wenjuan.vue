@@ -81,9 +81,14 @@
           <p>请返回诊断中心继续完成其他检测项目</p>
           <small>（例如：面色采集、舌苔检测等）</small>
         </div>
-        <el-button type="primary" size="large" round @click="backToCenter" class="final-btn">
-          返回诊断中心
-        </el-button>
+        <div class="finish-actions">
+          <el-button type="primary" size="large" round @click="generateDiagnosisReport" class="final-btn">
+            生成报告
+          </el-button>
+          <el-button type="success" size="large" round plain @click="backToCenter" class="final-btn">
+            返回诊断中心
+          </el-button>
+        </div>
       </div>
     </div>
   </div>
@@ -95,6 +100,7 @@ import { useRouter, useRoute } from 'vue-router'; // 【修复】必须引入 us
 import { CircleCheckFilled } from '@element-plus/icons-vue';
 import { ElMessage } from 'element-plus'; // 【补充】确保 ElMessage 可用
 import { submitQuestionnaire } from '@/api/detect';
+import { navigateToDiagnosisReport } from '@/utils/reportUtils';
 
 const router = useRouter();
 const route = useRoute(); // 【核心修复】初始化 route 对象
@@ -242,6 +248,22 @@ const backToCenter = () => {
   router.push('/detect');
 };
 
+const generateDiagnosisReport = () => {
+  const routeId = route.query.id;
+  const storageId = localStorage.getItem('current_patient_id');
+  const finalPid = routeId || storageId;
+  const idCard =
+    route.query.idCard ||
+    localStorage.getItem('current_patient_idCard') ||
+    localStorage.getItem('current_patient_idcard') ||
+    '';
+  if (!finalPid) {
+    ElMessage.error('未找到患者信息，无法生成报告');
+    return;
+  }
+  navigateToDiagnosisReport(router, finalPid, idCard);
+};
+
 onMounted(() => playAudio());
 watch(currentIndex, () => playAudio());
 </script>
@@ -354,6 +376,7 @@ watch(currentIndex, () => playAudio());
 .next-step-box p { font-size: 1.05rem; color: #4b5b4f; font-weight: 700; margin-bottom: 6px; }
 .next-step-box small { color: #8e8e8e; }
 .final-btn { padding: 18px 56px; font-size: 1.05rem; }
+.finish-actions { display: flex; flex-wrap: wrap; gap: 16px; justify-content: center; margin-top: 8px; }
 
 /* 动画 */
 .q-slide-enter-active, .q-slide-leave-active { transition: all 0.38s cubic-bezier(.2,.9,.2,1); }

@@ -107,3 +107,42 @@ export function getDiagnosisTypeName(type) {
   };
   return typeMap[type] || '诊断';
 }
+
+/**
+ * 根据 localStorage 中与当前患者 ID 绑定的完成标记，汇总已完成的诊断类型
+ * @param {string|number} patientId
+ * @returns {string[]}
+ */
+export function collectCompletedTypesForPatient(patientId) {
+  const pid = String(patientId || '');
+  if (!pid) return [];
+  const types = [];
+  if (localStorage.getItem('wang_finished_id') === pid) types.push('wang');
+  if (localStorage.getItem('wen_finished_id') === pid) types.push('wen_audio');
+  if (localStorage.getItem('wenjuan_finished_id') === pid) types.push('wen_questionnaire');
+  if (localStorage.getItem('qie_finished_id') === pid) types.push('qie');
+  return types;
+}
+
+/**
+ * 跳转报告页（与诊断中心「生成报告」一致：query 携带 id、completedTypes）
+ * @param {import('vue-router').Router} router
+ * @param {string|number} patientId
+ * @param {string} [_idCard] 预留，与路由保持一致
+ * @param {string[]} [extraCompletedTypes] 当前页刚完成但尚未写入 finished_id 时可追加
+ */
+export function navigateToDiagnosisReport(router, patientId, _idCard = '', extraCompletedTypes = []) {
+  if (!patientId) {
+    ElMessage.error('缺少患者ID，无法生成报告');
+    return;
+  }
+  const set = new Set(collectCompletedTypesForPatient(patientId));
+  (Array.isArray(extraCompletedTypes) ? extraCompletedTypes : []).forEach((t) => {
+    if (t) set.add(t);
+  });
+  const completedTypes = [...set].join(',');
+  router.push({
+    path: '/report',
+    query: { id: String(patientId), completedTypes }
+  });
+}

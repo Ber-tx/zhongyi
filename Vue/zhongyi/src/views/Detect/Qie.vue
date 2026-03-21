@@ -111,6 +111,16 @@
               >
                 <el-icon class="mr-1"><Check /></el-icon> 确认入库
               </el-button>
+
+              <el-button
+                type="primary"
+                size="large"
+                :loading="isSavingReport"
+                @click="saveToRecordAndGoReport"
+                class="flex-1"
+              >
+                生成报告
+              </el-button>
               
               <el-button 
                 type="info" 
@@ -145,6 +155,7 @@ import { ElMessage, ElMessageBox } from 'element-plus';
 import { Back, User, VideoPlay, DataAnalysis, Check, RefreshRight, InfoFilled, Loading, Reading } from '@element-plus/icons-vue';
 import axios from 'axios';
 import * as echarts from 'echarts';
+import { navigateToDiagnosisReport } from '@/utils/reportUtils';
 
 // ===== 1. 基础状态 =====
 const route = useRoute();
@@ -156,6 +167,7 @@ const isStarting = ref(false);    // 启动中
 const isMeasuring = ref(false);   // 测量进行中
 const isAnalyzing = ref(false);   // Python分析中
 const isSaving = ref(false);      // Java入库中
+const isSavingReport = ref(false); // 入库并跳转报告
 
 // 结果数据 (仅在测量结束后赋值)
 const analysisResult = ref(null); // { avg_hr, avg_spo2, suggestion, ... }
@@ -327,36 +339,51 @@ const stopAndAnalyze = async () => {
   }
 };
 
+async function persistQieToServer() {
+  const payload = {
+    userId: patientId.value,
+    heartRate: analysisResult.value.avg_hr,
+    spo2: analysisResult.value.avg_spo2,
+    validRate: analysisResult.value.valid_rate,
+    sampleCount: analysisResult.value.sample_count,
+    tcmSuggestion: analysisResult.value.suggestion,
+    rawData: analysisResult.value.raw_wave
+  };
+  const javaRes = await axios.post('http://localhost:8080/api/detect/qie/save', payload);
+  if (javaRes.data.code !== 200) {
+    throw new Error(javaRes.data.msg);
+  }
+  localStorage.setItem('qie_finished_id', String(patientId.value));
+}
+
 // C. 确认入库 (用户点击满意后)
 const saveToRecord = async () => {
   if (!analysisResult.value) return;
-  
+
   isSaving.value = true;
   try {
-    // 构造发给 Java 的数据
-    const payload = {
-      userId: patientId.value,
-      heartRate: analysisResult.value.avg_hr,
-      spo2: analysisResult.value.avg_spo2,
-      validRate: analysisResult.value.valid_rate,
-      sampleCount: analysisResult.value.sample_count,
-      tcmSuggestion: analysisResult.value.suggestion,
-      rawData: analysisResult.value.raw_wave
-    };
-
-    const javaRes = await axios.post('http://localhost:8080/api/detect/qie/save', payload);
-
-    if (javaRes.data.code === 200) {
-      ElMessage.success("数据已归档！");
-      localStorage.setItem('qie_finished_id', String(patientId.value));
-      router.push('/detect');
-    } else {
-      throw new Error(javaRes.data.msg);
-    }
+    await persistQieToServer();
+    ElMessage.success('数据已归档！');
+    router.push('/detect');
   } catch (e) {
-    ElMessage.error("入库失败：" + e.message);
+    ElMessage.error('入库失败：' + e.message);
   } finally {
     isSaving.value = false;
+  }
+};
+
+const saveToRecordAndGoReport = async () => {
+  if (!analysisResult.value) return;
+
+  isSavingReport.value = true;
+  try {
+    await persistQieToServer();
+    ElMessage.success('已归档，正在打开报告…');
+    navigateToDiagnosisReport(router, patientId.value, '');
+  } catch (e) {
+    ElMessage.error('入库失败：' + e.message);
+  } finally {
+    isSavingReport.value = false;
   }
 };
 
@@ -501,7 +528,7 @@ onUnmounted(() => {
 .instruction-text { background: #f4f4f5; color: #909399; padding: 10px; border-radius: 6px; font-size: 13px; margin-bottom: 15px; display: flex; align-items: center; gap: 6px; }
 .button-group { display: flex; flex-direction: column; gap: 12px; }
 .action-btn { height: 48px; font-size: 16px; width: 100%; border-radius: 8px; }
-.result-btns { display: flex; gap: 12px; }
+.result-btns { display: flex; flex-wrap: wrap; gap: 12px; }
 .flex-1 { flex: 1; }
 
 /* 右侧图表 */

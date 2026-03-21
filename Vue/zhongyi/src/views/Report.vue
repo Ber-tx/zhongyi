@@ -362,11 +362,11 @@ const generateReport = async (patientId) => {
   try {
     const idCard = localStorage.getItem('current_patient_idCard') || '';
     const completedTypes = getCompletedTypes(); // 新增：获取已完成的诊断类型
-    
+
     const response = await axios.post("/api/report/generate", {
-      
       patientId: Number(patientId),
-      idCard
+      idCard,
+      ...(completedTypes ? { completedTypes } : {})
     });
 
     if (response.data.code === 200 || response.data.success) {

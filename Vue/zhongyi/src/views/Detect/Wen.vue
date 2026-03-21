@@ -176,6 +176,9 @@
         <!-- 底部按钮 -->
         <div class="footer-btns">
           <el-button round @click="resetAnalysis">重新分析</el-button>
+          <el-button type="primary" round @click="generateDiagnosisReport">
+            生成报告
+          </el-button>
           <el-button
             type="success"
             round
@@ -203,6 +206,7 @@ import {
   RefreshRight
 } from '@element-plus/icons-vue'
 import axios from 'axios'
+import { navigateToDiagnosisReport } from '@/utils/reportUtils'
 
 const router = useRouter()
 const route  = useRoute()
@@ -435,6 +439,16 @@ const resetAnalysis = () => {
   isCompleted.value    = false
   analysisResult.value = null
   resetRecording()
+}
+
+// 与「确认并返回」一致：锁定闻诊后再跳转报告（含其他已完成板块）
+const generateDiagnosisReport = () => {
+  if (!patientInfo.value.id) {
+    ElMessage.error('患者ID丢失，无法生成报告')
+    return
+  }
+  localStorage.setItem('wen_finished_id', String(patientInfo.value.id))
+  navigateToDiagnosisReport(router, patientInfo.value.id, patientInfo.value.idCard)
 }
 
 // ===== 确认并返回 =====
