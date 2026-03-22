@@ -117,25 +117,25 @@ const tips = [
     icon: markRaw(Warning),
     title: '保持手指干燥',
     desc: '手指潮湿或有污渍时，请擦干后再进行采集，避免影响传感精度。',
-    color: 'linear-gradient(135deg, #f093fb, #f5576c)'
+    color: 'linear-gradient(135deg, #8b3d1a, #c04a20)'
   },
   {
     icon: markRaw(Sunny),
     title: '避免强光直射',
     desc: '请在室内或避光环境下使用，强烈阳光可能干扰光学传感器。',
-    color: 'linear-gradient(135deg, #f7971e, #ffd200)'
+    color: 'linear-gradient(135deg, #c8a020, #a06828)'
   },
   {
     icon: markRaw(MostlyCloudy),
     title: '放松状态检测',
     desc: '检测前请静坐休息1~2分钟，情绪激动或运动后立即测量会影响结果。',
-    color: 'linear-gradient(135deg, #4facfe, #00f2fe)'
+    color: 'linear-gradient(135deg, #4a907e, #2d7d65)'
   },
   {
     icon: markRaw(TurnOff),
     title: '不使用时请断电',
     desc: '长时间不使用时，建议拔掉USB电源，延长设备使用寿命。',
-    color: 'linear-gradient(135deg, #43e97b, #38f9d7)'
+    color: 'linear-gradient(135deg, #6b4c24, #8b6030)'
   },
 ]
 
@@ -162,16 +162,25 @@ const faqs = [
 <style scoped>
 .hardware-guide-container {
   min-height: 100vh;
-  background: url('../assets/images/answerDialog/background_no_scroll.png') no-repeat center center / cover;
+  background: radial-gradient(ellipse at top, #f5e8c8 0%, #fdf3dc 45%, #fef9f0 100%);
   position: relative;
   overflow-x: hidden;
+}
+
+.hardware-guide-container::before {
+  content: '';
+  position: fixed;
+  inset: 0;
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='300' height='300'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.75' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='300' height='300' filter='url(%23n)' opacity='0.035'/%3E%3C/svg%3E");
+  pointer-events: none;
+  z-index: 0;
 }
 
 .decorative-bg {
   position: fixed;
   top: 0; left: 0;
   width: 100%; height: 100%;
-  background: linear-gradient(135deg, rgba(0,0,0,0.3) 0%, rgba(0,0,0,0.5) 100%);
+  background: linear-gradient(180deg, rgba(245,232,200,0.4) 0%, transparent 40%, transparent 60%, rgba(139,61,26,0.05) 100%);
   z-index: 0;
   pointer-events: none;
 }
@@ -182,17 +191,25 @@ const faqs = [
   display: flex;
   justify-content: space-between;
   align-items: center;
-  padding: 20px 40px;
-  background: rgba(255,255,255,0.05);
-  backdrop-filter: blur(10px);
-  border-bottom: 1px solid rgba(255,255,255,0.1);
+  padding: 18px 32px;
+  background: linear-gradient(180deg, #6b2d12 0%, #8b3d1a 100%);
+  border-bottom: 2px solid #c8a020;
+  box-shadow: 0 2px 12px rgba(60,20,0,.25);
 }
 
+.nav-bar :deep(.el-button) {
+  background: rgba(200,160,32,.15) !important;
+  color: #fdeabb !important;
+  border: 1px solid rgba(200,160,32,.3) !important;
+}
+.nav-bar :deep(.el-button:hover) { background: rgba(200,160,32,.25) !important; }
+
 .page-title {
-  color: white;
-  font-size: 28px;
+  color: #fdeabb;
+  font-size: 22px;
   font-weight: 600;
   margin: 0;
+  letter-spacing: 2px;
 }
 
 .content-main {
@@ -200,26 +217,27 @@ const faqs = [
   z-index: 5;
   max-width: 1100px;
   margin: 0 auto;
-  padding: 40px 20px 60px;
+  padding: 36px 20px 56px;
 }
 
 .glass-card {
-  background: rgba(255,255,255,0.88);
+  background: rgba(255, 252, 242, 0.92);
   backdrop-filter: blur(15px);
-  border: 1px solid rgba(255,255,255,0.6);
-  border-radius: 16px;
+  border: 1px solid #d4b483;
+  border-radius: 12px;
   padding: 28px;
-  box-shadow: 0 8px 32px rgba(0,0,0,0.1);
+  box-shadow: 0 4px 16px rgba(100,60,10,.08), inset 0 1px 0 rgba(255,248,220,.6);
   transition: all 0.3s;
 }
 
 .glass-card:hover {
-  transform: translateY(-4px);
-  box-shadow: 0 12px 48px rgba(0,0,0,0.15);
+  transform: translateY(-3px);
+  box-shadow: 0 8px 28px rgba(100,60,10,.12);
+  border-color: #c8a96e;
 }
 
 .overview-card {
-  margin-bottom: 48px;
+  margin-bottom: 40px;
   text-align: center;
 }
 
@@ -227,40 +245,40 @@ const faqs = [
   display: flex;
   align-items: center;
   justify-content: center;
-  gap: 14px;
+  gap: 12px;
   margin-bottom: 16px;
 }
 
-.card-header h2 { margin: 0; font-size: 26px; color: #2c3e50; }
-.header-icon { color: #4ca1af; font-size: 32px; }
-.card-description { font-size: 15px; color: #555; line-height: 1.9; margin: 0; }
+.card-header h2 { margin: 0; font-size: 24px; color: #3d2b10; }
+.header-icon { color: #8b3d1a; font-size: 30px; }
+.card-description { font-size: 15px; color: #6b4c24; line-height: 1.9; margin: 0; }
 
 .section-title {
-  font-size: 22px;
-  font-weight: 600;
-  color: white;
+  font-size: 20px;
+  font-weight: 700;
+  color: #3d2b10;
   margin-bottom: 24px;
   padding-bottom: 12px;
   position: relative;
-  text-shadow: 0 2px 10px rgba(0,0,0,0.3);
+  border-bottom: 1px solid #e8d5a0;
 }
 
 .section-title::after {
   content: '';
   position: absolute;
-  bottom: 0; left: 0;
+  bottom: -1px; left: 0;
   width: 50px; height: 3px;
-  background: linear-gradient(90deg, #4ca1af, transparent);
+  background: linear-gradient(90deg, #8b3d1a, #c8a020);
   border-radius: 2px;
 }
 
 /* 步骤 */
-.steps-section { margin-bottom: 50px; }
+.steps-section { margin-bottom: 40px; }
 
 .steps-grid {
   display: grid;
   grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
-  gap: 24px;
+  gap: 20px;
 }
 
 .step-card {
@@ -275,21 +293,21 @@ const faqs = [
   left: 50%;
   transform: translateX(-50%);
   width: 36px; height: 36px;
-  background: linear-gradient(135deg, #4ca1af, #2c3e50);
-  color: white;
+  background: linear-gradient(135deg, #8b3d1a, #c04a20);
+  color: #fdeabb;
   border-radius: 50%;
   font-size: 16px;
   font-weight: bold;
   display: flex; align-items: center; justify-content: center;
-  box-shadow: 0 4px 12px rgba(76,161,175,0.4);
+  box-shadow: 0 4px 12px rgba(139,61,26,.35);
 }
 
-.step-icon-wrap { color: #4ca1af; margin-bottom: 14px; }
-.step-card h3 { font-size: 16px; color: #2c3e50; margin: 0 0 10px; }
-.step-card p  { font-size: 13px; color: #666; line-height: 1.7; margin: 0; }
+.step-icon-wrap { color: #8b3d1a; margin-bottom: 14px; }
+.step-card h3 { font-size: 16px; color: #3d2b10; margin: 0 0 10px; }
+.step-card p  { font-size: 13px; color: #6b4c24; line-height: 1.7; margin: 0; }
 
 /* 注意事项 */
-.tips-section { margin-bottom: 50px; }
+.tips-section { margin-bottom: 40px; }
 
 .tips-grid {
   display: grid;
@@ -309,11 +327,11 @@ const faqs = [
   display: flex; align-items: center; justify-content: center;
   color: white;
   flex-shrink: 0;
-  box-shadow: 0 6px 16px rgba(0,0,0,0.15);
+  box-shadow: 0 4px 14px rgba(0,0,0,.2);
 }
 
-.tip-card h4 { margin: 0 0 6px; color: #2c3e50; font-size: 14px; font-weight: 600; }
-.tip-card p  { margin: 0; color: #666; font-size: 13px; line-height: 1.6; }
+.tip-card h4 { margin: 0 0 6px; color: #3d2b10; font-size: 14px; font-weight: 600; }
+.tip-card p  { margin: 0; color: #6b4c24; font-size: 13px; line-height: 1.6; }
 
 /* 常见问题 */
 .faq-section { margin-bottom: 20px; }
@@ -321,32 +339,33 @@ const faqs = [
 .faq-list :deep(.el-collapse) { border: none; background: transparent; }
 
 .faq-list :deep(.el-collapse-item__header) {
-  background: rgba(255,255,255,0.88);
+  background: rgba(255, 252, 242, 0.92);
   border-radius: 10px;
   padding: 0 20px;
   font-size: 14px;
   font-weight: 600;
-  color: #2c3e50;
+  color: #3d2b10;
   margin-bottom: 8px;
-  border: 1px solid rgba(255,255,255,0.6);
+  border: 1px solid #d4b483;
   height: 52px;
 }
 
 .faq-list :deep(.el-collapse-item__wrap) {
-  background: rgba(255,255,255,0.75);
+  background: rgba(255, 252, 242, 0.85);
   border-radius: 0 0 10px 10px;
-  border: none;
+  border: 1px solid #d4b483;
+  border-top: none;
   margin-bottom: 8px;
 }
 
 .faq-list :deep(.el-collapse-item__content) { padding: 16px 20px; }
 
-.faq-answer { margin: 0; color: #555; font-size: 13px; line-height: 1.8; }
+.faq-answer { margin: 0; color: #6b4c24; font-size: 13px; line-height: 1.8; }
 
 @media (max-width: 768px) {
-  .nav-bar { padding: 15px 20px; }
-  .page-title { font-size: 20px; }
-  .content-main { padding: 24px 15px 40px; }
+  .nav-bar { padding: 14px 20px; }
+  .page-title { font-size: 18px; }
+  .content-main { padding: 24px 16px 40px; }
   .steps-grid { grid-template-columns: 1fr 1fr; }
   .tips-grid { grid-template-columns: 1fr; }
 }
