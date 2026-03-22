@@ -24,6 +24,7 @@
               <div class="dropdown-item" @click="goTo('/hardware')">🔧 硬件指引</div>
               <div class="dropdown-item" @click="goTo('/culture')">🏮 中医文化</div>
               <div class="dropdown-divider"></div>
+              <div class="dropdown-item" @click="openReportSettings">📄 报告设置</div>
               <div class="dropdown-item" @click="goTo('/admin/login')">⚙️ 管理后台</div>
             </div>
           </transition>
@@ -57,6 +58,73 @@
       Copyright © 2025 · 中医体质辨识系统 · All Rights Reserved.
     </footer>
   </div>
+
+    <!-- ===== 报告设置对话框 ===== -->
+    <el-dialog
+      v-model="settingsVisible"
+      title="报告设置"
+      width="560px"
+      :close-on-click-modal="false"
+      class="settings-dialog"
+    >
+      <div class="settings-body">
+        <div class="settings-tip">
+          以下信息将显示在每份四诊报告的抬头处，设置后保存在本机，随时可修改。
+        </div>
+
+        <div class="settings-section">机构信息</div>
+        <el-form :model="reportSettings" label-width="110px" class="settings-form">
+          <el-form-item label="机构名称 *">
+            <el-input v-model="reportSettings.orgName"
+              placeholder="如：XX社区卫生服务中心" maxlength="40" show-word-limit />
+          </el-form-item>
+          <el-form-item label="机构地址">
+            <el-input v-model="reportSettings.orgAddress"
+              placeholder="选填，如：XX市XX区XX路1号" maxlength="60" />
+          </el-form-item>
+          <el-form-item label="联系电话">
+            <el-input v-model="reportSettings.orgPhone"
+              placeholder="选填，如：0571-12345678" maxlength="20" />
+          </el-form-item>
+        </el-form>
+
+        <div class="settings-section">报告信息</div>
+        <el-form :model="reportSettings" label-width="110px" class="settings-form">
+          <el-form-item label="签发医师">
+            <el-input v-model="reportSettings.doctorName"
+              placeholder="选填，报告底部签发人姓名" maxlength="20" />
+          </el-form-item>
+          <el-form-item label="有效期说明">
+            <el-input v-model="reportSettings.validityNote"
+              placeholder="选填，如：本报告自出具之日起3个月内有效" maxlength="50" />
+          </el-form-item>
+          <el-form-item label="免责声明">
+            <el-input v-model="reportSettings.disclaimer" type="textarea" :rows="3"
+              placeholder="选填，将替换报告底部默认免责说明" maxlength="120" show-word-limit />
+          </el-form-item>
+        </el-form>
+
+        <div class="settings-section">预览效果</div>
+        <div class="preview-box">
+          <div class="preview-org">{{ reportSettings.orgName || '（机构名称）' }}</div>
+          <div class="preview-sub">四诊合参体质辨识报告</div>
+          <div class="preview-info" v-if="reportSettings.orgAddress || reportSettings.orgPhone">
+            <span v-if="reportSettings.orgAddress">📍 {{ reportSettings.orgAddress }}</span>
+            <span v-if="reportSettings.orgPhone">📞 {{ reportSettings.orgPhone }}</span>
+          </div>
+          <div class="preview-footer">
+            <span v-if="reportSettings.doctorName">签发医师：{{ reportSettings.doctorName }}</span>
+            <span v-if="reportSettings.validityNote">{{ reportSettings.validityNote }}</span>
+          </div>
+        </div>
+      </div>
+
+      <template #footer>
+        <el-button @click="settingsVisible = false">取消</el-button>
+        <el-button @click="resetSettings" style="margin-right:auto">恢复默认</el-button>
+        <el-button class="btn-save-settings" @click="saveSettings">保存设置</el-button>
+      </template>
+    </el-dialog>
 </template>
 
 <script setup>
@@ -95,6 +163,50 @@ const handleNav = (key) => { activeTab.value = key }
 // ===== 更多功能下拉 =====
 const showMore = ref(false)
 const goTo = (path) => { showMore.value = false; router.push(path) }
+
+
+// ===== 报告设置 =====
+const settingsVisible = ref(false)
+
+const defaultSettings = {
+  orgName:      '',
+  orgAddress:   '',
+  orgPhone:     '',
+  doctorName:   '',
+  validityNote: '',
+  disclaimer:   '',
+}
+
+const loadSettings = () => {
+  try {
+    const saved = localStorage.getItem('report_settings')
+    return saved ? { ...defaultSettings, ...JSON.parse(saved) } : { ...defaultSettings }
+  } catch { return { ...defaultSettings } }
+}
+
+const reportSettings = ref(loadSettings())
+
+const openReportSettings = () => {
+  showMore.value = false
+  reportSettings.value = loadSettings()
+  settingsVisible.value = true
+}
+
+const saveSettings = () => {
+  if (!reportSettings.value.orgName.trim()) {
+    ElMessage.warning('机构名称为必填项')
+    return
+  }
+  localStorage.setItem('report_settings', JSON.stringify(reportSettings.value))
+  ElMessage.success('报告设置已保存')
+  settingsVisible.value = false
+}
+
+const resetSettings = () => {
+  reportSettings.value = { ...defaultSettings }
+  localStorage.removeItem('report_settings')
+  ElMessage.info('已恢复默认设置')
+}
 
 // ===== 音乐 =====
 const audioRef = ref(null)
@@ -259,4 +371,82 @@ const toggleMusic = () => {
 /* 下拉动画 */
 .dropdown-enter-active, .dropdown-leave-active { transition: all .2s ease; }
 .dropdown-enter-from, .dropdown-leave-to { opacity: 0; transform: translateY(-8px); }
+
+/* ===== 报告设置对话框 ===== */
+.settings-dialog :deep(.el-dialog__header) {
+  background: linear-gradient(180deg, #f5e4a8, #ebd07a);
+  border-bottom: 1px solid #c8a96e;
+  padding: 16px 24px;
+}
+.settings-dialog :deep(.el-dialog__title) {
+  font-size: 16px; font-weight: 700; color: #5a2d00;
+  font-family: 'Noto Serif SC', serif;
+}
+.settings-dialog :deep(.el-dialog__body) {
+  padding: 0; background: #fdf8ef;
+}
+.settings-dialog :deep(.el-dialog__footer) {
+  border-top: 1px solid #e8d5a0; background: #faf3e0; padding: 12px 24px;
+}
+
+.settings-body { padding: 20px 24px; }
+
+.settings-tip {
+  font-size: 12px; color: #8b6030; line-height: 1.6;
+  background: #faf3e0; border: 1px solid #e8d5a0;
+  border-radius: 6px; padding: 10px 14px; margin-bottom: 18px;
+}
+
+.settings-section {
+  font-size: 12px; font-weight: 700; color: #5a2d00;
+  letter-spacing: 2px; margin: 16px 0 10px;
+  padding-bottom: 6px; border-bottom: 1px solid #e8d5a0;
+}
+.settings-section::before { content: '◈ '; color: #c8a020; }
+
+.settings-form :deep(.el-form-item__label) {
+  font-size: 13px; color: #6b4c24; font-weight: 600;
+}
+.settings-form :deep(.el-input__wrapper) {
+  background: #fffdf5 !important; box-shadow: 0 0 0 1px #d4b483 !important;
+  border-radius: 4px !important;
+}
+.settings-form :deep(.el-input__wrapper:hover),
+.settings-form :deep(.el-input__wrapper.is-focus) {
+  box-shadow: 0 0 0 1px #8b3d1a !important;
+}
+.settings-form :deep(.el-textarea__inner) {
+  background: #fffdf5 !important; box-shadow: 0 0 0 1px #d4b483 !important;
+}
+
+/* 预览框 */
+.preview-box {
+  background: #fff; border: 1px solid #c8a96e;
+  border-radius: 8px; padding: 18px 20px;
+  text-align: center;
+}
+.preview-org {
+  font-size: 18px; font-weight: 700; color: #3d2b10;
+  font-family: 'Noto Serif SC', serif; letter-spacing: 2px;
+  margin-bottom: 4px;
+}
+.preview-sub {
+  font-size: 13px; color: #8b6030; margin-bottom: 8px; letter-spacing: 1px;
+}
+.preview-info {
+  display: flex; justify-content: center; gap: 20px;
+  font-size: 12px; color: #9a7040; margin-bottom: 8px;
+}
+.preview-footer {
+  display: flex; justify-content: space-between;
+  font-size: 11px; color: #b09060;
+  border-top: 1px dashed #e8d5a0; padding-top: 8px; margin-top: 8px;
+}
+
+.btn-save-settings {
+  background: linear-gradient(135deg, #8b3d1a, #c04a20) !important;
+  color: #fdeabb !important; border: none !important;
+  font-weight: 700 !important; border-radius: 4px !important;
+}
+
 </style>
