@@ -73,4 +73,39 @@ public interface AdminMapper {
 
     @Select("SELECT COUNT(*) FROM patients")
     int countAllPatients();
+
+
+    // ========== 体质统计 ==========
+
+    @Select("SELECT constitution, COUNT(*) as cnt " +
+            "FROM ( " +
+            "  SELECT " +
+            "    CASE " +
+            "      WHEN wen_conclusion IS NOT NULL AND wen_conclusion != '' " +
+            "        THEN wen_conclusion " +
+            "      WHEN wen_audio_conclusion IS NOT NULL AND wen_audio_conclusion != '' " +
+            "        THEN wen_audio_conclusion " +
+            "      ELSE NULL " +
+            "    END AS constitution " +
+            "  FROM diagnosis " +
+            ") t " +
+            "WHERE constitution IS NOT NULL " +
+            "GROUP BY constitution " +
+            "ORDER BY cnt DESC")
+    List<Map<String, Object>> countByConstitution();
+
+
+    // ========== 诊断数据分析的mapper ==========
+
+
+    @Select("<script>" +
+            "SELECT COUNT(*) FROM diagnosis d LEFT JOIN patients p ON d.patient_id = p.id " +
+            "<where>" +
+            "  <if test='keyword != null and keyword != \"\"'>" +
+            "    p.name LIKE CONCAT('%',#{keyword},'%') " +
+            "    OR p.id_card LIKE CONCAT('%',#{keyword},'%')" +
+            "  </if>" +
+            "</where>" +
+            "</script>")
+    int countDiagnosesWithPatient(@Param("keyword") String keyword);
 }

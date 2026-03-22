@@ -134,4 +134,18 @@ public class AdminController {
         result.put("size", size);
         return Result.success(result);
     }
+
+
+    //  诊断数据分析的controller
+    @GetMapping("/constitution-stats")
+    public Result getConstitutionStats() {
+        List<Map<String, Object>> raw = adminMapper.countByConstitution();
+        Map<String, Object> statsMap = new java.util.LinkedHashMap<>();
+        for (Map<String, Object> row : raw) {
+            String constitution = (String) row.get("constitution");
+            Object count = row.get("cnt");
+            if (constitution != null) statsMap.put(constitution, count);
+        }
+        return Result.success(statsMap);
+    }
 }
