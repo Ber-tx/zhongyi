@@ -42,6 +42,7 @@ public class ReportController {
     public static class ReportRequest {
         public Long patientId;
         public String idCard;
+        public String completedTypes; // 新增：已完成的诊断类型，逗号分隔如 "wang,wen_audio,wen_questionnaire"
 
         // 无参构造函数（用于 JSON 反序列化）
         public ReportRequest() {
@@ -50,6 +51,12 @@ public class ReportController {
         public ReportRequest(Long patientId, String idCard) {
             this.patientId = patientId;
             this.idCard = idCard;
+        }
+
+        public ReportRequest(Long patientId, String idCard, String completedTypes) {
+            this.patientId = patientId;
+            this.idCard = idCard;
+            this.completedTypes = completedTypes;
         }
 
         public Long getPatientId() {
@@ -68,17 +75,26 @@ public class ReportController {
             this.idCard = idCard;
         }
 
+        public String getCompletedTypes() {
+            return completedTypes;
+        }
+
+        public void setCompletedTypes(String completedTypes) {
+            this.completedTypes = completedTypes;
+        }
+
         @Override
         public String toString() {
             return "ReportRequest{" +
                     "patientId=" + patientId +
                     ", idCard='" + idCard + '\'' +
+                    ", completedTypes='" + completedTypes + '\'' +
                     '}';
         }
     }
 
     /**
-     * 生成综合四诊报告
+     * 生成综合四诊报告（支持部分板块完成）
      * POST /api/report/generate
      */
     @PostMapping("/generate")
@@ -87,7 +103,8 @@ public class ReportController {
         System.out.println("==== [DEBUG] 开始生成综合四诊报告 ====");
         System.out.println("==== [DEBUG] 请求体: " + request);
         System.out.println("==== [DEBUG] 患者ID: " + (request != null ? request.getPatientId() : "null") + 
-                           ", 身份证: " + (request != null ? request.getIdCard() : "null"));
+                           ", 身份证: " + (request != null ? request.getIdCard() : "null") +
+                           ", 已完成类型: " + (request != null ? request.getCompletedTypes() : "null"));
 
         try {
             // 验证请求是否为空
@@ -98,8 +115,10 @@ public class ReportController {
 
             Long patientId = request.getPatientId();
             String idCard = request.getIdCard();
+            String completedTypes = request.getCompletedTypes();
 
-            System.out.println("==== [DEBUG] 提取数据 - patientId: " + patientId + ", idCard: " + idCard);
+            System.out.println("==== [DEBUG] 提取数据 - patientId: " + patientId + ", idCard: " + idCard + 
+                               ", completedTypes: " + completedTypes);
 
             // 1. 补齐患者ID
             if (patientId == null || patientId == 0) {
@@ -134,13 +153,13 @@ public class ReportController {
                 return Result.error("未找到该患者的诊断记录，请先完成四诊操作");
             }
 
-            // 4. 验证四诊完整性
-            if (isIncomplete(diagnosis)) {
-                return Result.error("诊断未完成，请完成所有四诊操作后再生成报告");
+            // 4. 验证四诊完整性（修改：现在只需要至少1个板块完成）
+            if (!hasCompletedDiagnosis(diagnosis)) {
+                return Result.error("诊断未完成，请完成至少一个诊断板块后生成报告");
             }
 
             // 5. 构建诊断信息对象
-            Map<String, Object> diagnosisInfo = buildDiagnosisInfo(patient, diagnosis);
+            Map<String, Object> diagnosisInfo = buildDiagnosisInfo(patient, diagnosis, completedTypes);
 
             // 6. 调用LLM生成综合建议
             String synthesisResult = callLlmForSynthesis(diagnosisInfo);
@@ -225,33 +244,36 @@ public class ReportController {
     // ===== 辅助方法 =====
 
     /**
-     * 检查四诊是否完整
+     * 检查是否至少有一个诊断完成（修改：支持部分板块）
      */
-    private boolean isIncomplete(Diagnosis diagnosis) {
-        // 检查是否至少有两个诊断类型完成（暂时允许部分完成）
-        int completedCount = 0;
-
+    private boolean hasCompletedDiagnosis(Diagnosis diagnosis) {
         if (diagnosis.getWangImageUrl() != null && !diagnosis.getWangImageUrl().isEmpty()) {
-            completedCount++;
+            return true;
         }
         if (diagnosis.getWenAudioConclusion() != null && !diagnosis.getWenAudioConclusion().isEmpty()) {
-            completedCount++;
+            return true;
         }
         if (diagnosis.getWenConclusion() != null && !diagnosis.getWenConclusion().isEmpty()) {
-            completedCount++;
+            return true;
         }
         if (diagnosis.getQieHeartRate() != null) {
-            completedCount++;
+            return true;
         }
-
-        // 要求至少完成2个诊断
-        return completedCount < 2;
+        return false;
     }
 
     /**
-     * 构建诊断信息（用于LLM提示词）
+     * 检查四诊是否完整（仅用于向后兼容）
      */
-    private Map<String, Object> buildDiagnosisInfo(Patient patient, Diagnosis diagnosis) {
+    private boolean isIncomplete(Diagnosis diagnosis) {
+        // 这个方法现在只是检查至少有一个诊断完成
+        return !hasCompletedDiagnosis(diagnosis);
+    }
+
+    /**
+     * 构建诊断信息（用于LLM提示词）- 支持部分板块
+     */
+    private Map<String, Object> buildDiagnosisInfo(Patient patient, Diagnosis diagnosis, String completedTypes) {
         Map<String, Object> info = new LinkedHashMap<>();
 
         // 患者基本信息
@@ -281,6 +303,11 @@ public class ReportController {
         }
         info.put("age", age == null ? 0 : age);
         info.put("idCard", patient.getIdCard());
+
+        // 记录已完成的诊断类型
+        if (completedTypes != null && !completedTypes.isEmpty()) {
+            info.put("completedTypes", completedTypes);
+        }
 
         // 四诊信息
         Map<String, Object> diagnoses = new LinkedHashMap<>();
@@ -335,6 +362,13 @@ public class ReportController {
 
         info.put("diagnoses", diagnoses);
         return info;
+    }
+
+    /**
+     * 构建诊断信息（用于LLM提示词）- 兼容旧版本
+     */
+    private Map<String, Object> buildDiagnosisInfo(Patient patient, Diagnosis diagnosis) {
+        return buildDiagnosisInfo(patient, diagnosis, null);
     }
 
     /**

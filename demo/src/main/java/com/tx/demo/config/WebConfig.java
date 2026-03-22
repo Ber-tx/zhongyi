@@ -57,12 +57,16 @@ public class WebConfig implements WebMvcConfigurer {
                 .addResourceLocations("file:E:/项目/zhongyi_uploads/");
     }
     @Override
+
     public void addInterceptors(InterceptorRegistry registry) {
         registry.addInterceptor(adminInterceptor)
-                // 只拦截 /api/admin/** 下的请求
                 .addPathPatterns("/api/admin/**")
-                // 登录接口不拦截
-                .excludePathPatterns("/api/admin/login");
+                .excludePathPatterns("/api/admin/login")
+                // 只读接口，普通用户可以访问
+                .excludePathPatterns("/api/admin/diagnoses-with-patient")
+                .excludePathPatterns("/api/admin/diagnoses")
+                .excludePathPatterns("/api/admin/stats")
+                .excludePathPatterns("/api/admin/constitution-stats");
     }
 
 
