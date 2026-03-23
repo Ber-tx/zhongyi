@@ -47,6 +47,7 @@ public interface DiagnosisMapper {
             "wen_audio_features = #{wenAudioFeatures}, " +
             "wen_audio_confidence = #{wenAudioConfidence}, " +
             "wen_audio_tags = #{wenAudioTags} " +
+            "wen_audio_url = #{wenAudioUrl} "+
             "WHERE id = #{id}")
     int updateWenAudio(Diagnosis diagnosis);
 
