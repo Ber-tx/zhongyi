@@ -34,8 +34,10 @@ public class WenController {
     private DiagnosisMapper diagnosisMapper;
 
     // 音频存储路径（与望诊分开目录，便于管理）
-    private static final String UPLOAD_PATH = "E:/项目/zhongyi_uploads/audio/";
-
+    // 改成
+    private static final String UPLOAD_PATH =
+        System.getenv("UPLOAD_PATH") != null ?
+        System.getenv("UPLOAD_PATH") + "audio/" : "E:/项目/zhongyi_uploads/audio/";
     // =====================================================================
     // 分析 + 入库（一步完成，与 WangController 结构完全一致）
     // =====================================================================

@@ -1,0 +1,22 @@
+
+
+services:
+
+  mysql:
+    image: mysql:8.0
+
+  ai-service:
+    build: ./tcm-ai-service
+    image: zhongyi-ai
+
+  pulse-service:
+    build: ./pulse2
+    image: zhongyi-pulse
+
+  backend:
+    build: ./demo
+    image: zhongyi-backend
+
+  frontend:
+    build: ./Vue/zhongyi
+    image: zhongyi-frontend

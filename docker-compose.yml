@@ -1,0 +1,66 @@
+
+
+services:
+
+  mysql:
+    image: mysql:8.0
+    container_name: zhongyi-mysql
+    environment:
+      MYSQL_ROOT_PASSWORD: zhongyi2025
+      MYSQL_DATABASE: zhongyi
+    volumes:
+      - ./init.sql:/docker-entrypoint-initdb.d/init.sql
+      - mysql-data:/var/lib/mysql
+    ports:
+      - "3306:3306"
+    healthcheck:
+      test: ["CMD", "mysqladmin", "ping", "-h", "localhost", "-pzhongyi2025"]
+      interval: 10s
+      timeout: 5s
+      retries: 15
+
+  ai-service:
+    image: zhongyi-ai
+    container_name: zhongyi-ai
+    ports:
+      - "5000:5000"
+    volumes:
+      - ./uploads:/app/uploads
+    env_file:
+      - .env
+    depends_on:
+      mysql:
+        condition: service_healthy
+
+  pulse-service:
+    image: zhongyi-pulse
+    container_name: zhongyi-pulse
+    ports:
+      - "8000:8000"
+
+  backend:
+    image: zhongyi-backend
+    container_name: zhongyi-backend
+    ports:
+      - "8080:8080"
+    environment:
+      SPRING_DATASOURCE_URL: jdbc:mysql://mysql:3306/zhongyi?useUnicode=true&characterEncoding=utf8&useSSL=false&serverTimezone=Asia/Shanghai&allowPublicKeyRetrieval=true
+      SPRING_DATASOURCE_USERNAME: root
+      SPRING_DATASOURCE_PASSWORD: zhongyi2025
+      UPLOAD_PATH: /app/uploads/
+    volumes:
+      - ./uploads:/app/uploads
+    depends_on:
+      mysql:
+        condition: service_healthy
+
+  frontend:
+    image: zhongyi-frontend
+    container_name: zhongyi-frontend
+    ports:
+      - "80:80"
+    depends_on:
+      - backend
+
+volumes:
+  mysql-data:

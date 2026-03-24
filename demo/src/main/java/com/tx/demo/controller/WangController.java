@@ -36,7 +36,10 @@ public class WangController {
     private DiagnosisMapper diagnosisMapper;
 
     // 定义临时存储路径
-    private static final String UPLOAD_PATH = "E:/项目/zhongyi_uploads/tcm_temp/";
+    // 改成
+    private static final String UPLOAD_PATH =
+        System.getenv("UPLOAD_PATH") != null ?
+        System.getenv("UPLOAD_PATH") + "tcm_temp/" : "E:/项目/zhongyi_uploads/tcm_temp/";
 
     @PostMapping("/wang")
     public Result handleWang(Patient patient, @RequestParam("file") MultipartFile file) {
