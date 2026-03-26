@@ -4,7 +4,7 @@
     <div class="header">
       <el-button @click="goBack" icon="ArrowLeft">返回</el-button>
       <h1>{{ reportTitle }}</h1>
-      <div class="completion-badge">
+      <div class="completion-badge" v-if="!isLoading">
         <span v-if="completionPercentage < 100" class="badge incomplete">
           {{ completionPercentage }}% 完成度
         </span>
@@ -202,7 +202,7 @@ const isExporting = ref(false);
 const reportRef = ref(null);
 
 const reportTitle = ref("四诊合参诊断报告");
-const completionPercentage = ref(100);
+const completionPercentage = ref(0);
 
 // ===== 读取报告设置（localStorage）=====
 const reportSettings = computed(() => {
@@ -246,9 +246,34 @@ const ALL_STEPS = {
 }
 
 const buildSteps = () => {
-  const param = route.query.completedTypes || localStorage.getItem("_temp_completedTypes") || ""
-  const keys = param ? param.split(",").filter(k => ALL_STEPS[k]) : Object.keys(ALL_STEPS)
-  return keys.map(k => ({ ...ALL_STEPS[k], state: "pending" }))
+  // 优先使用路由参数，若无则从 localStorage 读取已完成的诊法
+  let param = route.query.completedTypes || localStorage.getItem("_temp_completedTypes") || ""
+  
+  // 如果参数仍为空，则根据 localStorage 的完成标记动态收集
+  if (!param) {
+    const patientId = route.query.id || localStorage.getItem("current_patient_id")
+    const completed = []
+    const pid = String(patientId || '')
+    if (localStorage.getItem('wang_finished_id') === pid) completed.push('wang')
+    if (localStorage.getItem('wen_finished_id') === pid) completed.push('wen_audio')
+    if (localStorage.getItem('wenjuan_finished_id') === pid) completed.push('wen_questionnaire')
+    if (localStorage.getItem('qie_finished_id') === pid) completed.push('qie')
+    param = completed.join(',')
+  }
+  
+  const keys = param ? param.split(",").filter(k => ALL_STEPS[k]) : []
+  
+  // 根据实际完成的诊法生成步骤
+  if (keys.length > 0) {
+    return keys.map(k => ({ ...ALL_STEPS[k], state: "pending" }))
+  }
+  
+  // 备选：如果无法确定，显示通用的综合分析步骤
+  return [
+    { char: "综", label: "数据综合分析", state: "pending" },
+    { char: "智", label: "AI 智能推理", state: "pending" },
+    { char: "成", label: "生成诊断建议", state: "pending" }
+  ]
 }
 
 const steps = ref(buildSteps())
@@ -310,6 +335,10 @@ onMounted(async () => {
     return;
   }
   if (completedTypesParam) localStorage.setItem("_temp_completedTypes", completedTypesParam);
+  
+  // 在 onMounted 时重新初始化步骤（此时 route.query 已准备好）
+  steps.value = buildSteps();
+  
   await fetchReportData(patientId);
 });
 
