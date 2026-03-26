@@ -15,13 +15,21 @@ import org.springframework.util.LinkedMultiValueMap;
 import org.springframework.util.MultiValueMap;
 import org.springframework.web.bind.annotation.*;
 import org.springframework.web.client.RestTemplate;
+import org.springframework.web.servlet.mvc.method.annotation.SseEmitter;
 
+import java.io.BufferedReader;
+import java.io.InputStreamReader;
+import java.io.OutputStream;
+import java.net.HttpURLConnection;
+import java.net.URL;
+import java.nio.charset.StandardCharsets;
 import java.time.LocalDate;
 import java.time.format.DateTimeFormatter;
 import java.time.temporal.ChronoUnit;
 import java.util.HashMap;
 import java.util.LinkedHashMap;
 import java.util.Map;
+import java.util.concurrent.Executors;
 
 @RestController
 @RequestMapping("/api/report")
@@ -183,6 +191,94 @@ public class ReportController {
             e.printStackTrace();
             return Result.error("服务器错误: " + e.getMessage());
         }
+    }
+
+    @PostMapping(value = "/generate/stream", produces = MediaType.TEXT_EVENT_STREAM_VALUE)
+    public SseEmitter generateReportStream(@RequestBody ReportRequest request) {
+        SseEmitter emitter = new SseEmitter(180000L);
+
+        Executors.newSingleThreadExecutor().execute(() -> {
+            try {
+                Long patientId = request.getPatientId();
+                if (patientId == null || patientId == 0) {
+                    if (request.getIdCard() != null && !request.getIdCard().isEmpty()) {
+                        Patient existing = patientMapper.findByIdCard(request.getIdCard());
+                        if (existing != null) {
+                            patientId = existing.getId();
+                        }
+                    }
+                }
+
+                Patient patient = patientMapper.selectById(patientId);
+                Diagnosis diagnosis = diagnosisMapper.findTodayRecord(patientId);
+                if (patient == null || diagnosis == null || !hasCompletedDiagnosis(diagnosis)) {
+                    emitter.send(SseEmitter.event().data("{\"error\": \"患者不存在或未完成诊断\"}"));
+                    emitter.send(SseEmitter.event().data("[DONE]"));
+                    emitter.complete();
+                    return;
+                }
+
+                Map<String, Object> reportMeta = new HashMap<>();
+                reportMeta.put("reportId", System.currentTimeMillis());
+                reportMeta.put("patientInfo", extractPatientInfo(patient));
+                reportMeta.put("diagnosis", extractDiagnosisInfo(diagnosis));
+                reportMeta.put("createdAt", System.currentTimeMillis());
+
+                Map<String, Object> metaWrapper = new HashMap<>();
+                metaWrapper.put("meta", reportMeta);
+                emitter.send(SseEmitter.event().data(JSON.toJSONString(metaWrapper)));
+
+                Map<String, Object> diagnosisInfo = buildDiagnosisInfo(patient, diagnosis, request.getCompletedTypes());
+                String pythonUrl = "http://localhost:5000/api/synthesis/llm/stream";
+                URL url = new URL(pythonUrl);
+                HttpURLConnection conn = (HttpURLConnection) url.openConnection();
+                conn.setRequestMethod("POST");
+                conn.setRequestProperty("Content-Type", "application/json");
+                conn.setRequestProperty("Accept", "text/event-stream");
+                conn.setDoOutput(true);
+                conn.setConnectTimeout(10000);
+                conn.setReadTimeout(170000);
+
+                try (OutputStream os = conn.getOutputStream()) {
+                    byte[] input = JSON.toJSONString(diagnosisInfo).getBytes(StandardCharsets.UTF_8);
+                    os.write(input, 0, input.length);
+                }
+
+                int statusCode = conn.getResponseCode();
+                if (statusCode < 200 || statusCode >= 300) {
+                    emitter.send(SseEmitter.event().data("{\"error\": \"AI 服务不可用，请稍后重试\"}"));
+                    emitter.send(SseEmitter.event().data("[DONE]"));
+                    emitter.complete();
+                    return;
+                }
+
+                try (BufferedReader br = new BufferedReader(new InputStreamReader(conn.getInputStream(), StandardCharsets.UTF_8))) {
+                    String line;
+                    while ((line = br.readLine()) != null) {
+                        if (!line.startsWith("data:")) {
+                            continue;
+                        }
+                        String data = line.substring(5).trim();
+                        if ("[DONE]".equals(data)) {
+                            emitter.send(SseEmitter.event().data("[DONE]"));
+                            break;
+                        }
+                        emitter.send(SseEmitter.event().data(data));
+                    }
+                }
+                emitter.complete();
+            } catch (Exception e) {
+                try {
+                    emitter.send(SseEmitter.event().data("{\"error\": \"流式生成中断，请重试\"}"));
+                    emitter.send(SseEmitter.event().data("[DONE]"));
+                    emitter.complete();
+                } catch (Exception ignored) {
+                    emitter.completeWithError(e);
+                }
+            }
+        });
+
+        return emitter;
     }
 
     /**

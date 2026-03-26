@@ -4,6 +4,7 @@ LLM 合成服务 - 将四诊结果合成为综合诊断建议
 """
 
 from fastapi import APIRouter, HTTPException
+from fastapi.responses import StreamingResponse
 from pydantic import BaseModel
 from typing import Optional, Dict, Any
 import json
@@ -194,6 +195,70 @@ def call_deepseek_api(messages: list, system_prompt: str = None) -> str:
         raise
 
 
+def call_deepseek_api_stream(messages: list, system_prompt: str = None):
+    """
+    流式调用 DeepSeek API 的生成器，按 SSE 格式 yield 字符片段
+    """
+    try:
+        client = OpenAI(
+            api_key=os.getenv("DEEPSEEK_API_KEY"),
+            base_url=os.getenv("DEEPSEEK_BASE_URL")
+        )
+
+        if system_prompt:
+            messages.insert(0, {"role": "system", "content": system_prompt})
+
+        response = client.chat.completions.create(
+            model="deepseek-chat",
+            messages=messages,
+            max_tokens=2000,
+            temperature=0.3,
+            stream=True
+        )
+
+        for chunk in response:
+            try:
+                # 不同 SDK 可能返回结构略有差异，保护性取值
+                delta = None
+                if hasattr(chunk, 'choices'):
+                    choice0 = chunk.choices[0]
+                    # openai 风格
+                    delta = getattr(choice0, 'delta', None)
+                    if delta is None and hasattr(choice0, 'message'):
+                        delta = getattr(choice0.message, 'content', None)
+
+                # 兼容直接字符串情况
+                content = None
+                if delta is not None:
+                    # delta 可能是对象或直接字符串
+                    if isinstance(delta, str):
+                        content = delta
+                    else:
+                        content = getattr(delta, 'content', None)
+                else:
+                    # 直接尝试读取 chunk.choices[0].message.content
+                    try:
+                        content = chunk.choices[0].message.content
+                    except Exception:
+                        content = None
+
+                if content:
+                    # DeepSeek 可能一次返回多个字符，这里拆成单字符下发，
+                    # 前端可实现更平滑的“打字机”效果。
+                    for ch in content:
+                        data = json.dumps({"content": ch}, ensure_ascii=False)
+                        yield f"data: {data}\n\n"
+            except Exception:
+                # 忽略单个 chunk 解析异常，继续循环
+                continue
+
+        yield "data: [DONE]\n\n"
+    except Exception as e:
+        print(f"[ERROR] 流式输出异常: {str(e)}")
+        yield f"data: {json.dumps({'content': f'[AI 分析中断: {str(e)}]' })}\n\n"
+        yield "data: [DONE]\n\n"
+
+
 def generate_tcm_synthesis(diagnosis_info: Dict[str, Any]) -> str:
     """
     调用LLM生成TCM诊断合成
@@ -257,6 +322,30 @@ def generate_fallback_synthesis(diagnosis_info: Dict[str, Any]) -> str:
         synthesis += "\n*请在完成全部诊断后再次生成完整的诊断报告，以获得更加准确的个性化建议。*\n"
     
     return synthesis
+
+
+@router.post("/llm/stream")
+async def synthesize_diagnosis_stream(request: SynthesisRequest):
+    """
+    流式响应 API，使用 SSE 逐片段返回 DeepSeek 输出
+    """
+    try:
+        diagnosis_info = request.model_dump()
+        prompt = build_tcm_prompt(diagnosis_info)
+        messages = [{"role": "user", "content": prompt}]
+
+        return StreamingResponse(
+            call_deepseek_api_stream(messages),
+            media_type="text/event-stream",
+            headers={
+                "Cache-Control": "no-cache",
+                "Connection": "keep-alive",
+                "X-Accel-Buffering": "no"
+            }
+        )
+    except Exception as e:
+        print(f"[ERROR] synthesize_diagnosis_stream 异常: {str(e)}")
+        raise HTTPException(status_code=500, detail="流式合成失败")
 
 
 @router.post("/llm")

@@ -1,4 +1,4 @@
-<template>
+﻿<template>
   <div class="report-container">
     <!-- 返回按钮 -->
     <div class="header">
@@ -58,6 +58,34 @@
             <span class="tip-dot"></span>
             AI 正在结合中医理论进行辨证分析，请稍候...
           </p>
+        </div>
+        <!-- 实时预览区域：当后端开始返回流式内容时，在等待界面显示逐字输出 -->
+        <div v-if="isStreaming || (reportData && reportData.synthesis)" class="live-preview">
+          <el-card shadow="hover" class="live-card">
+            <div class="live-header">
+              <div class="live-title">实时生成预览</div>
+                  <div class="live-actions">
+                    <span v-if="isStreaming" class="streaming-badge">AI 思考中...</span>
+                    <el-button v-if="isStreaming" size="small" type="text" @click="cancelStream">取消</el-button>
+                    <el-button v-else size="small" type="primary" @click="viewFullReport">查看完整报告</el-button>
+                  </div>
+            </div>
+
+            <div class="live-body">
+              <div class="preload-patient" v-if="reportData && reportData.patientInfo">
+                <div class="pp-row"><strong>患者：</strong>{{ reportData.patientInfo.name }} / {{ reportData.patientInfo.gender }}</div>
+                <div class="pp-row"><strong>年龄：</strong>{{ reportData.patientInfo.age || '' }}岁</div>
+                <div class="pp-row"><strong>已完成：</strong>
+                  <span v-if="reportData.diagnosis?.wang" class="badge-tiny">望</span>
+                  <span v-if="reportData.diagnosis?.wen_audio" class="badge-tiny">闻</span>
+                  <span v-if="reportData.diagnosis?.wen_questionnaire" class="badge-tiny">问</span>
+                  <span v-if="reportData.diagnosis?.qie" class="badge-tiny">切</span>
+                </div>
+              </div>
+
+              <div class="live-synthesis" v-html="reportData && reportData.synthesis ? markdownToHtml(reportData.synthesis) : '等待 AI 输出...'"></div>
+            </div>
+          </el-card>
         </div>
       </div>
     </div>
@@ -157,9 +185,11 @@
 
       <!-- 综合诊断建议章节 -->
       <section class="report-section synthesis">
-        <h2>综合诊断建议</h2>
+        <h2>综合诊断建议 <span v-if="isStreaming" class="streaming-badge">AI 思考中...</span></h2>
         <el-card shadow="hover">
-          <div class="synthesis-content" v-html="reportData.synthesis ? markdownToHtml(reportData.synthesis) : '暂无综合诊断建议，请确保所有四诊数据完整。'"></div>
+          <div class="synthesis-content" :class="{'is-typing': isStreaming}">
+            <span v-html="reportData.synthesis ? markdownToHtml(reportData.synthesis) : '正在连接 AI 分析引擎...'"></span>
+          </div>
         </el-card>
       </section>
 
@@ -199,6 +229,10 @@ const route = useRoute();
 const reportData = ref(null);
 const isLoading = ref(false);
 const isExporting = ref(false);
+const isStreaming = ref(false);
+const streamFinished = ref(false);
+const controllerRef = ref(null);
+const currentPatientId = ref(null);
 const reportRef = ref(null);
 
 const reportTitle = ref("四诊合参诊断报告");
@@ -372,26 +406,117 @@ const fetchReportData = async (patientId) => {
 };
 
 const generateReport = async (patientId) => {
+  isLoading.value = true;
+  isStreaming.value = false;
+  streamFinished.value = false;
+  startLoadingAnimation();
+
   try {
     const idCard = localStorage.getItem("current_patient_idCard") || "";
     const completedTypes = getCompletedTypes();
-    const response = await axios.post("/api/report/generate", {
-      patientId: Number(patientId),
-      idCard,
-      ...(completedTypes ? { completedTypes } : {})
+
+    // 使用 AbortController 支持取消
+    const controller = new AbortController();
+    controllerRef.value = controller;
+
+    const response = await fetch("/api/report/generate/stream", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ patientId: Number(patientId), idCard, ...(completedTypes ? { completedTypes } : {}) }),
+      signal: controller.signal
     });
-    if (response.data.code === 200 || response.data.success) {
-      stopLoadingAnimation();
-      await new Promise(r => setTimeout(r, 600));
-      reportData.value = response.data.data;
-      calculateCompletion();
-      ElMessage.success("报告生成成功");
-    } else {
-      ElMessage.error(response.data.msg || "报告生成失败");
+
+    if (!response.ok) throw new Error("网络响应异常");
+
+    if (!response.body) throw new Error("浏览器不支持流式响应");
+
+    const reader = response.body.getReader();
+    const decoder = new TextDecoder("utf-8");
+    let buffer = "";
+    let hasReceivedMeta = false;
+
+    while (true) {
+      const { value, done } = await reader.read();
+      if (done) break;
+
+      // 累加数据块
+      buffer += decoder.decode(value, { stream: true });
+      const lines = buffer.split("\n");
+      buffer = lines.pop(); // 保留不完整的最后一行
+
+      for (const line of lines) {
+        if (line.startsWith("data:")) {
+          const dataStr = line.slice(5).trim();
+
+            if (dataStr === "[DONE]") {
+              isStreaming.value = false;
+              streamFinished.value = true;
+              // 流结束，显示“查看完整报告”按钮，由用户决定是否进入完整报告或由页面继续显示
+              break;
+            }
+
+          try {
+            const parsed = JSON.parse(dataStr);
+            // 收到 Meta 基础数据，立刻关闭动画，渲染报告框架
+            if (parsed.meta) {
+              hasReceivedMeta = true;
+              reportData.value = {
+                ...parsed.meta,
+                synthesis: "" // 初始化为空，准备接收打字
+              };
+              isStreaming.value = true;
+              calculateCompletion();
+            }
+            // 收到 AI 增量文本，追加上去
+            else if (parsed.content && reportData.value) {
+              reportData.value.synthesis += parsed.content;
+            }
+          } catch (e) {
+            // 解析出错忽略（比如数据块截断），等待下一波
+          }
+        }
+      }
     }
+
+    // 流结束后做最终处理：先结束等待动画，再自动切到完整报告
+    if (!hasReceivedMeta) {
+      stopLoadingAnimation();
+      isLoading.value = false;
+    } else {
+      stopLoadingAnimation();
+      await new Promise(r => setTimeout(r, 700));
+      isLoading.value = false;
+    }
+    isStreaming.value = false;
+    ElMessage.success("报告生成完成");
+
   } catch (error) {
+    stopLoadingAnimation();
     ElMessage.error("生成报告失败：" + error.message);
+    isLoading.value = false;
+    isStreaming.value = false;
   }
+};
+
+const cancelStream = () => {
+  try {
+    if (controllerRef.value) controllerRef.value.abort();
+  } catch (e) {}
+  isStreaming.value = false;
+  streamFinished.value = false;
+  stopLoadingAnimation();
+  isLoading.value = false;
+  ElMessage.info('已取消生成');
+};
+
+const viewFullReport = () => {
+  // 切换到完整报告视图（在当前组件内即可，因为 reportData 已有内容）
+  isLoading.value = false;
+  isStreaming.value = false;
+  // 可选：滚动到报告内容
+  setTimeout(() => {
+    if (reportRef.value) reportRef.value.scrollIntoView({ behavior: 'smooth' });
+  }, 100);
 };
 
 const exportPDF = async () => {
@@ -524,6 +649,25 @@ ${reportRef.value.outerHTML}
 .synthesis-content :deep(ul), .synthesis-content :deep(ol) { margin: 10px 0; padding-left: 20px; }
 .synthesis-content :deep(li) { margin: 5px 0; }
 .synthesis-content :deep(strong) { color: #8b3d1a; }
+/* 流式打字光标与 badge */
+.streaming-badge { font-size: 12px; color: #999; margin-left: 8px; font-weight: 500; }
+.synthesis-content.is-typing::after {
+  content: "|";
+  display: inline-block;
+  margin-left: 6px;
+  animation: blink-caret 1s steps(1) infinite;
+}
+@keyframes blink-caret { 50% { opacity: 0; } }
+
+/* 实时预览卡 */
+.live-preview { margin: 18px auto 0; max-width: 680px; }
+.live-card { padding: 12px; }
+.live-header { display:flex; justify-content:space-between; align-items:center; margin-bottom:8px; }
+.live-title { font-weight:700; color:#5a2d00; }
+.live-body { padding-top:6px; }
+.preload-patient { display:flex; gap:12px; margin-bottom:10px; color:#6b4c24; font-size:13px; }
+.pp-row { margin-right:8px; }
+.live-synthesis { background: #fff; padding: 12px; border-radius:6px; border:1px solid rgba(200,160,32,0.08); color:#333; line-height:1.8; max-height:320px; overflow:auto; }
 .report-footer { padding: 30px; background: #faf3e0; border-top: 1px solid #e8d5a0; text-align: center; color: #8b6030; font-size: 12px; }
 .report-footer p { margin: 5px 0; }
 .disclaimer { color: #c0392b; font-size: 11px; }
