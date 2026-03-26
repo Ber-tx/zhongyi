@@ -144,12 +144,20 @@ onMounted(() => {
 
   console.log("==== [DEBUG] 望诊页最终锁定的病人 ID:", patientInfo.value.id);
   
+  // 页面进入时，清除该患者的望诊完成标记（防止未完成的情况被误认为完成）
+  // 只有真正完成分析时才会重新设置
+  localStorage.removeItem('wang_finished_id');
+  
   // 补丁：开启相机
   startCamera();
 });
 
 const goBack = () => {
   stopCamera();
+  // 如果诊断未完成，清除该板块的完成标记
+  if (!isCompleted.value) {
+    localStorage.removeItem('wang_finished_id');
+  }
   router.push('/detect');
 }
 
@@ -259,9 +267,7 @@ const uploadImage = async (base64) => {
         );
       } else {
         analysisResult.value = resultData;
-        // 标记此板块已完成
-        // 【核心加固】：存储时必须使用 String(pid) 确保 DetectSelect 里的 === 匹配成功
-        localStorage.setItem('wang_finished_id', String(pid));
+        // 不在这里标记完成，等用户点击"继续下一个"或"生成报告"时才标记
         isCompleted.value = true;
         ElMessage.success("分析成功！");
       }
@@ -287,12 +293,21 @@ const reCapture = () => {
 // 新增：继续下一个诊断或返回诊断选择页面
 const goToNextOrReport = () => {
   stopCamera();
+  // 用户点击继续时，标记望诊为已完成
+  const pid = patientInfo.value.id || localStorage.getItem('current_patient_id');
+  if (isCompleted.value && pid) {
+    localStorage.setItem('wang_finished_id', String(pid));
+  }
   router.push('/detect');
 }
 
 const generatePartialReport = () => {
   const patientId = patientInfo.value.id || localStorage.getItem('current_patient_id');
   const idCard = patientInfo.value.idCard || localStorage.getItem('current_patient_idCard');
+  // 用户点击生成报告时，标记望诊为已完成
+  if (isCompleted.value && patientId) {
+    localStorage.setItem('wang_finished_id', String(patientId));
+  }
   navigateToDiagnosisReport(router, patientId, idCard);
 }
 
@@ -393,10 +408,10 @@ onUnmounted(stopCamera);
 }
 
 .preview-img {
-  width: 100%; height: auto; max-height: 450px;
+  width: 70%; height: auto; max-height: 320px;
   object-fit: contain; border-radius: 8px;
   border: 1px solid #e8d5a0; background: #fffdf5;
-  margin-top: 8px; display: block;
+  margin: 8px auto; display: block;
   box-shadow: 0 4px 12px rgba(100,60,10,.08);
 }
 

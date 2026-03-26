@@ -96,8 +96,8 @@
           <h3>望诊（舌象分析）</h3>
           <el-card>
             <div v-if="reportData.diagnosis.wang && reportData.diagnosis.wang.imageUrl" class="diagnosis-image">
-              <img :src="resolveImageUrl(reportData.diagnosis.wang.imageUrl)" alt="舌象图片" style="max-width: 100%; height: auto;" />
-              <p><strong>舌苔图</strong></p>
+              <img :src="resolveImageUrl(reportData.diagnosis.wang.imageUrl)" alt="舌象图片" style="max-width: 30%; height: auto; border-radius: 8px;" />
+              <p style="margin-top: 8px; margin-bottom: 0;"><strong>舌苔图</strong></p>
             </div>
             <p class="diagnosis-result">
               {{ reportData.diagnosis.wang ? reportData.diagnosis.wang.result : '暂未进行舌象检查，请补充望诊数据以获得更准确的诊断。' }}
