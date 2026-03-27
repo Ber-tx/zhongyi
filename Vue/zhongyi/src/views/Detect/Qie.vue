@@ -1,4 +1,4 @@
-<template>
+﻿<template>
   <div class="qie-container">
     <div class="header-bar">
       <div class="left-info">
@@ -107,10 +107,13 @@
               type="warning" 
               size="large" 
               :loading="isAnalyzing"
+              :disabled="countdown > 0"
               @click="stopAndAnalyze"
               class="action-btn stop-btn"
             >
-              <el-icon class="mr-1"><DataAnalysis /></el-icon> 结束采集并生成报告
+              <el-icon class="mr-1"><DataAnalysis /></el-icon> 
+              <span v-if="countdown > 0">稳定采集中: {{ countdown }}s (请保持平稳)</span>
+              <span v-else>结束采集并生成报告</span>
             </el-button>
 
             <div v-if="analysisResult && !isMeasuring" class="result-btns">
@@ -183,8 +186,12 @@ const isAnalyzing = ref(false);   // Python分析中
 const isSaving = ref(false);      // Java入库中
 const isSavingReport = ref(false); // 入库并跳转报告
 
+// 倒计时状态
+const countdown = ref(60);
+let countdownTimer = null;
+
 // 结果数据 (仅在测量结束后赋值)
-const analysisResult = ref(null); // { avg_hr, avg_spo2, suggestion, ... }
+const analysisResult = ref(null); 
 
 // 实时信号 (仅用于波形和质量条，不用于数值显示)
 const signalQuality = ref(0);
@@ -207,7 +214,7 @@ const signalText = computed(() => {
   return '未检测到手指 / 干扰';
 });
 
-// ===== 2. 图表平滑渲染逻辑 (保留你之前的优秀代码) =====
+// ===== 2. 图表平滑渲染逻辑 =====
 const chartRef = ref(null);
 let myChart = null;
 const waveBuffer = ref([]);       // Echarts使用的数组
@@ -245,10 +252,31 @@ const initChart = () => {
   window.addEventListener('resize', () => myChart?.resize());
 };
 
+let lastDisplayValue = 0; // 用于EMA平滑滤波的基准值
+
 const smoothRender = () => {
   if (renderQueue.length > 0) {
     const points = renderQueue.splice(0, 2); 
-    waveBuffer.value.push(...points);
+    
+    // 视觉逐渐稳定算法 (动态指数移动平均 EMA)
+    points.forEach(rawVal => {
+      let alpha = 1.0; // 平滑系数 (1.0表示不平滑，数值越小越平滑)
+      
+      if (isMeasuring.value) {
+        // 根据经过的时间计算平滑度：前15秒从1.0渐变到0.15，视觉上呈现从剧烈到平稳的"沉心静气"过程
+        const elapsed = 60 - countdown.value; 
+        alpha = Math.max(0.15, 1.0 - (elapsed / 15) * 0.85); 
+      }
+
+      if (waveBuffer.value.length === 0) {
+        lastDisplayValue = rawVal;
+      } else {
+        lastDisplayValue = alpha * rawVal + (1 - alpha) * lastDisplayValue;
+      }
+      
+      waveBuffer.value.push(lastDisplayValue);
+    });
+
     if (waveBuffer.value.length > MAX_DISPLAY_POINTS) {
       waveBuffer.value.splice(0, points.length);
     }
@@ -257,32 +285,40 @@ const smoothRender = () => {
   animationId = requestAnimationFrame(smoothRender);
 };
 
-// ===== 3. WebSocket (只负责收波形和信号质量) =====
+// ===== 3. WebSocket =====
 let ws = null;
 let progressTimer = null;
 
 const connectWS = () => {
-  // 注意：确保你的 Python 端口对应 (8000)
   ws = new WebSocket('ws://localhost:8000/ws/pulse');
   ws.onmessage = (event) => {
     try {
       const data = JSON.parse(event.data);
-      // 1. 波形入队
       if (data.wave) renderQueue.push(...data.wave);
-      // 2. 更新信号质量 (仅用于UI展示接触情况)
       signalQuality.value = data.q || 0;
-      // 注意：这里不再更新 currentHr/currentSpo2，防止数字乱跳
     } catch (e) { console.error(e); }
   };
 };
 
-// 假进度条动画，让等待不枯燥
 const startProgressAnim = () => {
   measuringProgress.value = 0;
   progressTimer = setInterval(() => {
     if (measuringProgress.value < 90) measuringProgress.value += 1;
     else measuringProgress.value = 0;
   }, 100);
+};
+
+// 启动60秒倒计时
+const startCountdown = () => {
+  countdown.value = 60;
+  clearInterval(countdownTimer);
+  countdownTimer = setInterval(() => {
+    if (countdown.value > 0) {
+      countdown.value--;
+    } else {
+      clearInterval(countdownTimer);
+    }
+  }, 1000);
 };
 
 // ===== 4. 业务逻辑 =====
@@ -300,9 +336,12 @@ const startDiagnosis = async () => {
     waveBuffer.value = [];
     renderQueue = [];
     isMeasuring.value = true;
-    startProgressAnim();
+    lastDisplayValue = 0; // 重置滤波基准
     
-    ElMessage.success('设备已启动，请保持静止...');
+    startProgressAnim();
+    startCountdown(); // 开启60秒强制倒计时
+    
+    ElMessage.success('设备已启动，请保持静止60秒...');
   } catch (e) {
     ElMessage.error('启动失败，请检查Python后端');
   } finally {
@@ -310,12 +349,11 @@ const startDiagnosis = async () => {
   }
 };
 
-// B. 结束并分析 (核心修改：只获取数据，不直接保存)
+// B. 结束并分析
 const stopAndAnalyze = async () => {
   try {
     isAnalyzing.value = true;
     
-    // 1. 找 Python 要报告
     const pyRes = await axios.post('http://localhost:8000/api/pulse/stop', null, {
       params: { user_id: patientId.value }
     });
@@ -324,22 +362,20 @@ const stopAndAnalyze = async () => {
     
     if (report.code !== 200 || report.avg_hr === 0) {
       ElMessage.warning(report.msg || "数据不足，请重测");
-      resetMeasurement(); // 数据不好直接重置
+      resetMeasurement(); 
       return;
     }
 
-    // 2. 展示结果 (不立即入库，让医生先看)
     isMeasuring.value = false;
     clearInterval(progressTimer);
+    clearInterval(countdownTimer); // 安全清理
     
-    // 将 Python 返回的数据存入本地变量，用于展示
     analysisResult.value = {
       avg_hr: report.avg_hr,
       avg_spo2: report.avg_spo2,
-      suggestion: report.suggestion, // 中医建议
+      suggestion: report.suggestion,
       valid_rate: report.valid_rate,
       sample_count: report.sample_count,
-      // 保存最后一段波形用于入库
       raw_wave: JSON.stringify(waveBuffer.value.slice(-300)) 
     };
     
@@ -348,6 +384,7 @@ const stopAndAnalyze = async () => {
   } catch (e) {
     ElMessage.error("分析失败：" + e.message);
     isMeasuring.value = false;
+    clearInterval(countdownTimer); // 安全清理
   } finally {
     isAnalyzing.value = false;
   }
@@ -372,7 +409,7 @@ async function persistQieToServer() {
   localStorage.setItem('qie_finished_id', String(patientId.value));
 }
 
-// C. 确认入库 (用户点击满意后)
+// C. 确认入库
 const saveToRecord = async () => {
   if (!analysisResult.value) return;
 
@@ -409,7 +446,9 @@ const resetMeasurement = () => {
   isMeasuring.value = false;
   waveBuffer.value = [];
   renderQueue = [];
+  countdown.value = 60;
   clearInterval(progressTimer);
+  clearInterval(countdownTimer);
 };
 
 // ===== 生命周期 =====
@@ -429,6 +468,7 @@ onMounted(() => {
 onUnmounted(() => {
   cancelAnimationFrame(animationId);
   clearInterval(progressTimer);
+  clearInterval(countdownTimer);
   ws?.close();
   myChart?.dispose();
 });
