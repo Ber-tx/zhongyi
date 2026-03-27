@@ -1,0 +1,241 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+
+<mapper namespace="com.tx.demo.mapper.HealthExamMapper">
+    
+    <!-- 基础字段映射 -->
+    <resultMap id="HealthExamMap" type="HealthExam">
+        <id column="id" property="id"/>
+        <result column="patient_name" property="patientName"/>
+        <result column="patient_gender" property="patientGender"/>
+        <result column="patient_age" property="patientAge"/>
+        <result column="patient_birthday" property="patientBirthday"/>
+        <result column="patient_id_card" property="patientIdCard"/>
+        <result column="phone" property="phone"/>
+        <result column="address" property="address"/>
+        <result column="occupation" property="occupation"/>
+        <result column="marital" property="marital"/>
+        <result column="exam_date" property="examDate"/>
+        <result column="constitution_type" property="constitutionType"/>
+        <result column="smoking" property="smoking"/>
+        <result column="drinking" property="drinking"/>
+        <result column="exercise" property="exercise"/>
+        <result column="sleep_quality" property="sleepQuality"/>
+        <result column="medical_history" property="medicalHistory"/>
+        <result column="family_history" property="familyHistory"/>
+        <result column="allergy_history" property="allergyHistory"/>
+        <result column="height" property="height"/>
+        <result column="weight" property="weight"/>
+        <result column="bmi" property="bmi"/>
+        <result column="waist_circumference" property="waistCircumference"/>
+        <result column="hip_circumference" property="hipCircumference"/>
+        <result column="temperature" property="temperature"/>
+        <result column="heart_rate" property="heartRate"/>
+        <result column="spo2" property="spo2"/>
+        <result column="blood_pressure_systolic" property="bloodPressureSystolic"/>
+        <result column="blood_pressure_diastolic" property="bloodPressureDiastolic"/>
+        <result column="vision_left" property="visionLeft"/>
+        <result column="vision_right" property="visionRight"/>
+        <result column="hearing" property="hearing"/>
+        <result column="fasting_blood_glucose" property="fastingBloodGlucose"/>
+        <result column="postprandial_glucose" property="postprandialGlucose"/>
+        <result column="hba1c" property="hba1c"/>
+        <result column="total_cholesterol" property="totalCholesterol"/>
+        <result column="triglycerides" property="triglycerides"/>
+        <result column="hdl" property="hdl"/>
+        <result column="ldl" property="ldl"/>
+        <result column="alt" property="alt"/>
+        <result column="ast" property="ast"/>
+        <result column="total_bilirubin" property="totalBilirubin"/>
+        <result column="albumin" property="albumin"/>
+        <result column="creatinine" property="creatinine"/>
+        <result column="bun" property="bun"/>
+        <result column="uric_acid" property="uricAcid"/>
+        <result column="hemoglobin" property="hemoglobin"/>
+        <result column="wbc" property="wbc"/>
+        <result column="rbc" property="rbc"/>
+        <result column="platelets" property="platelets"/>
+        <result column="chest_xray" property="chestXray"/>
+        <result column="abdominal_ultrasound" property="abdominalUltrasound"/>
+        <result column="ecg" property="ecg"/>
+        <result column="other_imaging" property="otherImaging"/>
+        <result column="urine_protein" property="urineProtein"/>
+        <result column="urine_glucose" property="urineGlucose"/>
+        <result column="urine_blood" property="urineBlood"/>
+        <result column="health_grade" property="healthGrade"/>
+        <result column="doctor_advice" property="doctorAdvice"/>
+        <result column="remarks" property="remarks"/>
+        <result column="create_time" property="createTime"/>
+        <result column="update_time" property="updateTime"/>
+    </resultMap>
+    
+    <!-- 所有列 -->
+    <sql id="allColumns">
+        id, patient_name, patient_gender, patient_age, patient_birthday,
+        patient_id_card, phone, address, occupation, marital, exam_date,
+        constitution_type, smoking, drinking, exercise, sleep_quality,
+        medical_history, family_history, allergy_history, height, weight, bmi,
+        waist_circumference, hip_circumference, temperature, heart_rate, spo2,
+        blood_pressure_systolic, blood_pressure_diastolic, vision_left, vision_right,
+        hearing, fasting_blood_glucose, postprandial_glucose, hba1c,
+        total_cholesterol, triglycerides, hdl, ldl, alt, ast, total_bilirubin,
+        albumin, creatinine, bun, uric_acid, hemoglobin, wbc, rbc, platelets,
+        chest_xray, abdominal_ultrasound, ecg, other_imaging, urine_protein,
+        urine_glucose, urine_blood, health_grade, doctor_advice, remarks,
+        create_time, update_time
+    </sql>
+    
+    <!-- 保存体检记录 -->
+    <insert id="save" useGeneratedKeys="true" keyProperty="id">
+        INSERT INTO health_exam (
+            patient_name, patient_gender, patient_age, patient_birthday,
+            patient_id_card, phone, address, occupation, marital, exam_date,
+            constitution_type, smoking, drinking, exercise, sleep_quality,
+            medical_history, family_history, allergy_history, height, weight, bmi,
+            waist_circumference, hip_circumference, temperature, heart_rate, spo2,
+            blood_pressure_systolic, blood_pressure_diastolic, vision_left, vision_right,
+            hearing, fasting_blood_glucose, postprandial_glucose, hba1c,
+            total_cholesterol, triglycerides, hdl, ldl, alt, ast, total_bilirubin,
+            albumin, creatinine, bun, uric_acid, hemoglobin, wbc, rbc, platelets,
+            chest_xray, abdominal_ultrasound, ecg, other_imaging, urine_protein,
+            urine_glucose, urine_blood, health_grade, doctor_advice, remarks,
+            create_time, update_time
+        ) VALUES (
+            #{patientName}, #{patientGender}, #{patientAge}, #{patientBirthday},
+            #{patientIdCard}, #{phone}, #{address}, #{occupation}, #{marital}, #{examDate},
+            #{constitutionType}, #{smoking}, #{drinking}, #{exercise}, #{sleepQuality},
+            #{medicalHistory}, #{familyHistory}, #{allergyHistory}, #{height}, #{weight}, #{bmi},
+            #{waistCircumference}, #{hipCircumference}, #{temperature}, #{heartRate}, #{spo2},
+            #{bloodPressureSystolic}, #{bloodPressureDiastolic}, #{visionLeft}, #{visionRight},
+            #{hearing}, #{fastingBloodGlucose}, #{postprandialGlucose}, #{hba1c},
+            #{totalCholesterol}, #{triglycerides}, #{hdl}, #{ldl}, #{alt}, #{ast}, #{totalBilirubin},
+            #{albumin}, #{creatinine}, #{bun}, #{uricAcid}, #{hemoglobin}, #{wbc}, #{rbc}, #{platelets},
+            #{chestXray}, #{abdominalUltrasound}, #{ecg}, #{otherImaging}, #{urineProtein},
+            #{urineGlucose}, #{urineBlood}, #{healthGrade}, #{doctorAdvice}, #{remarks},
+            NOW(), NOW()
+        )
+    </insert>
+    
+    <!-- 更新体检记录 -->
+    <update id="update">
+        UPDATE health_exam SET
+            patient_name = #{patientName},
+            patient_gender = #{patientGender},
+            patient_age = #{patientAge},
+            patient_birthday = #{patientBirthday},
+            patient_id_card = #{patientIdCard},
+            phone = #{phone},
+            address = #{address},
+            occupation = #{occupation},
+            marital = #{marital},
+            exam_date = #{examDate},
+            constitution_type = #{constitutionType},
+            smoking = #{smoking},
+            drinking = #{drinking},
+            exercise = #{exercise},
+            sleep_quality = #{sleepQuality},
+            medical_history = #{medicalHistory},
+            family_history = #{familyHistory},
+            allergy_history = #{allergyHistory},
+            height = #{height},
+            weight = #{weight},
+            bmi = #{bmi},
+            waist_circumference = #{waistCircumference},
+            hip_circumference = #{hipCircumference},
+            temperature = #{temperature},
+            heart_rate = #{heartRate},
+            spo2 = #{spo2},
+            blood_pressure_systolic = #{bloodPressureSystolic},
+            blood_pressure_diastolic = #{bloodPressureDiastolic},
+            vision_left = #{visionLeft},
+            vision_right = #{visionRight},
+            hearing = #{hearing},
+            fasting_blood_glucose = #{fastingBloodGlucose},
+            postprandial_glucose = #{postprandialGlucose},
+            hba1c = #{hba1c},
+            total_cholesterol = #{totalCholesterol},
+            triglycerides = #{triglycerides},
+            hdl = #{hdl},
+            ldl = #{ldl},
+            alt = #{alt},
+            ast = #{ast},
+            total_bilirubin = #{totalBilirubin},
+            albumin = #{albumin},
+            creatinine = #{creatinine},
+            bun = #{bun},
+            uric_acid = #{uricAcid},
+            hemoglobin = #{hemoglobin},
+            wbc = #{wbc},
+            rbc = #{rbc},
+            platelets = #{platelets},
+            chest_xray = #{chestXray},
+            abdominal_ultrasound = #{abdominalUltrasound},
+            ecg = #{ecg},
+            other_imaging = #{otherImaging},
+            urine_protein = #{urineProtein},
+            urine_glucose = #{urineGlucose},
+            urine_blood = #{urineBlood},
+            health_grade = #{healthGrade},
+            doctor_advice = #{doctorAdvice},
+            remarks = #{remarks},
+            update_time = NOW()
+        WHERE id = #{id}
+    </update>
+    
+    <!-- 查询单条 -->
+    <select id="selectById" resultMap="HealthExamMap">
+        SELECT <include refid="allColumns"/> FROM health_exam WHERE id = #{id}
+    </select>
+    
+    <!-- 按身份证查询 -->
+    <select id="selectByIdCard" resultMap="HealthExamMap">
+        SELECT <include refid="allColumns"/> FROM health_exam WHERE patient_id_card = #{idCard} LIMIT 1
+    </select>
+    
+    <!-- 按患者ID查询 -->
+    <select id="selectByPatientId" resultMap="HealthExamMap">
+        SELECT <include refid="allColumns"/> FROM health_exam WHERE patient_id_card = #{idCard} ORDER BY exam_date DESC
+    </select>
+    
+    <!-- 分页查询列表 -->
+    <select id="selectList" resultType="java.util.Map">
+        SELECT 
+            id, 
+            patient_name as patientName, 
+            patient_gender as patientGender, 
+            patient_age as patientAge, 
+            patient_id_card as patientIdCard,
+            blood_pressure_systolic as bloodPressureSystolic, 
+            blood_pressure_diastolic as bloodPressureDiastolic, 
+            bmi, 
+            fasting_blood_glucose as fastingBloodGlucose,
+            constitution_type as constitutionType, 
+            exam_date as examDate, 
+            create_time as createTime
+        FROM health_exam
+        <where>
+            <if test="keyword != null and keyword != ''">
+                AND (patient_name LIKE CONCAT('%', #{keyword}, '%') 
+                     OR patient_id_card LIKE CONCAT('%', #{keyword}, '%'))
+            </if>
+        </where>
+        ORDER BY create_time DESC
+        LIMIT #{offset}, #{limit}
+    </select>
+    
+    <!-- 计数 -->
+    <select id="selectCount" resultType="java.lang.Integer">
+        SELECT COUNT(*) FROM health_exam
+        <where>
+            <if test="keyword != null and keyword != ''">
+                AND (patient_name LIKE CONCAT('%', #{keyword}, '%')
+                     OR patient_id_card LIKE CONCAT('%', #{keyword}, '%'))
+            </if>
+        </where>
+    </select>
+    
+    <!-- 删除 -->
+    <delete id="delete">
+        DELETE FROM health_exam WHERE id = #{id}
+    </delete>
+</mapper>

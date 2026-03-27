@@ -23,6 +23,16 @@ public class Result {
         result.msg="success";
         return result;
     }
+    
+    //请求成功，带自定义消息和数据
+    public static Result success(Object object, String msg){
+        Result result=new Result();
+        result.code=200;
+        result.msg=msg;
+        result.data=object;
+        return result;
+    }
+    
     //请求失败，返回失败内容
 
     public static Result error(String msg){

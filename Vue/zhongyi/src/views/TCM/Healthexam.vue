@@ -25,7 +25,9 @@
           <el-table-column prop="patientAge" label="年龄" width="60">
             <template #default="{ row }">{{ row.patientAge ? row.patientAge + '岁' : '—' }}</template>
           </el-table-column>
-          <el-table-column prop="patientIdCard" label="身份证号" min-width="165" show-overflow-tooltip />
+          <el-table-column label="身份证号" min-width="165">
+            <template #default="{ row }">{{ maskIdCard(row.patientIdCard) }}</template>
+          </el-table-column>
           <el-table-column label="主要体征" min-width="180">
             <template #default="{ row }">
               <span v-if="row.bloodPressureSystolic" class="badge">
@@ -708,6 +710,13 @@ const saveExam = async () => {
 const fmtDate = (t) => {
   if (!t) return '—'
   return new Date(t).toLocaleDateString('zh-CN')
+}
+
+// 身份证号模糊处理
+const maskIdCard = (idCard) => {
+  if (!idCard || idCard.length < 8) return idCard
+  // 显示前4位和后4位，中间用 * 代替
+  return idCard.substring(0, 4) + '****' + idCard.substring(idCard.length - 4)
 }
 
 onMounted(() => loadList(1))
