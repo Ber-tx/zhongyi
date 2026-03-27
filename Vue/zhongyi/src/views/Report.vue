@@ -233,6 +233,7 @@ const isStreaming = ref(false);
 const streamFinished = ref(false);
 const controllerRef = ref(null);
 const currentPatientId = ref(null);
+const currentCaseId = ref(null);
 const reportRef = ref(null);
 
 const reportTitle = ref("四诊合参诊断报告");
@@ -362,36 +363,42 @@ onUnmounted(() => {
 // ===== 数据获取 =====
 onMounted(async () => {
   const patientId = route.query.id || localStorage.getItem("current_patient_id");
+  const caseId = route.query.caseId || localStorage.getItem("current_case_id");
   const completedTypesParam = route.query.completedTypes;
   if (!patientId) {
     ElMessage.error("缺少患者ID，请先完成诊断操作");
     goBack();
     return;
   }
+  currentPatientId.value = Number(patientId);
+  currentCaseId.value = caseId ? Number(caseId) : null;
+  if (currentCaseId.value) {
+    localStorage.setItem("current_case_id", String(currentCaseId.value));
+  }
   if (completedTypesParam) localStorage.setItem("_temp_completedTypes", completedTypesParam);
   
   // 在 onMounted 时重新初始化步骤（此时 route.query 已准备好）
   steps.value = buildSteps();
   
-  await fetchReportData(patientId);
+  await fetchReportData(patientId, currentCaseId.value);
 });
 
 const getCompletedTypes = () => localStorage.getItem("_temp_completedTypes") || "";
 
-const fetchReportData = async (patientId) => {
+const fetchReportData = async (patientId, caseId = null) => {
   isLoading.value = true;
   startLoadingAnimation();
   try {
     const idCard = localStorage.getItem("current_patient_idCard") || "";
     const response = await axios.get("/api/report/get-diagnosis", {
-      params: { patientId: Number(patientId), idCard }
+      params: { patientId: Number(patientId), caseId: caseId || undefined, idCard }
     });
     if (response.data.code !== 200 && !response.data.success) {
       ElMessage.error(response.data.msg || "获取报告失败");
       return;
     }
     if (!response.data.data.synthesis) {
-      await generateReport(patientId);
+      await generateReport(patientId, caseId);
     } else {
       stopLoadingAnimation();
       await new Promise(r => setTimeout(r, 600));
@@ -405,7 +412,7 @@ const fetchReportData = async (patientId) => {
   }
 };
 
-const generateReport = async (patientId) => {
+const generateReport = async (patientId, caseId = null) => {
   isLoading.value = true;
   isStreaming.value = false;
   streamFinished.value = false;
@@ -422,7 +429,12 @@ const generateReport = async (patientId) => {
     const response = await fetch("/api/report/generate/stream", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ patientId: Number(patientId), idCard, ...(completedTypes ? { completedTypes } : {}) }),
+      body: JSON.stringify({
+        patientId: Number(patientId),
+        caseId: caseId || undefined,
+        idCard,
+        ...(completedTypes ? { completedTypes } : {})
+      }),
       signal: controller.signal
     });
 

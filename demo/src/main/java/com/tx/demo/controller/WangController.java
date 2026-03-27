@@ -39,7 +39,10 @@ public class WangController {
     private static final String UPLOAD_PATH = "E:/项目/zhongyi_uploads/tcm_temp/";
 
     @PostMapping("/wang")
-    public Result handleWang(Patient patient, @RequestParam("file") MultipartFile file) {
+    public Result handleWang(
+            Patient patient,
+            @RequestParam("file") MultipartFile file,
+            @RequestParam(value = "diagnosisId", required = false) Long diagnosisId) {
         System.out.println("==== [DEBUG] 开始执行业务逻辑 ====");
         System.out.println("==== [DEBUG] 接收到的原始数据: " + patient.toString());
 
@@ -121,7 +124,16 @@ public class WangController {
 
                 // --- 识别成功：封装 Diagnosis 对象并存入数据库 ---
                 // 【第一步】寻找今天是否已经产生了任何板块的记录
-                Diagnosis record = diagnosisMapper.findTodayRecord(patient.getId());
+                Diagnosis record = null;
+                if (diagnosisId != null && diagnosisId > 0) {
+                    record = diagnosisMapper.findById(diagnosisId);
+                    if (record != null && !patient.getId().equals(record.getPatientId())) {
+                        return Result.error("诊断会话与患者不匹配");
+                    }
+                }
+                if (record == null) {
+                    record = diagnosisMapper.findTodayRecord(patient.getId());
+                }
 
                 if (record != null) {
                     // 【第二步：情况A】已有记录（说明其他板块先开始了），直接把望诊结果补进去

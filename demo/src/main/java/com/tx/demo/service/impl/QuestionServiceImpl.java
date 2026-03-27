@@ -24,7 +24,7 @@ public class QuestionServiceImpl implements QuestionService {
     private ObjectMapper objectMapper;
 
     @Override
-    public Result calculateConstitution(List<Integer> answers, Long patientId) {
+    public Result calculateConstitution(List<Integer> answers, Long patientId, Long diagnosisId) {
         // 1. 获取题目规则
         List<Question> questions = questionMapper.selectAllQuestions();
 
@@ -88,7 +88,16 @@ public class QuestionServiceImpl implements QuestionService {
         Long finalDiagnosisId;
 
         // 2. 尝试从数据库获取今天该病人的记录
-        Diagnosis todayRecord = diagnosisMapper.findTodayRecord(patientId);
+        Diagnosis todayRecord = null;
+        if (diagnosisId != null && diagnosisId > 0) {
+            todayRecord = diagnosisMapper.findById(diagnosisId);
+            if (todayRecord != null && !patientId.equals(todayRecord.getPatientId())) {
+                return Result.error("诊断会话与患者不匹配");
+            }
+        }
+        if (todayRecord == null) {
+            todayRecord = diagnosisMapper.findTodayRecord(patientId);
+        }
 
         if (todayRecord != null) {
             // 情况 A: 记录来自数据库

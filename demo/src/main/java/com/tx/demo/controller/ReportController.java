@@ -50,6 +50,7 @@ public class ReportController {
     public static class ReportRequest {
         public Long patientId;
         public String idCard;
+        public Long caseId;
         public String completedTypes; // 新增：已完成的诊断类型，逗号分隔如 "wang,wen_audio,wen_questionnaire"
 
         // 无参构造函数（用于 JSON 反序列化）
@@ -83,6 +84,14 @@ public class ReportController {
             this.idCard = idCard;
         }
 
+        public Long getCaseId() {
+            return caseId;
+        }
+
+        public void setCaseId(Long caseId) {
+            this.caseId = caseId;
+        }
+
         public String getCompletedTypes() {
             return completedTypes;
         }
@@ -96,6 +105,7 @@ public class ReportController {
             return "ReportRequest{" +
                     "patientId=" + patientId +
                     ", idCard='" + idCard + '\'' +
+                    ", caseId=" + caseId +
                     ", completedTypes='" + completedTypes + '\'' +
                     '}';
         }
@@ -123,6 +133,7 @@ public class ReportController {
 
             Long patientId = request.getPatientId();
             String idCard = request.getIdCard();
+            Long caseId = request.getCaseId();
             String completedTypes = request.getCompletedTypes();
 
             System.out.println("==== [DEBUG] 提取数据 - patientId: " + patientId + ", idCard: " + idCard + 
@@ -156,7 +167,7 @@ public class ReportController {
             }
 
             // 3. 获取今天的诊断记录
-            Diagnosis diagnosis = diagnosisMapper.findTodayRecord(patientId);
+            Diagnosis diagnosis = resolveDiagnosisRecord(patientId, caseId);
             if (diagnosis == null) {
                 return Result.error("未找到该患者的诊断记录，请先完成四诊操作");
             }
@@ -178,6 +189,7 @@ public class ReportController {
             // 7. 构建报告
             Map<String, Object> report = new LinkedHashMap<>();
             report.put("reportId", System.currentTimeMillis());
+            report.put("caseId", diagnosis.getId());
             report.put("patientInfo", extractPatientInfo(patient));
             report.put("diagnosis", extractDiagnosisInfo(diagnosis));
             report.put("synthesis", synthesisResult);
@@ -200,6 +212,7 @@ public class ReportController {
         Executors.newSingleThreadExecutor().execute(() -> {
             try {
                 Long patientId = request.getPatientId();
+                Long caseId = request.getCaseId();
                 if (patientId == null || patientId == 0) {
                     if (request.getIdCard() != null && !request.getIdCard().isEmpty()) {
                         Patient existing = patientMapper.findByIdCard(request.getIdCard());
@@ -210,7 +223,7 @@ public class ReportController {
                 }
 
                 Patient patient = patientMapper.selectById(patientId);
-                Diagnosis diagnosis = diagnosisMapper.findTodayRecord(patientId);
+                Diagnosis diagnosis = resolveDiagnosisRecord(patientId, caseId);
                 if (patient == null || diagnosis == null || !hasCompletedDiagnosis(diagnosis)) {
                     emitter.send(SseEmitter.event().data("{\"error\": \"患者不存在或未完成诊断\"}"));
                     emitter.send(SseEmitter.event().data("[DONE]"));
@@ -220,6 +233,7 @@ public class ReportController {
 
                 Map<String, Object> reportMeta = new HashMap<>();
                 reportMeta.put("reportId", System.currentTimeMillis());
+                reportMeta.put("caseId", diagnosis.getId());
                 reportMeta.put("patientInfo", extractPatientInfo(patient));
                 reportMeta.put("diagnosis", extractDiagnosisInfo(diagnosis));
                 reportMeta.put("createdAt", System.currentTimeMillis());
@@ -288,10 +302,11 @@ public class ReportController {
     @GetMapping("/get-diagnosis")
     public Result getDiagnosis(
             @RequestParam(value = "patientId", required = false) Long patientId,
+            @RequestParam(value = "caseId", required = false) Long caseId,
             @RequestParam(value = "idCard", required = false) String idCard) {
 
         System.out.println("==== [DEBUG] GET /api/report/get-diagnosis ====");
-        System.out.println("==== [DEBUG] patientId: " + patientId + ", idCard: " + idCard);
+        System.out.println("==== [DEBUG] patientId: " + patientId + ", caseId: " + caseId + ", idCard: " + idCard);
 
         try {
             // 补齐ID
@@ -316,7 +331,7 @@ public class ReportController {
 
             // 获取患者和诊断信息
             Patient patient = patientMapper.selectById(patientId);
-            Diagnosis diagnosis = diagnosisMapper.findTodayRecord(patientId);
+            Diagnosis diagnosis = resolveDiagnosisRecord(patientId, caseId);
 
             if (patient == null || diagnosis == null) {
                 System.out.println("==== [ERROR] 找不到患者或诊断记录 ====");
@@ -342,6 +357,17 @@ public class ReportController {
     /**
      * 检查是否至少有一个诊断完成（修改：支持部分板块）
      */
+    private Diagnosis resolveDiagnosisRecord(Long patientId, Long caseId) {
+        if (caseId != null && caseId > 0) {
+            Diagnosis byCase = diagnosisMapper.findById(caseId);
+            if (byCase != null && patientId != null && patientId.equals(byCase.getPatientId())) {
+                return byCase;
+            }
+            return null;
+        }
+        return diagnosisMapper.findTodayRecord(patientId);
+    }
+
     private boolean hasCompletedDiagnosis(Diagnosis diagnosis) {
         if (diagnosis.getWangImageUrl() != null && !diagnosis.getWangImageUrl().isEmpty()) {
             return true;

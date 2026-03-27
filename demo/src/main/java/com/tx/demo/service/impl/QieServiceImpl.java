@@ -37,6 +37,11 @@ public class QieServiceImpl implements QieService {
                     ? (String) payload.get("tcmSuggestion")
                     : null;
 
+            Long diagnosisId = null;
+            if (payload.containsKey("diagnosisId") && payload.get("diagnosisId") != null) {
+                diagnosisId = Long.valueOf(payload.get("diagnosisId").toString());
+            }
+
             // 数据验证
             if (hr < 40 || hr > 180) {
                 return Result.error("心率数据异常");
@@ -47,7 +52,16 @@ public class QieServiceImpl implements QieService {
             }
 
             // 数据库操作
-            Diagnosis record = diagnosisMapper.findTodayRecord(patientId);
+            Diagnosis record = null;
+            if (diagnosisId != null && diagnosisId > 0) {
+                record = diagnosisMapper.findById(diagnosisId);
+                if (record != null && !patientId.equals(record.getPatientId())) {
+                    return Result.error("诊断会话与患者不匹配");
+                }
+            }
+            if (record == null) {
+                record = diagnosisMapper.findTodayRecord(patientId);
+            }
 
             if (record != null) {
                 // 更新已有记录

@@ -13,5 +13,5 @@ public interface QuestionService {
      */
 
 
-    Result calculateConstitution(List<Integer> answers, Long patientId);
+    Result calculateConstitution(List<Integer> answers, Long patientId, Long diagnosisId);
 }

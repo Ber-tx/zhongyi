@@ -224,6 +224,7 @@ const uploadImage = async (base64) => {
   const icard = patientInfo.value.idCard || 
                 urlParams.get('idCard') || 
                 localStorage.getItem('current_patient_idcard');
+  const diagnosisId = route.query.caseId || localStorage.getItem('current_case_id');
 
   if (!pid) {
     ElMessage.error("未获取到当前病人ID，请确保已录入病人信息");
@@ -244,6 +245,9 @@ const uploadImage = async (base64) => {
     formData.append('id', pid); 
     if (icard) {
       formData.append('idCard', icard);
+    }
+    if (diagnosisId) {
+      formData.append('diagnosisId', diagnosisId);
     }
 
     console.log("==== [DEBUG] 望诊提交，锁定病人 ID:", pid);

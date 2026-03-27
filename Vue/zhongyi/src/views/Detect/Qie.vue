@@ -340,8 +340,10 @@ const stopAndAnalyze = async () => {
 };
 
 async function persistQieToServer() {
+  const diagnosisId = route.query.caseId || localStorage.getItem('current_case_id')
   const payload = {
     userId: patientId.value,
+    diagnosisId: diagnosisId ? Number(diagnosisId) : null,
     heartRate: analysisResult.value.avg_hr,
     spo2: analysisResult.value.avg_spo2,
     validRate: analysisResult.value.valid_rate,

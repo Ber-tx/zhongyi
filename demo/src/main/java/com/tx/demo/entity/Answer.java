@@ -9,4 +9,5 @@ public class Answer {
     private String idCard;
     private Double bmi;
     private Long patientId;
+    private Long diagnosisId;
 }

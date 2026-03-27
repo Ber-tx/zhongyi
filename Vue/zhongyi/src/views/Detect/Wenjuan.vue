@@ -221,7 +221,8 @@ const handleFinish = async () => {
       answers: answers.value,
       bmi: computedBMI.value,
       idCard: finalIdCard,
-      patientId: finalPid 
+      patientId: finalPid,
+      diagnosisId: route.query.caseId || localStorage.getItem('current_case_id')
     };
 
     const res = await submitQuestionnaire(postData);

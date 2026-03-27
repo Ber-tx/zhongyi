@@ -43,6 +43,7 @@ public class WenController {
     public Result handleWen(
             @RequestParam(value = "patient_id", required = false) Long patientId,
             @RequestParam(value = "patient_idcard", required = false) String idCard,
+            @RequestParam(value = "diagnosis_id", required = false) Long diagnosisId,
             @RequestParam("file") MultipartFile file) {
 
         System.out.println("==== [闻诊] 开始执行业务逻辑 ====");
@@ -119,7 +120,16 @@ public class WenController {
                 System.out.println("==== [闻诊] 分析结果: " + mainFinding + "，置信度: " + confidence);
 
                 // ---- 5. 入库（与 WangController 完全一致的合并/新建逻辑）----
-                Diagnosis record = diagnosisMapper.findTodayRecord(patientId);
+                Diagnosis record = null;
+                if (diagnosisId != null && diagnosisId > 0) {
+                    record = diagnosisMapper.findById(diagnosisId);
+                    if (record != null && !patientId.equals(record.getPatientId())) {
+                        return Result.error("诊断会话与患者不匹配");
+                    }
+                }
+                if (record == null) {
+                    record = diagnosisMapper.findTodayRecord(patientId);
+                }
 
                 if (record != null) {
                     // 情况A：今天已有记录，补充闻诊字段

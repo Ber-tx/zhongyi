@@ -407,9 +407,13 @@ const submitRecording = async () => {
     loading.value      = true
 
     const formData = new FormData()
+    const diagnosisId = route.query.caseId || localStorage.getItem('current_case_id')
     formData.append('file',            audioBlob.value, 'recording.webm')
     formData.append('patient_id',      patientInfo.value.id)
     formData.append('patient_idcard',  patientInfo.value.idCard)
+    if (diagnosisId) {
+      formData.append('diagnosis_id', diagnosisId)
+    }
 
     const response = await axios.post('/api/wen/analyze', formData, {
       headers: { 'Content-Type': 'multipart/form-data' },

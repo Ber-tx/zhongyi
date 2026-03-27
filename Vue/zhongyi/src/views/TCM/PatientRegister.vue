@@ -310,6 +310,9 @@ const handleSubmit = async () => {
       ;['wang', 'wen', 'wenjuan', 'qie'].forEach(k =>
         localStorage.removeItem(`${k}_finished_id`)
       )
+      localStorage.removeItem('current_case_id')
+      localStorage.removeItem('current_archive_no')
+      localStorage.removeItem('current_case_patient_id')
       ElMessage.success('信息录入成功，正在跳转四诊辨识...')
       setTimeout(() => router.push('/detect'), 700)
     } else {

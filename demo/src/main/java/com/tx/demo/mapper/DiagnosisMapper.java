@@ -14,6 +14,12 @@ public interface DiagnosisMapper {
     Diagnosis findTodayRecord(Long patientId);
 
     /**
+     * 按诊断会话ID查询（方案A：一次就诊一个case）
+     */
+    @Select("SELECT * FROM diagnosis WHERE id = #{id} LIMIT 1")
+    Diagnosis findById(@Param("id") Long id);
+
+    /**
      * 基础插入：创建新记录
      */
     @Insert("INSERT INTO diagnosis(patient_id, status, create_time, " +

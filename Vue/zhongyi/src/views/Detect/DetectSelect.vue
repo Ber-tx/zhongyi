@@ -91,6 +91,7 @@ import { useRouter, useRoute } from 'vue-router'
 import { Right, CircleCheckFilled } from '@element-plus/icons-vue'
 import { ref, computed, onMounted, onActivated, watch } from 'vue'
 import { ElMessage } from 'element-plus'
+import axios from 'axios'
 
 const router = useRouter()
 const route  = useRoute()
@@ -103,6 +104,7 @@ const wenFinished     = ref(false)
 const wenjuanFinished = ref(false)
 const qieFinished     = ref(false)
 const isGenerating    = ref(false)
+const currentCaseId   = ref(null)
 
 const statusMap = computed(() => ({
   wang:    wangFinished.value,
@@ -154,6 +156,38 @@ const refreshStatuses = () => {
   wenFinished.value     = localStorage.getItem('wen_finished_id')     === id
   wenjuanFinished.value = localStorage.getItem('wenjuan_finished_id') === id
   qieFinished.value     = localStorage.getItem('qie_finished_id')     === id
+  const caseId = localStorage.getItem('current_case_id')
+  currentCaseId.value = caseId ? Number(caseId) : null
+}
+
+const ensureDiagnosisSession = async () => {
+  const patientId = lockedPatientId.value || localStorage.getItem('current_patient_id')
+  if (!patientId) return
+
+  const existingCase = localStorage.getItem('current_case_id')
+  const existingCasePatient = localStorage.getItem('current_case_patient_id')
+  if (existingCase && existingCasePatient === String(patientId)) {
+    currentCaseId.value = Number(existingCase)
+    return
+  }
+
+  try {
+    const idCard = lockedIdCard.value || localStorage.getItem('current_patient_idCard') || ''
+    const resp = await axios.post('/api/diagnosis/session/start', {
+      patientId: Number(patientId),
+      idCard
+    })
+    if ((resp.data.code === 200 || resp.data.success) && resp.data.data?.caseId) {
+      localStorage.setItem('current_case_id', String(resp.data.data.caseId))
+      localStorage.setItem('current_archive_no', resp.data.data.archiveNo || '')
+      localStorage.setItem('current_case_patient_id', String(patientId))
+      currentCaseId.value = Number(resp.data.data.caseId)
+    } else {
+      ElMessage.error(resp.data.msg || '创建诊断会话失败')
+    }
+  } catch (e) {
+    ElMessage.error('创建诊断会话失败: ' + e.message)
+  }
 }
 
 const goTo = (type) => {
@@ -163,7 +197,7 @@ const goTo = (type) => {
   }
   router.push({
     path:  `/detect/${type}`,
-    query: { id: lockedPatientId.value, idCard: lockedIdCard.value },
+    query: { id: lockedPatientId.value, idCard: lockedIdCard.value, caseId: currentCaseId.value || undefined },
   })
 }
 
@@ -175,10 +209,20 @@ const generateReport = () => {
   if (wenFinished.value)     completedTypes.push('wen_audio')
   if (wenjuanFinished.value) completedTypes.push('wen_questionnaire')
   if (qieFinished.value)     completedTypes.push('qie')
-  router.push({ path: '/report', query: { id: patientId, completedTypes: completedTypes.join(',') } })
+  router.push({
+    path: '/report',
+    query: {
+      id: patientId,
+      caseId: currentCaseId.value || undefined,
+      completedTypes: completedTypes.join(',')
+    }
+  })
 }
 
-onMounted(() => refreshStatuses())
+onMounted(async () => {
+  refreshStatuses()
+  await ensureDiagnosisSession()
+})
 onActivated(() => {
   const latest = localStorage.getItem('current_patient_id')
   if (latest !== lockedPatientId.value) {
@@ -186,6 +230,7 @@ onActivated(() => {
     lockedIdCard.value = localStorage.getItem('current_patient_idCard') || ''
   }
   refreshStatuses()
+  ensureDiagnosisSession()
 })
 watch(() => route.fullPath, refreshStatuses)
 </script>

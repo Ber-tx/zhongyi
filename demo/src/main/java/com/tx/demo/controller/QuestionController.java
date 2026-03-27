@@ -47,6 +47,6 @@ public class QuestionController {
         }
 
         // 调用业务层：传入真实的 realId
-        return questionService.calculateConstitution(request.getAnswers(), realId);
+        return questionService.calculateConstitution(request.getAnswers(), realId, request.getDiagnosisId());
     }
 }

@@ -141,8 +141,9 @@ export function navigateToDiagnosisReport(router, patientId, _idCard = '', extra
     if (t) set.add(t);
   });
   const completedTypes = [...set].join(',');
+  const caseId = localStorage.getItem('current_case_id');
   router.push({
     path: '/report',
-    query: { id: String(patientId), completedTypes }
+    query: { id: String(patientId), caseId: caseId || undefined, completedTypes }
   });
 }
