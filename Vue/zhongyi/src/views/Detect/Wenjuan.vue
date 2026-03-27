@@ -80,6 +80,18 @@
         <div class="next-step-box">
           <p>请返回诊断中心继续完成其他检测项目</p>
           <small>（例如：面色采集、舌苔检测等）</small>
+          <div class="reference-section" style="margin-top: 16px;">
+            <p class="ref-title">📖 参考文献与出处</p>
+            <div class="ref-list">
+              <div v-for="(ref, idx) in wen_qReferences" :key="idx" class="ref-item">
+                <span class="ref-authors">{{ ref.authors }} ({{ ref.year }})</span>
+                <p class="ref-desc">{{ ref.title }}</p>
+                <a v-if="ref.url" :href="ref.url" target="_blank" class="ref-link">
+                  查看 → {{ ref.source }}
+                </a>
+              </div>
+            </div>
+          </div>
         </div>
         <div class="finish-actions">
           <el-button type="primary" size="large" round @click="generateDiagnosisReport" class="final-btn">
@@ -101,6 +113,7 @@ import { CircleCheckFilled } from '@element-plus/icons-vue';
 import { ElMessage } from 'element-plus'; // 【补充】确保 ElMessage 可用
 import { submitQuestionnaire } from '@/api/detect';
 import { navigateToDiagnosisReport } from '@/utils/reportUtils';
+import { algorithmReferences } from '@/constants/algorithmReferences';
 
 const router = useRouter();
 const route = useRoute(); // 【核心修复】初始化 route 对象
@@ -111,6 +124,7 @@ const currentIndex = ref(0);
 const answers = ref(new Array(33).fill(null));
 const isDone = ref(false);
 const submitting = ref(false);
+const wen_qReferences = ref(algorithmReferences.wen_questionnaire.references);
 
 // BMI 逻辑
 const bmiHeight = ref(1.72);
@@ -414,5 +428,50 @@ watch(currentIndex, () => playAudio());
   .quiz-card { padding: 34px 24px; }
   .question-text { font-size: 1.6rem; }
   .opt-indicator { width: 40px; height: 40px; margin-right: 12px; }
+}
+
+.reference-note {
+  font-size: 12px; color: #5d7a8a; line-height: 1.6;
+  background: #f0f4ff; padding: 8px 12px; border-radius: 6px;
+  border-left: 3px solid #5d9cec; text-align: left;
+}
+
+.reference-section {
+  margin-top: 12px; padding: 10px; background: #f0f4ff;
+  border: 1px solid #d0e0ff; border-radius: 6px;
+}
+
+.ref-title {
+  font-size: 12px; font-weight: 600; color: #333;
+  margin: 0 0 8px 0;
+}
+
+.ref-list {
+  display: flex; flex-direction: column; gap: 8px;
+}
+
+.ref-item {
+  padding: 8px; background: #fff;
+  border-left: 2px solid #5d9cec; border-radius: 3px;
+  font-size: 11px;
+}
+
+.ref-authors {
+  display: block; color: #666; font-weight: 600;
+  margin-bottom: 3px;
+}
+
+.ref-desc {
+  margin: 3px 0; color: #666; line-height: 1.4;
+}
+
+.ref-link {
+  display: inline-block; color: #5d9cec; text-decoration: none;
+  font-size: 10px; margin-top: 3px;
+  transition: all 0.2s;
+}
+
+.ref-link:hover {
+  color: #1890ff; text-decoration: underline;
 }
 </style>

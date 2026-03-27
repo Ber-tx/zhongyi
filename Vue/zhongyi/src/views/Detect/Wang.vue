@@ -85,11 +85,23 @@
           </div>
         </div>
         
-        <!-- 新增 AI 声明部分 -->
         <p class="ai-disclaimer">
           本分析由 <span class="highlight">AI 引擎</span> 提供，仅供健康参考，<br />
           <span class="warning">不作为临床诊断依据</span>。确诊请咨询 <span class="highlight">专业医师</span>。
         </p>
+
+        <div class="reference-section">
+          <p class="ref-title">📖 参考文献与出处</p>
+          <div class="ref-list">
+            <div v-for="(ref, idx) in wangReferences" :key="idx" class="ref-item">
+              <span class="ref-authors">{{ ref.authors }} ({{ ref.year }})</span>
+              <p class="ref-desc">{{ ref.title }}</p>
+              <a v-if="ref.url" :href="ref.url" target="_blank" class="ref-link">
+                查看 → {{ ref.source }}
+              </a>
+            </div>
+          </div>
+        </div>
         
         <div class="footer-btns">
           <el-button round @click="reCapture">重新分析</el-button>
@@ -106,14 +118,16 @@
 </template>
 
 <script setup>
-import { ref, onUnmounted, onMounted,h } from 'vue' // 增加 onMounted
-import { useRouter, useRoute } from 'vue-router' // 增加 useRoute
+import { ref, onUnmounted, onMounted,h } from 'vue'
+import { useRouter, useRoute } from 'vue-router'
 import { Camera, ArrowLeft, CircleCheckFilled, Picture, VideoCamera } from '@element-plus/icons-vue'
-import { ElMessage, ElMessageBox } from 'element-plus'; // 增加 ElMessageBox 引入
+import { ElMessage, ElMessageBox } from 'element-plus';
 import { navigateToDiagnosisReport } from '@/utils/reportUtils';
 import { uploadTongue } from '@/api/detect';
+import { algorithmReferences } from '@/constants/algorithmReferences'
+
 const router = useRouter()
-const route = useRoute() // 获取当前路由对象，用于提取 ID
+const route = useRoute()
 
 const videoPlayer = ref(null)
 const isCameraOpen = ref(false)
@@ -122,51 +136,43 @@ const loading = ref(false)
 const mediaStream = ref(null)
 const localImageUrl = ref('')
 const analysisResult = ref(null)
+const wangReferences = ref(algorithmReferences.wang.references)
 
-// 定义响应式病人信息，初始化时从路由获取
 const patientInfo = ref({
   id: null,
   idCard: ''
 })
 
 onMounted(() => {
-  // 1. 尝试从 URL 拿
   let qId = route.query.id;
   let qIdCard = route.query.idCard;
 
-  // 2. 如果 URL 没带（比如用户刷新了），从缓存拿
   if (!qId) qId = localStorage.getItem('current_patient_id');
   if (!qIdCard) qIdCard = localStorage.getItem('current_patient_idCard');
 
-  // 3. 填入 patientInfo 供 uploadImage 使用
   patientInfo.value.id = qId;
   patientInfo.value.idCard = qIdCard;
 
   console.log("==== [DEBUG] 望诊页最终锁定的病人 ID:", patientInfo.value.id);
   
-  // 页面进入时，清除该患者的望诊完成标记（防止未完成的情况被误认为完成）
-  // 只有真正完成分析时才会重新设置
   localStorage.removeItem('wang_finished_id');
   
-  // 补丁：开启相机
   startCamera();
 });
 
 const goBack = () => {
   stopCamera();
-  // 如果诊断未完成，清除该板块的完成标记
   if (!isCompleted.value) {
     localStorage.removeItem('wang_finished_id');
   }
   router.push('/detect');
 }
 
-// 相机逻辑
 const startCamera = async () => {
   localImageUrl.value = '';
   try {
     const stream = await navigator.mediaDevices.getUserMedia({ 
-      video: { width: 1280, height: 720, facingMode: "user" } 
+      video: { width: 800, height: 600, facingMode: "user" } 
     });
     mediaStream.value = stream;
     if (videoPlayer.value) videoPlayer.value.srcObject = stream;
@@ -178,12 +184,12 @@ const startCamera = async () => {
 
 const takePhoto = () => {
   const canvas = document.createElement('canvas');
-  canvas.width = videoPlayer.value.videoWidth;
-  canvas.height = videoPlayer.value.videoHeight;
+  canvas.width = 600;
+  canvas.height = 800;
   const ctx = canvas.getContext('2d');
   ctx.translate(canvas.width, 0); ctx.scale(-1, 1); 
-  ctx.drawImage(videoPlayer.value, 0, 0);
-  const base64 = canvas.toDataURL('image/jpeg', 0.8);
+  ctx.drawImage(videoPlayer.value, 0, 0, 600, 800);
+  const base64 = canvas.toDataURL('image/jpeg', 0.6);
   localImageUrl.value = base64;
   stopCamera();
   uploadImage(base64);
@@ -197,7 +203,6 @@ const stopCamera = () => {
   }
 }
 
-// 文件上传逻辑
 const triggerFileInput = () => document.getElementById('fileInput').click();
 const onFileChange = (e) => {
   const file = e.target.files[0];
@@ -211,10 +216,7 @@ const onFileChange = (e) => {
   }
 }
 
-// 【核心修复】后端交互逻辑
 const uploadImage = async (base64) => {
-  // --- 【自由传参修复：多渠道获取 ID】 ---
-  // 优先级：当前组件变量 > URL 参数 > 本地缓存
   const urlParams = new URLSearchParams(window.location.search);
   const pid = patientInfo.value.id || 
               urlParams.get('patientId') || 
@@ -230,18 +232,13 @@ const uploadImage = async (base64) => {
     ElMessage.error("未获取到当前病人ID，请确保已录入病人信息");
     return;
   }
-  // ---------------------------------------
 
   loading.value = true;
   try {
     const blob = await (await fetch(base64)).blob();
     const formData = new FormData();
     
-    // 1. 塞入文件
     formData.append('file', blob, 'tongue.jpg');
-
-    // 2. 将 ID 和 身份证塞进信封
-    // 注意：即使 patientInfo.value.id 为空，我们也用上面检索到的 pid
     formData.append('id', pid); 
     if (icard) {
       formData.append('idCard', icard);
@@ -252,7 +249,6 @@ const uploadImage = async (base64) => {
 
     console.log("==== [DEBUG] 望诊提交，锁定病人 ID:", pid);
 
-    // 3. 发送请求 
     const res = await uploadTongue(formData);
     
     if (res.data.code === 200 || res.data.success) {
@@ -271,7 +267,6 @@ const uploadImage = async (base64) => {
         );
       } else {
         analysisResult.value = resultData;
-        // 不在这里标记完成，等用户点击"继续下一个"或"生成报告"时才标记
         isCompleted.value = true;
         ElMessage.success("分析成功！");
       }
@@ -289,15 +284,11 @@ const uploadImage = async (base64) => {
 const reCapture = () => {
   isCompleted.value = false;
   localImageUrl.value = '';
-  // 补丁：如果是重新拍摄，需要重启相机
   startCamera(); 
-  // 注意：这里绝对不重置 patientInfo.value.id，保证重测时 ID 依然有效
 }
 
-// 新增：继续下一个诊断或返回诊断选择页面
 const goToNextOrReport = () => {
   stopCamera();
-  // 用户点击继续时，标记望诊为已完成
   const pid = patientInfo.value.id || localStorage.getItem('current_patient_id');
   if (isCompleted.value && pid) {
     localStorage.setItem('wang_finished_id', String(pid));
@@ -308,21 +299,16 @@ const goToNextOrReport = () => {
 const generatePartialReport = () => {
   const patientId = patientInfo.value.id || localStorage.getItem('current_patient_id');
   const idCard = patientInfo.value.idCard || localStorage.getItem('current_patient_idCard');
-  // 用户点击生成报告时，标记望诊为已完成
   if (isCompleted.value && patientId) {
     localStorage.setItem('wang_finished_id', String(patientId));
   }
   navigateToDiagnosisReport(router, patientId, idCard);
 }
 
-
 onUnmounted(stopCamera);
-
-
 </script>
 
 <style scoped>
-/* ── 与主系统统一的暖棕色调 ── */
 .wang-container {
   min-height: 100vh;
   position: relative;
@@ -332,7 +318,6 @@ onUnmounted(stopCamera);
   font-family: 'Noto Serif SC', "Source Han Serif CN", serif;
 }
 
-/* 宣纸纹理 */
 .wang-container::before {
   content: ''; position: fixed; inset: 0; pointer-events: none;
   background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='300' height='300'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.75' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='300' height='300' filter='url(%23n)' opacity='0.035'/%3E%3C/svg%3E");
@@ -350,7 +335,6 @@ onUnmounted(stopCamera);
               inset 0 1px 0 rgba(255,248,220,.8);
 }
 
-/* 顶部金线 */
 .content-box::before {
   content: ''; position: absolute; top: 0; left: 0; right: 0; height: 3px;
   background: linear-gradient(90deg, transparent, #c8a020 50%, transparent);
@@ -361,7 +345,6 @@ onUnmounted(stopCamera);
 .back-btn { position: absolute; left: 0; top: 5px; }
 .title { font-size: 1.5rem; margin: 0; font-family: 'Noto Serif SC', "Source Han Serif CN", serif; color: #3d2b10; }
 
-/* 摄像头区域 */
 .video-wrapper {
   position: relative; width: 100%; aspect-ratio: 3/4;
   background: #2a1a0a; border-radius: 12px; overflow: hidden;
@@ -402,22 +385,44 @@ onUnmounted(stopCamera);
   content: ""; flex: 1; height: 1px; background: #e8d5a0; margin: 0 10px;
 }
 
-.charts { display: flex; flex-direction: column; gap: 20px; margin-top: 15px; }
+/* ========== ✅ 这里是改小图片的核心 ========== */
+.charts {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+  margin-top: 15px;
+  align-items: center;
+}
 
 .img-card {
-  width: 100%; font-size: 14px; color: #5a2d00; font-weight: bold;
-  text-align: left; background: rgba(250,243,224,.7);
-  padding: 10px; border-radius: 8px;
+  width: 85%;
+  font-size: 14px;
+  color: #5a2d00;
+  font-weight: bold;
+  text-align: center;
+  background: rgba(250,243,224,.7);
+  padding: 10px;
+  border-radius: 8px;
   border: 1px solid #e8d5a0;
 }
 
 .preview-img {
-  width: 70%; height: auto; max-height: 320px;
-  object-fit: contain; border-radius: 8px;
-  border: 1px solid #e8d5a0; background: #fffdf5;
-  margin: 8px auto; display: block;
+  width: 60% !important;
+  max-height: 200px !important;
+  object-fit: contain;
+  border-radius: 8px;
+  border: 1px solid #e8d5a0;
+  background: #fffdf5;
+  margin: 8px auto;
+  display: block;
   box-shadow: 0 4px 12px rgba(100,60,10,.08);
 }
+
+.radar-large {
+  width: 65% !important;
+  max-height: 220px !important;
+}
+/* ========================================== */
 
 .ai-spinner {
   width: 40px; height: 40px;
@@ -441,4 +446,49 @@ onUnmounted(stopCamera);
 }
 .ai-disclaimer .highlight { color: #8b3d1a; font-weight: bold; }
 .ai-disclaimer .warning  { color: #c0392b; font-weight: bold; }
+
+.reference-note {
+  font-size: 12px; color: #5d7a8a; line-height: 1.6;
+  background: #f0f4ff; padding: 8px 12px; border-radius: 6px;
+  border-left: 3px solid #5d9cec; margin-top: 12px; text-align: left;
+}
+
+.reference-section {
+  margin-top: 20px; padding: 12px; background: #f0f4ff;
+  border: 1px solid #d0e0ff; border-radius: 8px;
+}
+
+.ref-title {
+  font-size: 13px; font-weight: 600; color: #333;
+  margin: 0 0 12px 0;
+}
+
+.ref-list {
+  display: flex; flex-direction: column; gap: 10px;
+}
+
+.ref-item {
+  padding: 10px; background: #fff;
+  border-left: 3px solid #5d9cec; border-radius: 4px;
+  font-size: 12px;
+}
+
+.ref-authors {
+  display: block; color: #666; font-weight: 600;
+  margin-bottom: 4px;
+}
+
+.ref-desc {
+  margin: 4px 0; color: #666; line-height: 1.5;
+}
+
+.ref-link {
+  display: inline-block; color: #5d9cec; text-decoration: none;
+  font-size: 11px; margin-top: 4px;
+  transition: all 0.2s;
+}
+
+.ref-link:hover {
+  color: #1890ff; text-decoration: underline;
+}
 </style>

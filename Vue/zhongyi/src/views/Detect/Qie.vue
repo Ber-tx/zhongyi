@@ -68,6 +68,18 @@
             </div>
             <div class="card-content">
               <div class="tcm-text">{{ analysisResult.suggestion }}</div>
+              <div class="reference-section">
+                <p class="ref-title">📖 参考文献与出处</p>
+                <div class="ref-list">
+                  <div v-for="(ref, idx) in qieReferences" :key="idx" class="ref-item">
+                    <span class="ref-authors">{{ ref.authors }} ({{ ref.year }})</span>
+                    <p class="ref-desc">{{ ref.title }}</p>
+                    <a v-if="ref.url" :href="ref.url" target="_blank" class="ref-link">
+                      查看 → {{ ref.source }}
+                    </a>
+                  </div>
+                </div>
+              </div>
             </div>
           </div>
         </transition>
@@ -156,11 +168,13 @@ import { Back, User, VideoPlay, DataAnalysis, Check, RefreshRight, InfoFilled, L
 import axios from 'axios';
 import * as echarts from 'echarts';
 import { navigateToDiagnosisReport } from '@/utils/reportUtils';
+import { algorithmReferences } from '@/constants/algorithmReferences';
 
 // ===== 1. 基础状态 =====
 const route = useRoute();
 const router = useRouter();
 const patientId = ref(route.query.id || '');
+const qieReferences = ref(algorithmReferences.qie.references);
 
 // 流程控制状态
 const isStarting = ref(false);    // 启动中
@@ -535,4 +549,49 @@ onUnmounted(() => {
 .echarts-box { flex: 1; width: 100%; }
 
 @keyframes blink { 0% { opacity: 1; } 50% { opacity: .4; } 100% { opacity: 1; } }
+
+.reference-note {
+  font-size: 12px; color: #5d7a8a; line-height: 1.6;
+  background: #f0f4ff; padding: 8px 12px; border-radius: 6px;
+  border-left: 3px solid #5d9cec; text-align: left;
+}
+
+.reference-section {
+  margin-top: 12px; padding: 10px; background: #f0f4ff;
+  border: 1px solid #d0e0ff; border-radius: 6px;
+}
+
+.ref-title {
+  font-size: 12px; font-weight: 600; color: #333;
+  margin: 0 0 8px 0;
+}
+
+.ref-list {
+  display: flex; flex-direction: column; gap: 8px;
+}
+
+.ref-item {
+  padding: 8px; background: #fff;
+  border-left: 2px solid #5d9cec; border-radius: 3px;
+  font-size: 11px;
+}
+
+.ref-authors {
+  display: block; color: #666; font-weight: 600;
+  margin-bottom: 3px;
+}
+
+.ref-desc {
+  margin: 3px 0; color: #666; line-height: 1.4;
+}
+
+.ref-link {
+  display: inline-block; color: #5d9cec; text-decoration: none;
+  font-size: 10px; margin-top: 3px;
+  transition: all 0.2s;
+}
+
+.ref-link:hover {
+  color: #1890ff; text-decoration: underline;
+}
 </style>

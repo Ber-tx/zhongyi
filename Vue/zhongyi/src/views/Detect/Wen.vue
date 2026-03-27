@@ -171,6 +171,19 @@
             本分析由 <span class="highlight">AI 引擎</span> 提供，仅供健康参考，<br />
             <span class="warning">不作为临床诊断依据</span>。确诊请咨询 <span class="highlight">专业医师</span>。
           </p>
+
+          <div class="reference-section">
+            <p class="ref-title">📖 参考文献与出处</p>
+            <div class="ref-list">
+              <div v-for="(ref, idx) in wenReferences" :key="idx" class="ref-item">
+                <span class="ref-authors">{{ ref.authors }} ({{ ref.year }})</span>
+                <p class="ref-desc">{{ ref.title }}</p>
+                <a v-if="ref.url" :href="ref.url" target="_blank" class="ref-link">
+                  查看 → {{ ref.source }}
+                </a>
+              </div>
+            </div>
+          </div>
         </div>
 
         <!-- 底部按钮 -->
@@ -207,6 +220,7 @@ import {
 } from '@element-plus/icons-vue'
 import axios from 'axios'
 import { navigateToDiagnosisReport } from '@/utils/reportUtils'
+import { algorithmReferences } from '@/constants/algorithmReferences'
 
 const router = useRouter()
 const route  = useRoute()
@@ -215,6 +229,7 @@ const route  = useRoute()
 const isRecording  = ref(false)
 const hasRecording = ref(false)
 const isCompleted  = ref(false)
+const wenReferences = ref(algorithmReferences.wen_audio.references)
 const loading      = ref(false)
 const isSubmitting = ref(false)
 const recordingTime = ref(0)
@@ -629,5 +644,50 @@ const getConfidenceColor = (percentage) => {
   .playback-controls .action-group { flex-direction: column; }
   .playback-controls .action-group :deep(.el-button) { width: 100%; }
   .footer-btns { flex-direction: column; }
+}
+
+.reference-note {
+  font-size: 12px; color: #5d7a8a; line-height: 1.6;
+  background: #f0f4ff; padding: 8px 12px; border-radius: 6px;
+  border-left: 3px solid #5d9cec; margin-top: 12px; text-align: left;
+}
+
+.reference-section {
+  margin-top: 20px; padding: 12px; background: #f0f4ff;
+  border: 1px solid #d0e0ff; border-radius: 8px;
+}
+
+.ref-title {
+  font-size: 13px; font-weight: 600; color: #333;
+  margin: 0 0 12px 0;
+}
+
+.ref-list {
+  display: flex; flex-direction: column; gap: 10px;
+}
+
+.ref-item {
+  padding: 10px; background: #fff;
+  border-left: 3px solid #5d9cec; border-radius: 4px;
+  font-size: 12px;
+}
+
+.ref-authors {
+  display: block; color: #666; font-weight: 600;
+  margin-bottom: 4px;
+}
+
+.ref-desc {
+  margin: 4px 0; color: #666; line-height: 1.5;
+}
+
+.ref-link {
+  display: inline-block; color: #5d9cec; text-decoration: none;
+  font-size: 11px; margin-top: 4px;
+  transition: all 0.2s;
+}
+
+.ref-link:hover {
+  color: #1890ff; text-decoration: underline;
 }
 </style>

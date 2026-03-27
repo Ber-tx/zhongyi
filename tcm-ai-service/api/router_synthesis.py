@@ -195,7 +195,7 @@ def call_deepseek_api(messages: list, system_prompt: str = None) -> str:
         raise
 
 
-def call_deepseek_api_stream(messages: list, system_prompt: str = None):
+def call_deepseek_api_stream(messages: list, system_prompt: str = None, fallback_text: str = None):
     """
     流式调用 DeepSeek API 的生成器，按 SSE 格式 yield 字符片段
     """
@@ -255,7 +255,11 @@ def call_deepseek_api_stream(messages: list, system_prompt: str = None):
         yield "data: [DONE]\n\n"
     except Exception as e:
         print(f"[ERROR] 流式输出异常: {str(e)}")
-        yield f"data: {json.dumps({'content': f'[AI 分析中断: {str(e)}]' })}\n\n"
+        # 连接失败时改为返回预置兜底文案（仍按流式逐字下发）
+        text = fallback_text if fallback_text else "[AI 分析中断，已切换到兜底诊断建议]"
+        for ch in text:
+            data = json.dumps({"content": ch}, ensure_ascii=False)
+            yield f"data: {data}\n\n"
         yield "data: [DONE]\n\n"
 
 
@@ -333,9 +337,10 @@ async def synthesize_diagnosis_stream(request: SynthesisRequest):
         diagnosis_info = request.model_dump()
         prompt = build_tcm_prompt(diagnosis_info)
         messages = [{"role": "user", "content": prompt}]
+        fallback_text = generate_fallback_synthesis(diagnosis_info)
 
         return StreamingResponse(
-            call_deepseek_api_stream(messages),
+            call_deepseek_api_stream(messages, fallback_text=fallback_text),
             media_type="text/event-stream",
             headers={
                 "Cache-Control": "no-cache",
