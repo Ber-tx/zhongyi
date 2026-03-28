@@ -290,8 +290,8 @@ watch(currentIndex, () => playAudio());
   min-height: 100vh;
   display: flex; justify-content: center; align-items: center;
   position: relative; overflow: hidden;
-  background: url('../../assets/images/answerDialog/background_scroll.png') no-repeat center center;
-  background-size: cover; background-attachment: fixed;
+  /* 使用更深的渐变背景以增强对比 */
+  background: linear-gradient(180deg, #f6efe0 0%, #efe2c7 100%);
   padding: 40px 20px;
   font-family: 'Noto Serif SC', "Source Han Serif CN", serif;
 }
@@ -303,26 +303,17 @@ watch(currentIndex, () => playAudio());
 .wenjuan-wrapper::before { left: 0;  box-shadow: inset -30px 0 40px rgba(0,0,0,0.06); }
 .wenjuan-wrapper::after  { right: 0; box-shadow: inset  30px 0 40px rgba(0,0,0,0.06); }
 
-.ink-bg { position: absolute; inset: 0; pointer-events: none; z-index: 1; }
-.blob {
-  width: 760px; height: 760px;
-  background: radial-gradient(circle, rgba(139,61,26,.05) 0%, transparent 70%);
-  position: absolute; top: -160px; right: -80px; filter: blur(8px);
-}
-.paper-texture {
-  position: absolute; inset: 0; opacity: 0.07; pointer-events: none;
-  background-image: url('https://www.transparenttextures.com/patterns/natural-paper.png');
-  mix-blend-mode: multiply; z-index: 2;
-}
+/* 隐藏旧的装饰元素（保持模板兼容） */
+.ink-bg, .paper-texture, .blob { display: none !important; }
 
 .quiz-card {
-  width: 920px; max-width: calc(100% - 120px);
-  backdrop-filter: blur(6px); -webkit-backdrop-filter: blur(6px);
-  border-radius: 16px; padding: 56px 64px;
+  width: 760px; max-width: calc(100% - 80px);
+  backdrop-filter: blur(4px); -webkit-backdrop-filter: blur(4px);
+  border-radius: 12px; padding: 44px 48px;
   position: relative; z-index: 10;
-  background: linear-gradient(180deg, rgba(255,252,242,.98) 0%, rgba(255,248,230,.92) 100%);
-  border: 1px solid rgba(200,169,110,.4);
-  box-shadow: 0 30px 60px rgba(100,50,10,.10), inset 0 1px 0 rgba(255,255,255,.6);
+  background: linear-gradient(180deg, #fff9f0 0%, #f7ead0 100%);
+  border: 1px solid rgba(150,100,45,.32);
+  box-shadow: 0 24px 56px rgba(70,40,20,.12);
 }
 
 /* 顶部金线 */
@@ -347,7 +338,7 @@ watch(currentIndex, () => playAudio());
 .header-nav { margin-bottom: 8px; }
 .count b { font-size: 2rem; color: #8b3d1a; margin: 0 6px; }
 
-.question-container { min-height: 380px; padding: 12px 0 6px; }
+.question-container { min-height: 340px; padding: 6px 0 6px; }
 .question-text {
   font-size: 2.2rem; color: #3d2b10;
   font-family: 'Noto Serif SC', "Source Han Serif CN", serif;
@@ -357,7 +348,7 @@ watch(currentIndex, () => playAudio());
 .remark-text { font-size: 1rem; color: #9a7040; font-weight: 400; }
 
 /* 选项 */
-.options-grid { display: grid; gap: 12px; }
+.options-grid { display: grid; gap: 14px; grid-template-columns: 1fr; max-width: 640px; margin: 0 auto; }
 .option-box {
   display: flex; align-items: center; padding: 16px 24px; border-radius: 10px;
   cursor: pointer;
@@ -366,26 +357,26 @@ watch(currentIndex, () => playAudio());
   border: 1px solid rgba(200,169,110,.5);
   box-shadow: 0 4px 16px rgba(100,60,10,.04);
 }
-.option-box:hover { transform: translateX(8px); box-shadow: 0 10px 24px rgba(100,60,10,.10); }
+.option-box:hover { transform: translateY(-4px); box-shadow: 0 12px 28px rgba(70,40,20,.12); }
 .option-box.is-active {
-  background: linear-gradient(180deg, #8b3d1a 0%, #6b2d12 100%);
-  color: #fdeabb; border-color: rgba(139,61,26,.8);
-  box-shadow: 0 16px 32px rgba(139,61,26,.2);
+  background: linear-gradient(180deg, #6b2a12 0%, #4f1a0a 100%);
+  color: #fff3d9; border-color: rgba(90,40,15,.9);
+  box-shadow: 0 18px 44px rgba(70,35,15,.18);
 }
 .opt-indicator {
   width: 46px; height: 46px; display: flex; align-items: center; justify-content: center;
-  font-size: 1.05rem; font-weight: 700; color: #8b3d1a; border-radius: 50%;
-  background: rgba(139,61,26,.08); margin-right: 16px;
+  font-size: 1.05rem; font-weight: 700; color: #6b2a12; border-radius: 50%;
+  background: rgba(139,61,26,.12); margin-right: 16px;
 }
 .option-box.is-active .opt-indicator { background: rgba(255,255,255,.15); color: #fdeabb; }
 .opt-text { font-size: 1.1rem; color: inherit; }
 
 /* BMI */
 .bmi-input-area {
-  background: linear-gradient(180deg, #faf3e0, #f5eacc);
-  padding: 28px; border-radius: 12px;
-  border: 1px solid #e8d5a0;
-  display: flex; justify-content: space-between; align-items: center; gap: 20px;
+  background: linear-gradient(180deg, #fbf3e6, #f6e9cf);
+  padding: 20px; border-radius: 10px;
+  border: 1px solid #e6cfa0;
+  display: flex; justify-content: space-between; align-items: center; gap: 16px;
 }
 .bmi-row { margin-bottom: 12px; display: flex; align-items: center; font-size: 1.05rem; }
 .bmi-row .label { width: 64px; color: #6b4c24; font-weight: 700; }
@@ -394,7 +385,7 @@ watch(currentIndex, () => playAudio());
   text-align: center;
   border-left: 1px dashed #e8d5a0; padding-left: 28px; min-width: 150px;
 }
-.bmi-val { font-size: 3rem; color: #8b3d1a; font-weight: 800; }
+.bmi-val { font-size: 3rem; color: #6b2a12; font-weight: 800; }
 
 .control-footer {
   margin-top: 40px; display: flex; justify-content: space-between; align-items: center;
