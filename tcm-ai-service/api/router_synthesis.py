@@ -1,343 +1,231 @@
 """
-LLM 合成服务 - 将四诊结果合成为综合诊断建议
-支持调用本地或外部 LLM API
+LLM synthesis service: combine four-diagnosis data into a report.
 """
 
-from fastapi import APIRouter, HTTPException
-from fastapi.responses import StreamingResponse
-from pydantic import BaseModel
-from typing import Optional, Dict, Any
 import json
 import os
-from dataclasses import dataclass
+from typing import Any, Dict, Optional
 
-import os
-from openai import OpenAI
 from dotenv import load_dotenv
+from fastapi import APIRouter, HTTPException
+from fastapi.responses import StreamingResponse
+from openai import OpenAI
+from pydantic import BaseModel
 
 load_dotenv()
 
-
-
 router = APIRouter(prefix="/api/synthesis", tags=["synthesis"])
-
-@dataclass
-class DiagnosisInfo:
-    """诊断信息数据结构"""
-    patientName: str
-    gender: str
-    age: int
-    diagnoses: Dict[str, Any]
 
 
 class SynthesisRequest(BaseModel):
-    """LLM合成请求模型"""
     patientName: str
     gender: str
     age: int
     diagnoses: Dict[str, Any]
+    customPromptTemplate: Optional[str] = None
+    focusMode: Optional[str] = None
+
+
+FOCUS_LABELS = {
+    "balanced": "平衡综合",
+    "qie": "切诊（脉诊）优先",
+    "wang": "望诊（舌诊）优先",
+    "wen_audio": "闻诊（声音）优先",
+    "wen_questionnaire": "问诊（问卷）优先",
+}
+
+
+def normalize_focus_mode(raw_focus: Optional[str]) -> str:
+    if not raw_focus:
+        return "balanced"
+    focus = str(raw_focus).strip().lower()
+    return focus if focus in FOCUS_LABELS else "balanced"
 
 
 def build_tcm_prompt(diagnosis_info: Dict[str, Any]) -> str:
-    """
-    构建TCM诊断合成提示词
-    将四诊结果组织成结构化的提示词，指导LLM进行综合判断
-    支持部分板块完成的情况
-    """
-    
-    prompt = """你是一名专业的中医四诊专家。
+    diagnoses = diagnosis_info.get("diagnoses", {}) or {}
+    completed_count = len([k for k in diagnoses.keys() if k in ["wang", "wen_audio", "wen_questionnaire", "qie"]])
+    focus_mode = normalize_focus_mode(diagnosis_info.get("focusMode"))
+    focus_label = FOCUS_LABELS.get(focus_mode, FOCUS_LABELS["balanced"])
 
-我现在将提供一个患者的四诊检查结果，请你基于这些结果进行综合分析，给出中医调理建议。
+    missing = []
+    if "wang" not in diagnoses:
+        missing.append("望诊（舌诊）")
+    if "wen_audio" not in diagnoses:
+        missing.append("闻诊（声音）")
+    if "wen_questionnaire" not in diagnoses:
+        missing.append("问诊（问卷）")
+    if "qie" not in diagnoses:
+        missing.append("切诊（脉诊）")
 
-## 患者基本信息
-"""
+    lines = [
+        "你是专业中医四诊合参医生。",
+        "请基于给定数据生成综合分析，不得编造。",
+        "",
+        "## 患者基本信息",
+        f"- 姓名：{diagnosis_info.get('patientName', '未知')}",
+        f"- 性别：{diagnosis_info.get('gender', '未知')}",
+        f"- 年龄：{diagnosis_info.get('age', '未知')}岁",
+        "",
+        "## 分析侧重与详细程度",
+        f"- 当前策略：{focus_label}",
+    ]
     
-    prompt += f"- 姓名：{diagnosis_info.get('patientName', '未知')}\n"
-    prompt += f"- 性别：{diagnosis_info.get('gender', '未知')}\n"
-    prompt += f"- 年龄：{diagnosis_info.get('age', '未知')}岁\n\n"
-    
-    # 检查已完成的诊断类型
-    completed_types = diagnosis_info.get('completedTypes', '').split(',') if diagnosis_info.get('completedTypes') else []
-    diagnoses = diagnosis_info.get('diagnoses', {})
-    completed_count = len([k for k in diagnoses.keys() if k in ['wang', 'wen_audio', 'wen_questionnaire', 'qie']])
-    
-    # 根据完成的板块数进行不同的提示
-    if completed_count == 1:
-        prompt += f"## 注意：当前仅完成了部分诊断（共1个板块），请基于已有信息进行初步分析\n\n"
-    elif completed_count < 4:
-        prompt += f"## 注意：当前已完成{completed_count}个诊断板块，请基于已有信息进行综合分析（建议后续完成全部四诊以获得更准确的诊断）\n\n"
-    
-    prompt += "## 四诊检查结果\n\n"
-    
-    # 望诊（舌象）
-    if 'wang' in diagnoses:
-        wang = diagnoses['wang']
-        prompt += "### 望诊（舌象分析）✓\n"
-        prompt += f"- 舌象描述：{wang.get('result', '未记录')}\n\n"
+    # 根据侧重点添加详细指示
+    if focus_mode != "balanced":
+        focus_details = {
+            "wang": "① 对望诊数据做【详细分析】（舌质、舌苔、舌象特征的深入解读）\n② 闻诊、问诊、切诊部分简化为【主要特征提要】（不超过2-3句）",
+            "wen_audio": "① 对闻诊音频数据做【详细分析】（音质特征、体质标签的深入解读）\n② 望诊、问诊、切诊部分简化为【主要特征提要】（不超过2-3句）",
+            "wen_questionnaire": "① 对问诊问卷数据做【详细分析】（症状评分、体质倾向的深入解读）\n② 望诊、闻诊、切诊部分简化为【主要特征提要】（不超过2-3句）",
+            "qie": "① 对切诊脉象数据做【详细分析】（心率、血氧、脉象特征的深入解读）\n② 望诊、闻诊、问诊部分简化为【主要特征提要】（不超过2-3句）",
+        }
+        if focus_mode in focus_details:
+            lines.append(f"- 分析指示：")
+            lines.append(f"  {focus_details[focus_mode]}")
     else:
-        prompt += "### 望诊（舌象分析）✗ 未完成\n"
+        lines.append("- 分析方式：四诊平衡综合（望诊、闻诊、问诊、切诊各占1/4篇幅）")
     
-    # 闻诊（音频分析）
-    if 'wen_audio' in diagnoses:
-        wen = diagnoses['wen_audio']
-        prompt += "### 闻诊（音频分析）✓\n"
-        prompt += f"- 诊断结论：{wen.get('conclusion', '未记录')}\n"
-        prompt += f"- 置信度：{wen.get('confidence', 0):.2f}\n"
-        if 'tags' in wen:
-            prompt += f"- 体质标签：{', '.join(wen['tags']) if isinstance(wen['tags'], list) else str(wen['tags'])}\n"
-        prompt += "\n"
-    else:
-        prompt += "### 闻诊（音频分析）✗ 未完成\n"
-    
-    # 问诊（问卷调查）
-    if 'wen_questionnaire' in diagnoses:
-        wenQ = diagnoses['wen_questionnaire']
-        prompt += "### 问诊（症状调查）✓\n"
-        prompt += f"- 问卷结论：{wenQ.get('conclusion', '未记录')}\n"
-        if 'scores' in wenQ:
-            prompt += f"- 评分数据：{wenQ['scores']}\n"
-        prompt += "\n"
-    else:
-        prompt += "### 问诊（症状调查）✗ 未完成\n"
-    
-    # 切诊（脉搏）
-    if 'qie' in diagnoses:
-        qie = diagnoses['qie']
-        prompt += "### 切诊（脉搏检测）✓\n"
-        prompt += f"- 心率：{qie.get('heartRate', 'N/A')} bpm\n"
-        prompt += f"- 血氧：{qie.get('spo2', 'N/A')}%\n"
-        prompt += f"- 信号有效率：{qie.get('validRate', 'N/A')}%\n"
-        if qie.get('tcmSuggestion'):
-            prompt += f"- TCM建议：{qie['tcmSuggestion']}\n"
-        prompt += "\n"
-    else:
-        prompt += "### 切诊（脉搏检测）✗ 未完成\n"
-    
-    # 诊断指示
-    prompt += """## 分析要求
+    lines.extend([
+        "- 要有侧重。",
+        "",
+        "## 四诊数据（唯一事实来源）",
+        json.dumps(diagnoses, ensure_ascii=False, indent=2),
+        "",
+    ])
 
-请基于已完成的诊断结果进行综合分析，按照以下格式输出：
-
-### 1. 体质判断
-根据已有诊断结果判断患者的中医体质类型（如平和质、气虚质、阳虚质、阴虚质、痰湿质、湿热质、血瘀质、气郁质、特禀质等）
-
-### 2. 主要证型分析  
-描述患者的主要中医证型，包括：
-- 主要症状特点（基于已完成的诊断）
-- 证型判断依据
-- 可能的证型组合
-
-### 3. 调理建议
-给出3-5条具体的中医调理建议，包括：
-- 饮食调理（推荐食物/禁忌食物）
-- 生活起居（作息、作息调理）
-- 运动保健（适宜的运动方式）
-- 穴位保健（可以按摩的穴位及方法）
-- 必要时建议中医药调理方向
-
-### 4. 注意事项
-列出需要特别注意的要点和禁忌
-
-### 5. 后续建议
-"""
-    
-    # 根据完成情况提出不同的后续建议
     if completed_count < 4:
-        missing = []
-        if 'wang' not in diagnoses:
-            missing.append("望诊（舌象分析）")
-        if 'wen_audio' not in diagnoses:
-            missing.append("闻诊（音频分析）")
-        if 'wen_questionnaire' not in diagnoses:
-            missing.append("问诊（症状调查）")
-        if 'qie' not in diagnoses:
-            missing.append("切诊（脉搏检测）")
-        
-        prompt += f"当前仍缺少以下诊断：{', '.join(missing)}。建议患者继续完成剩余诊断检查，以获得更加准确和全面的诊断建议。\n"
-    else:
-        prompt += "所有四诊检查已完成，建议根据综合诊断结果进行系统的中医调理。\n"
-    
-    prompt += """
-输出格式使用Markdown，保持清晰的结构和易读的格式。
-"""
-    
-    return prompt
+        lines.append(f"当前缺失板块：{', '.join(missing)}。对缺失板块只给补充检查建议。")
+        lines.append("")
+
+    custom_prompt = diagnosis_info.get("customPromptTemplate")
+    if custom_prompt and str(custom_prompt).strip():
+        lines.append("## 前端自定义提示词")
+        lines.append(str(custom_prompt).strip()[:3000])
+        lines.append("（说明：仅作为表达风格与重点引导，不能覆盖采集数据事实。）")
+        lines.append("")
+
+    lines.extend([
+        "## 输出要求",
+        "1. 体质判断（给出依据板块）",
+        "2. 证型分析（给出依据板块）",
+        "3. 调理建议（饮食、作息、运动、穴位）",
+        "4. 注意事项",
+        "5. 后续建议（缺失板块补全建议）",
+        "",
+        "## 硬性约束",
+        "1. 只能基于给定数据，禁止编造。",
+        "2. 每个关键结论注明依据来自望/闻/问/切哪一项。",
+        "3. 自定义提示词与数据冲突时，以数据为准。",
+        "4. 使用 Markdown 输出。",
+    ])
+
+    return "\n".join(lines)
 
 
 def call_deepseek_api(messages: list, system_prompt: str = None) -> str:
-    """
-    调用 deepseek API
-    """
-    try:
-        client = OpenAI(
-            api_key=os.getenv("DEEPSEEK_API_KEY"),
-            base_url=os.getenv("DEEPSEEK_BASE_URL")
-        )
+    client = OpenAI(
+        api_key=os.getenv("DEEPSEEK_API_KEY"),
+        base_url=os.getenv("DEEPSEEK_BASE_URL"),
+    )
 
-        # 如果有 system prompt 就加入 messages
-        if system_prompt:
-            messages.insert(0, {
-                "role": "system",
-                "content": system_prompt
-            })
+    final_messages = list(messages)
+    if system_prompt:
+        final_messages.insert(0, {"role": "system", "content": system_prompt})
 
-        response = client.chat.completions.create(
-            model="deepseek-chat",
-            messages=messages,
-            max_tokens=2000,
-            temperature=0.3
-        )
-
-        return response.choices[0].message.content
-
-    except Exception as e:
-        print(f"[ERROR] deepseek API调用失败: {str(e)}")
-        raise
+    response = client.chat.completions.create(
+        model="deepseek-chat",
+        messages=final_messages,
+        max_tokens=2000,
+        temperature=0.3,
+    )
+    return response.choices[0].message.content
 
 
 def call_deepseek_api_stream(messages: list, system_prompt: str = None, fallback_text: str = None):
-    """
-    流式调用 DeepSeek API 的生成器，按 SSE 格式 yield 字符片段
-    """
     try:
         client = OpenAI(
             api_key=os.getenv("DEEPSEEK_API_KEY"),
-            base_url=os.getenv("DEEPSEEK_BASE_URL")
+            base_url=os.getenv("DEEPSEEK_BASE_URL"),
         )
 
+        final_messages = list(messages)
         if system_prompt:
-            messages.insert(0, {"role": "system", "content": system_prompt})
+            final_messages.insert(0, {"role": "system", "content": system_prompt})
 
         response = client.chat.completions.create(
             model="deepseek-chat",
-            messages=messages,
+            messages=final_messages,
             max_tokens=2000,
             temperature=0.3,
-            stream=True
+            stream=True,
         )
 
         for chunk in response:
-            try:
-                # 不同 SDK 可能返回结构略有差异，保护性取值
-                delta = None
-                if hasattr(chunk, 'choices'):
-                    choice0 = chunk.choices[0]
-                    # openai 风格
-                    delta = getattr(choice0, 'delta', None)
-                    if delta is None and hasattr(choice0, 'message'):
-                        delta = getattr(choice0.message, 'content', None)
-
-                # 兼容直接字符串情况
-                content = None
+            content = None
+            if hasattr(chunk, "choices") and chunk.choices:
+                delta = getattr(chunk.choices[0], "delta", None)
                 if delta is not None:
-                    # delta 可能是对象或直接字符串
-                    if isinstance(delta, str):
-                        content = delta
-                    else:
-                        content = getattr(delta, 'content', None)
-                else:
-                    # 直接尝试读取 chunk.choices[0].message.content
-                    try:
-                        content = chunk.choices[0].message.content
-                    except Exception:
-                        content = None
-
-                if content:
-                    # DeepSeek 可能一次返回多个字符，这里拆成单字符下发，
-                    # 前端可实现更平滑的“打字机”效果。
-                    for ch in content:
-                        data = json.dumps({"content": ch}, ensure_ascii=False)
-                        yield f"data: {data}\n\n"
-            except Exception:
-                # 忽略单个 chunk 解析异常，继续循环
-                continue
-
+                    content = getattr(delta, "content", None)
+            if content:
+                for ch in content:
+                    data = json.dumps({"content": ch}, ensure_ascii=False)
+                    yield f"data: {data}\n\n"
         yield "data: [DONE]\n\n"
     except Exception as e:
         print(f"[ERROR] 流式输出异常: {str(e)}")
-        # 连接失败时改为返回预置兜底文案（仍按流式逐字下发）
-        text = fallback_text if fallback_text else "[AI 分析中断，已切换到兜底诊断建议]"
+        text = fallback_text if fallback_text else "AI 分析中断，已切换到备选诊断建议。"
         for ch in text:
             data = json.dumps({"content": ch}, ensure_ascii=False)
             yield f"data: {data}\n\n"
         yield "data: [DONE]\n\n"
 
 
-def generate_tcm_synthesis(diagnosis_info: Dict[str, Any]) -> str:
-    """
-    调用LLM生成TCM诊断合成
-    """
-    try:
-        # 构建提示词
-        prompt = build_tcm_prompt(diagnosis_info)
-        
-        # 调deepseek API
-        messages = [
-            {
-                "role": "user",
-                "content": prompt
-            }
-        ]
-        
-        synthesis = call_deepseek_api(messages)
-        #print(synthesis)
-        return synthesis
-        
-    except Exception as e:
-        print(f"[ERROR] LLM合成失败: {str(e)}")
-        # 返回回退方案
-        return generate_fallback_synthesis(diagnosis_info)
-
-
 def generate_fallback_synthesis(diagnosis_info: Dict[str, Any]) -> str:
-    """
-    当LLM不可用时的回退方案
-    支持部分板块的综合诊断
-    """
-    synthesis = "## 综合四诊诊断建议\n\n"
-    
-    diagnoses = diagnosis_info.get('diagnoses', {})
-    completed_count = len([k for k in diagnoses.keys() if k in ['wang', 'wen_audio', 'wen_questionnaire', 'qie']])
-    
+    diagnoses = diagnosis_info.get("diagnoses", {}) or {}
+    completed_count = len([k for k in diagnoses.keys() if k in ["wang", "wen_audio", "wen_questionnaire", "qie"]])
+
+    lines = ["## 综合四诊诊断建议", ""]
     if completed_count < 4:
-        synthesis += f"*注：当前仅完成了{completed_count}个诊断板块，以下建议基于已完成的数据。建议后续完成全部四诊以获得更准确的诊断。*\n\n"
-    
-    if 'wang' in diagnoses:
-        synthesis += f"### 舌象诊断\n{diagnoses['wang'].get('result', '暂无诊断')}\n\n"
-    
-    if 'wen_audio' in diagnoses:
-        synthesis += f"### 体质诊断\n根据音频分析，患者属于 {diagnoses['wen_audio'].get('conclusion', '平和体质')}\n\n"
-    
-    if 'wen_questionnaire' in diagnoses:
-        synthesis += f"### 问诊结论\n{diagnoses['wen_questionnaire'].get('conclusion', '暂无诊断')}\n\n"
-    
-    if 'qie' in diagnoses:
-        qie = diagnoses['qie']
-        synthesis += f"### 脉搏数据\n- 心率: {qie.get('heartRate', 'N/A')} bpm\n- 血氧: {qie.get('spo2', 'N/A')}%\n\n"
-    
-    synthesis += """### 调理建议
-1. 保持作息规律，早睡早起
-2. 适度增加运动，建议散步或太极
-3. 饮食清淡，避免辛辣刺激食物
-4. 定期复诊，监测体质变化
-"""
-    
-    if completed_count < 4:
-        synthesis += "\n*请在完成全部诊断后再次生成完整的诊断报告，以获得更加准确的个性化建议。*\n"
-    
-    return synthesis
+        lines.append(f"当前仅完成 {completed_count}/4 个板块，以下为初步建议。")
+        lines.append("")
+
+    if "wang" in diagnoses:
+        lines.append(f"### 望诊\n{diagnoses['wang'].get('result', '暂无')}\n")
+    if "wen_audio" in diagnoses:
+        lines.append(f"### 闻诊\n{diagnoses['wen_audio'].get('conclusion', '暂无')}\n")
+    if "wen_questionnaire" in diagnoses:
+        lines.append(f"### 问诊\n{diagnoses['wen_questionnaire'].get('conclusion', '暂无')}\n")
+    if "qie" in diagnoses:
+        qie = diagnoses["qie"]
+        lines.append(f"### 切诊\n- 心率: {qie.get('heartRate', 'N/A')} bpm\n- 血氧: {qie.get('spo2', 'N/A')}%\n")
+
+    lines.extend([
+        "### 调理建议",
+        "1. 保持规律作息，避免熬夜。",
+        "2. 饮食清淡，减少辛辣油腻。",
+        "3. 适度运动，按体质选择强度。",
+        "4. 建议定期复诊，动态观察体质变化。",
+    ])
+    return "\n".join(lines)
+
+
+def generate_tcm_synthesis(diagnosis_info: Dict[str, Any]) -> str:
+    try:
+        prompt = build_tcm_prompt(diagnosis_info)
+        messages = [{"role": "user", "content": prompt}]
+        return call_deepseek_api(messages)
+    except Exception as e:
+        print(f"[ERROR] LLM 合成失败: {str(e)}")
+        return generate_fallback_synthesis(diagnosis_info)
 
 
 @router.post("/llm/stream")
 async def synthesize_diagnosis_stream(request: SynthesisRequest):
-    """
-    流式响应 API，使用 SSE 逐片段返回 DeepSeek 输出
-    """
     try:
         diagnosis_info = request.model_dump()
         prompt = build_tcm_prompt(diagnosis_info)
-        messages = [{"role": "user", "content": prompt}]
         fallback_text = generate_fallback_synthesis(diagnosis_info)
+        messages = [{"role": "user", "content": prompt}]
 
         return StreamingResponse(
             call_deepseek_api_stream(messages, fallback_text=fallback_text),
@@ -345,8 +233,8 @@ async def synthesize_diagnosis_stream(request: SynthesisRequest):
             headers={
                 "Cache-Control": "no-cache",
                 "Connection": "keep-alive",
-                "X-Accel-Buffering": "no"
-            }
+                "X-Accel-Buffering": "no",
+            },
         )
     except Exception as e:
         print(f"[ERROR] synthesize_diagnosis_stream 异常: {str(e)}")
@@ -355,38 +243,14 @@ async def synthesize_diagnosis_stream(request: SynthesisRequest):
 
 @router.post("/llm")
 async def synthesize_diagnosis(request: SynthesisRequest):
-    """
-    POST /api/synthesis/llm
-    调用LLM进行四诊综合诊断
-    """
-    print("[DEBUG] 开始LLM诊断合成...")
-    
     try:
-        # 转换为字典
         diagnosis_info = request.model_dump()
-        
-        # 调用LLM生成综合诊断
         synthesis = generate_tcm_synthesis(diagnosis_info)
-        
-        print("[SUCCESS] LLM合成完成")
-        
-        return {
-            "code": 200,
-            "msg": "诊断合成成功",
-            "synthesis": synthesis
-        }
-    
+        return {"code": 200, "msg": "诊断合成成功", "synthesis": synthesis}
     except Exception as e:
-        print(f"[ERROR] LLM合成异常: {str(e)}")
-        
-        # 返回回退方案
+        print(f"[ERROR] LLM 合成异常: {str(e)}")
         try:
             synthesis = generate_fallback_synthesis(request.model_dump())
-            return {
-                "code": 200,
-                "msg": "使用备选方案生成诊断",
-                "synthesis": synthesis
-            }
-        except Exception as fallback_e:
-            print(f"[ERROR] 回退方案也失败: {str(fallback_e)}")
+            return {"code": 200, "msg": "使用备选方案生成诊断", "synthesis": synthesis}
+        except Exception:
             raise HTTPException(status_code=500, detail="诊断合成失败")

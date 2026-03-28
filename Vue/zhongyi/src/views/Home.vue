@@ -1,4 +1,4 @@
-<template>
+﻿<template>
   <div class="tcm-system">
     <audio ref="audioRef" loop>
       <source src="../assets/audio/bgm/梁祝.wav" type="audio/mpeg" />
@@ -104,6 +104,24 @@
           </el-form-item>
         </el-form>
 
+        <div class="settings-section">AI提示词设置</div>
+        <el-form :model="reportSettings" label-width="110px" class="settings-form">
+          <el-form-item label="侧重点">
+            <el-select v-model="reportSettings.llmFocusMode"
+              placeholder="选择报告侧重点">
+              <el-option label="平衡" value="balanced" />
+              <el-option label="望诊" value="wang" />
+              <el-option label="闻诊" value="wen_audio" />
+              <el-option label="问诊" value="wen_questionnaire" />
+              <el-option label="切诊" value="qie" />
+            </el-select>
+          </el-form-item>
+          <el-form-item label="自定义提示词">
+            <el-input v-model="reportSettings.llmPromptTemplate" type="textarea" :rows="4"
+              placeholder="选填，不填则使用系统默认提示词生成报告" maxlength="1000" show-word-limit />
+          </el-form-item>
+        </el-form>
+
         <div class="settings-section">预览效果</div>
         <div class="preview-box">
           <div class="preview-org">{{ reportSettings.orgName || '（机构名称）' }}</div>
@@ -175,6 +193,8 @@ const defaultSettings = {
   doctorName:   '',
   validityNote: '',
   disclaimer:   '',
+  llmPromptTemplate: '',
+  llmFocusMode: 'balanced',
 }
 
 const loadSettings = () => {

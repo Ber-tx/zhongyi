@@ -212,6 +212,7 @@
     <div v-else class="no-data">
       <el-empty description="未找到报告数据" />
     </div>
+
   </div>
 </template>
 
@@ -421,6 +422,8 @@ const generateReport = async (patientId, caseId = null) => {
   try {
     const idCard = localStorage.getItem("current_patient_idCard") || "";
     const completedTypes = getCompletedTypes();
+    const promptTemplate = reportSettings.value?.llmPromptTemplate || "";
+    const focusMode = reportSettings.value?.llmFocusMode || "balanced";
 
     // 使用 AbortController 支持取消
     const controller = new AbortController();
@@ -433,6 +436,8 @@ const generateReport = async (patientId, caseId = null) => {
         patientId: Number(patientId),
         caseId: caseId || undefined,
         idCard,
+        customPromptTemplate: promptTemplate || undefined,
+        focusMode: focusMode || "balanced",
         ...(completedTypes ? { completedTypes } : {})
       }),
       signal: controller.signal

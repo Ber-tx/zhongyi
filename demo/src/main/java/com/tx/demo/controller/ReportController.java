@@ -52,6 +52,8 @@ public class ReportController {
         public String idCard;
         public Long caseId;
         public String completedTypes; // 新增：已完成的诊断类型，逗号分隔如 "wang,wen_audio,wen_questionnaire"
+        public String customPromptTemplate;
+        public String focusMode;
 
         // 无参构造函数（用于 JSON 反序列化）
         public ReportRequest() {
@@ -100,6 +102,22 @@ public class ReportController {
             this.completedTypes = completedTypes;
         }
 
+        public String getCustomPromptTemplate() {
+            return customPromptTemplate;
+        }
+
+        public void setCustomPromptTemplate(String customPromptTemplate) {
+            this.customPromptTemplate = customPromptTemplate;
+        }
+
+        public String getFocusMode() {
+            return focusMode;
+        }
+
+        public void setFocusMode(String focusMode) {
+            this.focusMode = focusMode;
+        }
+
         @Override
         public String toString() {
             return "ReportRequest{" +
@@ -107,6 +125,8 @@ public class ReportController {
                     ", idCard='" + idCard + '\'' +
                     ", caseId=" + caseId +
                     ", completedTypes='" + completedTypes + '\'' +
+                    ", customPromptTemplate='" + customPromptTemplate + '\'' +
+                    ", focusMode='" + focusMode + '\'' +
                     '}';
         }
     }
@@ -135,6 +155,8 @@ public class ReportController {
             String idCard = request.getIdCard();
             Long caseId = request.getCaseId();
             String completedTypes = request.getCompletedTypes();
+            String customPromptTemplate = request.getCustomPromptTemplate();
+            String focusMode = request.getFocusMode();
 
             System.out.println("==== [DEBUG] 提取数据 - patientId: " + patientId + ", idCard: " + idCard + 
                                ", completedTypes: " + completedTypes);
@@ -178,7 +200,13 @@ public class ReportController {
             }
 
             // 5. 构建诊断信息对象
-            Map<String, Object> diagnosisInfo = buildDiagnosisInfo(patient, diagnosis, completedTypes);
+            Map<String, Object> diagnosisInfo = buildDiagnosisInfo(
+                    patient,
+                    diagnosis,
+                    completedTypes,
+                    customPromptTemplate,
+                    focusMode
+            );
 
             // 6. 调用LLM生成综合建议
             String synthesisResult = callLlmForSynthesis(diagnosisInfo);
@@ -242,7 +270,13 @@ public class ReportController {
                 metaWrapper.put("meta", reportMeta);
                 emitter.send(SseEmitter.event().data(JSON.toJSONString(metaWrapper)));
 
-                Map<String, Object> diagnosisInfo = buildDiagnosisInfo(patient, diagnosis, request.getCompletedTypes());
+                Map<String, Object> diagnosisInfo = buildDiagnosisInfo(
+                        patient,
+                        diagnosis,
+                        request.getCompletedTypes(),
+                        request.getCustomPromptTemplate(),
+                        request.getFocusMode()
+                );
                 String pythonUrl = "http://localhost:5000/api/synthesis/llm/stream";
                 URL url = new URL(pythonUrl);
                 HttpURLConnection conn = (HttpURLConnection) url.openConnection();
@@ -395,7 +429,8 @@ public class ReportController {
     /**
      * 构建诊断信息（用于LLM提示词）- 支持部分板块
      */
-    private Map<String, Object> buildDiagnosisInfo(Patient patient, Diagnosis diagnosis, String completedTypes) {
+    private Map<String, Object> buildDiagnosisInfo(Patient patient, Diagnosis diagnosis, String completedTypes,
+                                                   String customPromptTemplate, String focusMode) {
         Map<String, Object> info = new LinkedHashMap<>();
 
         // 患者基本信息
@@ -429,6 +464,12 @@ public class ReportController {
         // 记录已完成的诊断类型
         if (completedTypes != null && !completedTypes.isEmpty()) {
             info.put("completedTypes", completedTypes);
+        }
+        if (customPromptTemplate != null && !customPromptTemplate.trim().isEmpty()) {
+            info.put("customPromptTemplate", customPromptTemplate.trim());
+        }
+        if (focusMode != null && !focusMode.trim().isEmpty()) {
+            info.put("focusMode", focusMode.trim());
         }
 
         // 四诊信息
@@ -490,7 +531,7 @@ public class ReportController {
      * 构建诊断信息（用于LLM提示词）- 兼容旧版本
      */
     private Map<String, Object> buildDiagnosisInfo(Patient patient, Diagnosis diagnosis) {
-        return buildDiagnosisInfo(patient, diagnosis, null);
+        return buildDiagnosisInfo(patient, diagnosis, null, null, null);
     }
 
     /**

@@ -6,6 +6,21 @@
 import axios from 'axios';
 import { ElMessage } from 'element-plus';
 
+function getPromptSettings() {
+  try {
+    const settings = JSON.parse(localStorage.getItem('report_settings') || '{}');
+    return {
+      customPromptTemplate: settings.llmPromptTemplate || undefined,
+      focusMode: settings.llmFocusMode || 'balanced',
+    };
+  } catch (e) {
+    return {
+      customPromptTemplate: undefined,
+      focusMode: 'balanced',
+    };
+  }
+}
+
 /**
  * 生成部分板块的诊断报告
  * @param {string} diagnosisType - 诊断类型：'wang', 'wen_audio', 'wen_questionnaire', 'qie'
@@ -20,10 +35,12 @@ export async function generatePartialDiagnosisReport(diagnosisType, patientId, i
   }
 
   try {
+    const promptSettings = getPromptSettings();
     const response = await axios.post("/api/report/generate", {
       patientId: Number(patientId),
       idCard: idCard,
-      completedTypes: diagnosisType
+      completedTypes: diagnosisType,
+      ...promptSettings
     });
 
     if (response.data.code === 200 || response.data.success) {
@@ -52,10 +69,12 @@ export async function generateMultiBlockReport(completedTypes, patientId, idCard
   }
 
   try {
+    const promptSettings = getPromptSettings();
     const response = await axios.post("/api/report/generate", {
       patientId: Number(patientId),
       idCard: idCard,
-      completedTypes: completedTypes
+      completedTypes: completedTypes,
+      ...promptSettings
     });
 
     if (response.data.code === 200 || response.data.success) {
