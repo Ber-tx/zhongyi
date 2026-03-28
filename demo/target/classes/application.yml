@@ -13,6 +13,14 @@ spring:
       minimum-idle: 5
       connection-timeout: 30000
       idle-timeout: 600000
+  
+  # Jackson JSON 反序列化配置
+  jackson:
+    # 允许空字符串转数字为null
+    deserialization:
+      ACCEPT_EMPTY_STRING_AS_NULL_OBJECT: true
+    # 忽略序列化时的空值
+    default-property-inclusion: non_null
 
 # MyBatis 配置（注意层级：与spring平级，不是在spring内部）
 mybatis:

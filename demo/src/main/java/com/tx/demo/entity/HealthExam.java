@@ -1,5 +1,6 @@
 package com.tx.demo.entity;
 
+import com.fasterxml.jackson.annotation.JsonFormat;
 import lombok.AllArgsConstructor;
 import lombok.Data;
 import lombok.NoArgsConstructor;
@@ -20,6 +21,7 @@ public class HealthExam {
     private String patientName;
     private String patientGender;
     private Integer patientAge;
+    @JsonFormat(pattern = "yyyy-MM-dd")
     private LocalDate patientBirthday;
     private String patientIdCard;
     private String phone;
@@ -28,6 +30,7 @@ public class HealthExam {
     private String marital;
     
     // 体检日期和体质
+    @JsonFormat(pattern = "yyyy-MM-dd")
     private LocalDate examDate;
     private String constitutionType;
     
@@ -106,6 +109,8 @@ public class HealthExam {
     private String remarks;
     
     // 系统字段
+    @JsonFormat(pattern = "yyyy-MM-dd HH:mm:ss")
     private LocalDateTime createTime;
+    @JsonFormat(pattern = "yyyy-MM-dd HH:mm:ss")
     private LocalDateTime updateTime;
 }

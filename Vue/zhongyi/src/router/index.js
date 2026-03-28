@@ -80,6 +80,12 @@ const routes = [
     component: () => import('@/views/Report.vue'),
     meta: { title: '诊断报告' }
   },
+  {
+    path: '/health-report',
+    name: 'HealthReport',
+    component: () => import('@/views/HealthReport.vue'),
+    meta: { title: '健康体检报告' }
+  },
   //管理员路径
   {
     path: '/admin/login',

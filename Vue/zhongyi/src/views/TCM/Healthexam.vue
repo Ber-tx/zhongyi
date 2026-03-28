@@ -51,7 +51,7 @@
           <el-table-column label="操作" width="150" fixed="right">
             <template #default="{ row }">
               <el-button type="primary" size="small" link @click="openEdit(row)">编辑</el-button>
-              <el-button type="success" size="small" link @click="goDetect(row)">四诊辨识</el-button>
+              <el-button type="success" size="small" link @click="viewHealthReport(row)">查看报告</el-button>
             </template>
           </el-table-column>
         </el-table>
@@ -672,13 +672,46 @@ const openEdit = (row) => {
   view.value = 'form'
 }
 
-const goDetect = (row) => {
-  localStorage.setItem('current_patient_id', String(row.patientId || row.id))
-  localStorage.setItem('current_patient_idCard', row.patientIdCard || '')
-  ;['wang', 'wen', 'wenjuan', 'qie'].forEach(k =>
-    localStorage.removeItem(`${k}_finished_id`)
-  )
-  router.push('/detect')
+const viewHealthReport = (row) => {
+  // 保存体检档案数据到localStorage，以便报告页面使用
+  localStorage.setItem('health_exam_data', JSON.stringify(row))
+  localStorage.setItem('health_exam_view_mode', 'true')
+  // 跳转到报告页面
+  router.push({
+    path: '/health-report',
+    query: { id: row.id, type: 'health_exam' }
+  })
+}
+
+// ===== 数据清理：将空字符串转空，确保数据格式正确 =====
+const cleanFormData = () => {
+  const data = JSON.parse(JSON.stringify(form))
+  
+  // 处理所有字段：空字符串转 null
+  for (const key in data) {
+    if (data[key] === '') {
+      data[key] = null
+    }
+  }
+  
+  // 确保数字类型字段是数字或null
+  const numberFields = [
+    'patientAge', 'height', 'weight', 'bmi', 'waistCircumference', 'hipCircumference',
+    'temperature', 'heartRate', 'spo2', 'bloodPressureSystolic', 'bloodPressureDiastolic',
+    'fastingBloodGlucose', 'postprandialGlucose', 'hba1c',
+    'totalCholesterol', 'triglycerides', 'hdl', 'ldl',
+    'alt', 'ast', 'totalBilirubin', 'albumin',
+    'creatinine', 'bun', 'uricAcid',
+    'hemoglobin', 'wbc', 'rbc', 'platelets'
+  ]
+  
+  numberFields.forEach(field => {
+    if (data[field] !== null && data[field] !== undefined) {
+      data[field] = Number(data[field]) || null
+    }
+  })
+  
+  return data
 }
 
 // ===== 保存 =====
@@ -692,7 +725,8 @@ const saveExam = async () => {
   try {
     const url = editId.value ? `/api/health-exam/update/${editId.value}` : '/api/health-exam/save'
     const method = editId.value ? 'put' : 'post'
-    const res = await axios[method](url, form)
+    const cleanData = cleanFormData()
+    const res = await axios[method](url, cleanData)
     if (res.data.code === 200) {
       ElMessage.success(editId.value ? '更新成功' : '档案保存成功')
       view.value = 'list'
@@ -700,8 +734,9 @@ const saveExam = async () => {
     } else {
       ElMessage.error(res.data.msg || '保存失败')
     }
-  } catch {
-    ElMessage.error('保存失败，请检查网络')
+  } catch (error) {
+    console.error('保存失败', error.response?.data || error.message)
+    ElMessage.error(`保存失败：${error.response?.data?.msg || error.message}`)
   } finally {
     saving.value = false
   }
