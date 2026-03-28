@@ -80,18 +80,19 @@
         <div class="next-step-box">
           <p>请返回诊断中心继续完成其他检测项目</p>
           <small>（例如：面色采集、舌苔检测等）</small>
-          <div class="reference-section" style="margin-top: 16px;">
-            <p class="ref-title">📖 参考文献与出处</p>
-            <div class="ref-list">
-              <div v-for="(ref, idx) in wen_qReferences" :key="idx" class="ref-item">
-                <span class="ref-authors">{{ ref.authors }} ({{ ref.year }})</span>
-                <p class="ref-desc">{{ ref.title }}</p>
-                <a v-if="ref.url" :href="ref.url" target="_blank" class="ref-link">
-                  查看 → {{ ref.source }}
-                </a>
+          <el-collapse style="margin-top: 16px;">
+            <el-collapse-item title="📖 参考文献与出处" name="1">
+              <div class="ref-list">
+                <div v-for="(ref, idx) in wen_qReferences" :key="idx" class="ref-item">
+                  <span class="ref-authors">{{ ref.authors }} ({{ ref.year }})</span>
+                  <p class="ref-desc">{{ ref.title }}</p>
+                  <a v-if="ref.url" :href="ref.url" target="_blank" class="ref-link">
+                    查看 → {{ ref.source }}
+                  </a>
+                </div>
               </div>
-            </div>
-          </div>
+            </el-collapse-item>
+          </el-collapse>
         </div>
         <div class="finish-actions">
           <el-button type="primary" size="large" round @click="generateDiagnosisReport" class="final-btn">

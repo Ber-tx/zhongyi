@@ -68,18 +68,19 @@
             </div>
             <div class="card-content">
               <div class="tcm-text">{{ analysisResult.suggestion }}</div>
-              <div class="reference-section">
-                <p class="ref-title">📖 参考文献与出处</p>
-                <div class="ref-list">
-                  <div v-for="(ref, idx) in qieReferences" :key="idx" class="ref-item">
-                    <span class="ref-authors">{{ ref.authors }} ({{ ref.year }})</span>
-                    <p class="ref-desc">{{ ref.title }}</p>
-                    <a v-if="ref.url" :href="ref.url" target="_blank" class="ref-link">
-                      查看 → {{ ref.source }}
-                    </a>
+              <el-collapse style="margin-top: 16px;">
+                <el-collapse-item title="📖 参考文献与出处" name="1">
+                  <div class="ref-list">
+                    <div v-for="(ref, idx) in qieReferences" :key="idx" class="ref-item">
+                      <span class="ref-authors">{{ ref.authors }} ({{ ref.year }})</span>
+                      <p class="ref-desc">{{ ref.title }}</p>
+                      <a v-if="ref.url" :href="ref.url" target="_blank" class="ref-link">
+                        查看 → {{ ref.source }}
+                      </a>
+                    </div>
                   </div>
-                </div>
-              </div>
+                </el-collapse-item>
+              </el-collapse>
             </div>
           </div>
         </transition>

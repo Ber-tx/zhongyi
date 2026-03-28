@@ -114,9 +114,9 @@ def build_tcm_prompt(diagnosis_info: Dict[str, Any]) -> str:
         "",
         "## 硬性约束",
         "1. 只能基于给定数据，禁止编造。",
-        "2. 每个关键结论注明依据来自望/闻/问/切哪一项。",
-        "3. 自定义提示词与数据冲突时，以数据为准。",
-        "4. 使用 Markdown 输出。",
+
+        "2. 自定义提示词与数据冲突时，以数据为准。",
+        "3. 使用 Markdown 输出。",
     ])
 
     return "\n".join(lines)
