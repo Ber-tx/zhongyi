@@ -1,10 +1,10 @@
 Option Explicit
 
 ' ============================================================
-'   ÖĞÒ½AIÕïÁÆÏµÍ³ - ²½½øÊ½¾²Ä¬Æô¶¯½Å±¾ v4.0 (ĞŞ¸´ĞéÄâ»·¾³¸ôÀëBUG)
-'   1. ³¹µ×ÈÆ¹ı activate ½Å±¾£¬Ö±½Óµ÷ÓÃ½âÊÍÆ÷Â·¾¶
-'   2. ×Ô¶¯¼ì²â²¢Ç¿ÖÆ¹ØÁª AI ºÍ Âö²«·şÎñµÄ Python »·¾³
-'   3. ĞŞ¸´ÖĞÎÄÂ·¾¶/ÌØÊâ×Ö·ûµÄÂ·¾¶×ªÒåÎÊÌâ
+'   ä¸­åŒ»AIè¯Šç–—ç³»ç»Ÿ - æ­¥è¿›å¼é™é»˜å¯åŠ¨è„šæœ¬ v3.5
+'   1. ä¿®å¤è„‰ææœåŠ¡ä¼˜å…ˆä½¿ç”¨è™šæ‹Ÿç¯å¢ƒ
+'   2. å…¨åå°æ— çª—å£è¿è¡Œ
+'   3. èº«ä»½è¯æœåŠ¡ã€åç«¯ã€AIã€è„‰æã€å‰ç«¯å…¨è¦†ç›–
 ' ============================================================
 
 Dim WshShell, fso, scriptDir
@@ -14,10 +14,10 @@ Dim summary
 Set WshShell = CreateObject("WScript.Shell")
 Set fso = CreateObject("Scripting.FileSystemObject")
 
-' ½Å±¾ËùÔÚÄ¿Â¼
+' è„šæœ¬æ‰€åœ¨ç›®å½•
 scriptDir = Left(WScript.ScriptFullName, InStrRev(WScript.ScriptFullName, "\") - 1)
 
-' Ä¿Â¼ÅäÖÃ
+' ç›®å½•é…ç½®
 demoDir   = scriptDir & "\demo"
 aiDir     = scriptDir & "\tcm-ai-service"
 pulseDir  = scriptDir & "\pulse2"
@@ -26,116 +26,264 @@ idCardDir = scriptDir & "\IdCardReaderService"
 
 summary = ""
 
-' Æô¶¯Ç°¼ì²é
+' å¯åŠ¨å‰æ£€æŸ¥
 If Not fso.FolderExists(demoDir) Then
-    MsgBox "ÕÒ²»µ½ÏîÄ¿¸ùÄ¿Â¼£¬ÇëÈ·±£½Å±¾·ÅÔÚÕıÈ·Î»ÖÃ¡£" & vbCrLf & "¼ì²âÂ·¾¶£º" & demoDir, 16, "Æô¶¯Ê§°Ü"
+    MsgBox "æ‰¾ä¸åˆ°é¡¹ç›®æ ¹ç›®å½•ï¼Œè¯·ç¡®ä¿è„šæœ¬æ”¾åœ¨æ­£ç¡®ä½ç½®ã€‚" & vbCrLf & "æ£€æµ‹è·¯å¾„ï¼š" & demoDir, 16, "å¯åŠ¨å¤±è´¥"
     WScript.Quit 1
 End If
 
-' Ô¤ÇåÀí£ºÊÍ·ÅËùÓĞÏà¹Ø¶Ë¿Ú
+' é¢„æ¸…ç†ï¼šé‡Šæ”¾æ‰€æœ‰ç›¸å…³ç«¯å£
 KillPort 8080
 KillPort 5000
 KillPort 8000
 KillPort 5173
 KillPort 9009
 
-' ---------- [1] Spring Boot ºó¶Ë ----------
+' ---------- [1] Spring Boot åç«¯ ----------
 If fso.FileExists(demoDir & "\pom.xml") Then
+    ' å‚æ•° 0 è¡¨ç¤ºéšè—çª—å£
     WshShell.Run "cmd /c cd /d """ & demoDir & """ && mvn spring-boot:run", 0, False
-    MsgBox "ºó¶Ë·şÎñ(8080)ÒÑÔÚºóÌ¨Æô¶¯¡£" & vbCrLf & "µÈ´ıºó¶Ë³õÊ¼»¯£¨Ô¼10-20Ãë£©ºóµã»÷¡¾È·¶¨¡¿¡£", 64, "²½Öè 1/5"
+    MsgBox "åç«¯æœåŠ¡(8080)å·²åœ¨åå°å¯åŠ¨ã€‚" & vbCrLf & "ç­‰å¾…åç«¯åˆå§‹åŒ–ï¼ˆçº¦10-20ç§’ï¼‰åç‚¹å‡»ã€ç¡®å®šã€‘ã€‚", 64, "æ­¥éª¤ 1/5"
 Else
-    AppendSummary "[Ìø¹ı] ºó¶ËÄ¿Â¼Î´ÕÒµ½ pom.xml"
+    AppendSummary "[è·³è¿‡] åç«¯ç›®å½•æœªæ‰¾åˆ° pom.xml"
 End If
 
-' ---------- [2] TCM AI ·şÎñ (ĞŞ¸´ºËĞÄ) ----------
+' ---------- [2] TCM AI æœåŠ¡ ----------
 If fso.FileExists(aiDir & "\main.py") Then
-    Dim aiExe
-    ' ¼ì²é .venv ÎÄ¼ş¼Ğ£¨Äã½ØÍ¼ÀïÓÃµÄÊÇ .venv£©
-    If fso.FileExists(aiDir & "\.venv\Scripts\python.exe") Then
-        aiExe = """" & aiDir & "\.venv\Scripts\python.exe"""
-    ElseIf fso.FileExists(aiDir & "\venv\Scripts\python.exe") Then
-        aiExe = """" & aiDir & "\venv\Scripts\python.exe"""
+    Dim aiPython
+    ' ä¼˜å…ˆæ£€æµ‹è™šæ‹Ÿç¯å¢ƒ
+    If fso.FileExists(aiDir & "\venv\Scripts\python.exe") Then
+        aiPython = aiDir & "\venv\Scripts\python.exe"
     Else
-        aiExe = "python"
+        aiPython = "python"
     End If
     
-    ' Ö±½Óµ÷ÓÃ python.exe main.py£¬²»×ß activate Âß¼­
-    WshShell.Run "cmd /c cd /d """ & aiDir & """ && " & aiExe & " main.py", 0, False
-    MsgBox "AI ·şÎñ(5000)ÒÑÆô¶¯¡£" & vbCrLf & "ÒÑ³¢ÊÔÈÆ¹ıĞéÄâ»·¾³¼¤»îÂß¼­£¬Ö±½Óµ÷ÓÃ½âÊÍÆ÷¡£", 64, "²½Öè 2/5"
+    WshShell.Run "cmd /c cd /d """ & aiDir & """ && """ & aiPython & """ main.py", 0, False
+    MsgBox "AI æœåŠ¡(5000)å·²åœ¨åå°å¯åŠ¨ã€‚" & vbCrLf & "YOLOæ¨¡å‹åŠ è½½éœ€è¦æ—¶é—´ï¼Œè¯·ç¨å€™ç‚¹å‡»ã€ç¡®å®šã€‘ã€‚", 64, "æ­¥éª¤ 2/5"
 Else
-    AppendSummary "[Ìø¹ı] AI ·şÎñÄ¿Â¼Î´ÕÒµ½ main.py"
+    AppendSummary "[è·³è¿‡] AI æœåŠ¡ç›®å½•æœªæ‰¾åˆ° main.py"
 End If
 
-' ---------- [3] Âö²«Ëã·¨·şÎñ (Í¬²½ĞŞ¸´) ----------
+' ---------- [3] è„‰æç®—æ³•æœåŠ¡ ----------
 If fso.FileExists(pulseDir & "\main.py") Then
-    Dim pulseExe
-    If fso.FileExists(pulseDir & "\.venv\Scripts\python.exe") Then
-        pulseExe = """" & pulseDir & "\.venv\Scripts\python.exe"""
-    ElseIf fso.FileExists(pulseDir & "\venv\Scripts\python.exe") Then
-        pulseExe = """" & pulseDir & "\venv\Scripts\python.exe"""
+    Dim pulsePython
+    ' ã€æ ¸å¿ƒä¿®å¤ã€‘ï¼šä¼˜å…ˆæ£€æµ‹è„‰æç›®å½•ä¸‹çš„è™šæ‹Ÿç¯å¢ƒ
+    If fso.FileExists(pulseDir & "\venv\Scripts\python.exe") Then
+        pulsePython = pulseDir & "\venv\Scripts\python.exe"
     Else
-        pulseExe = "python"
+        pulsePython = "python"
     End If
     
-    WshShell.Run "cmd /c cd /d """ & pulseDir & """ && " & pulseExe & " main.py", 0, False
-    MsgBox "Âö²«Ëã·¨(8000)ÒÑÔÚºóÌ¨Æô¶¯¡£", 64, "²½Öè 3/5"
+    WshShell.Run "cmd /c cd /d """ & pulseDir & """ && """ & pulsePython & """ main.py", 0, False
+    MsgBox "è„‰æç®—æ³•(8000)å·²åœ¨åå°å¯åŠ¨ã€‚" & vbCrLf & "ç¡®è®¤æ— è¯¯åç‚¹å‡»ã€ç¡®å®šã€‘å¯åŠ¨èº«ä»½è¯æœåŠ¡ã€‚", 64, "æ­¥éª¤ 3/5"
 Else
-    AppendSummary "[Ìø¹ı] Âö²«·şÎñÄ¿Â¼Î´ÕÒµ½ main.py"
+    AppendSummary "[è·³è¿‡] è„‰ææœåŠ¡ç›®å½•æœªæ‰¾åˆ° main.py"
 End If
 
-' ---------- [4] Éí·İÖ¤¶Á¿¨·şÎñ ----------
-' (±£³ÖÔ­Âß¼­)
+' ---------- [4] èº«ä»½è¯è¯»å¡æœåŠ¡ ----------
 If fso.FolderExists(idCardDir) Then
     If fso.FileExists(idCardDir & "\run.bat") Then
         WshShell.Run "cmd /c cd /d """ & idCardDir & """ && run.bat", 0, False
+    ElseIf fso.FileExists(idCardDir & "\IdCardReaderService\IdCardReaderService.csproj") Then
+        WshShell.Run "cmd /c cd /d """ & idCardDir & """ && dotnet run --project IdCardReaderService\IdCardReaderService.csproj", 0, False
     ElseIf fso.FileExists(idCardDir & "\main.py") Then
         WshShell.Run "cmd /c cd /d """ & idCardDir & """ && python main.py", 0, False
     End If
-    MsgBox "Éí·İÖ¤¶Á¿¨·şÎñ(9009)ÒÑÆô¶¯¡£", 64, "²½Öè 4/5"
+    MsgBox "èº«ä»½è¯è¯»å¡æœåŠ¡(9009)å·²å¯åŠ¨ã€‚" & vbCrLf & "ç‚¹å‡»ã€ç¡®å®šã€‘å¯åŠ¨å‰ç«¯æœåŠ¡ã€‚", 64, "æ­¥éª¤ 4/5"
+Else
+    AppendSummary "[è·³è¿‡] æœªæ‰¾åˆ°èº«ä»½è¯è¯»å¡æœåŠ¡æ–‡ä»¶å¤¹"
 End If
 
-' ---------- [5] Vue3 Ç°¶Ë ----------
+' ---------- [5] Vue3 å‰ç«¯ ----------
 If fso.FileExists(vueDir & "\package.json") Then
     If Not fso.FolderExists(vueDir & "\node_modules") Then
         WshShell.Run "cmd /c cd /d """ & vueDir & """ && npm install && npm run dev", 0, False
     Else
         WshShell.Run "cmd /c cd /d """ & vueDir & """ && npm run dev", 0, False
     End If
-    MsgBox "Ç°¶Ë·şÎñ(5173)Æô¶¯ÖĞ... ×¼±¸´ò¿ªä¯ÀÀÆ÷¡£", 64, "²½Öè 5/5"
+    MsgBox "å‰ç«¯æœåŠ¡(5173)å·²å‘é€å¯åŠ¨æŒ‡ä»¤ã€‚" & vbCrLf & "å¾… Vite ç¼–è¯‘å®Œæˆåç‚¹å‡»ã€ç¡®å®šã€‘æ‰“å¼€æµè§ˆå™¨ã€‚", 64, "æ­¥éª¤ 5/5"
+Else
+    AppendSummary "[è·³è¿‡] å‰ç«¯ç›®å½•æœªæ‰¾åˆ° package.json"
 End If
 
-' ---------- ×îºó£º´ò¿ªä¯ÀÀÆ÷ ----------
+' ---------- æœ€åï¼šæ‰“å¼€æµè§ˆå™¨ ----------
 WScript.Sleep 2000
 OpenFrontendBrowser
 
 If Len(summary) > 0 Then
-    MsgBox "Æô¶¯Á÷³Ì½áÊø¡£Òì³£±¨¸æ£º" & vbCrLf & summary, 48, "ÔËĞĞ×´Ì¬"
+    MsgBox "å¯åŠ¨æµç¨‹ç»“æŸã€‚éƒ¨åˆ†å¼‚å¸¸è¯´æ˜ï¼š" & vbCrLf & summary, 48, "è¿è¡ŒçŠ¶æ€"
 End If
 
-' --- ¹¦ÄÜ×Ó³ÌĞò ---
+' --- åŠŸèƒ½å­ç¨‹åº ---
 
 Sub KillPort(port)
     On Error Resume Next
-    Dim objExec, strOutput, strLine, objRegExp, objMatch, objMatches
-    Set objRegExp = New RegExp
-    objRegExp.Pattern = "\s+LISTENING\s+(\d+)" ' Æ¥Åä×îºóÒ»Î» PID
-    
-    Set objExec = WshShell.Exec("cmd /c netstat -ano | findstr :" & port)
-    Do While Not objExec.StdOut.AtEndOfStream
-        strLine = objExec.StdOut.ReadLine()
-        If InStr(strLine, "LISTENING") > 0 Then
-            Set objMatches = objRegExp.Execute(strLine)
-            For Each objMatch In objMatches
-                WshShell.Run "taskkill /PID " & objMatch.SubMatches(0) & " /F", 0, True
+    Dim oExec, line, pid, parts, i
+    ' æŸ¥æ‰¾å ç”¨æŒ‡å®šç«¯å£çš„ç›‘å¬è¿›ç¨‹
+    Set oExec = WshShell.Exec("cmd /c netstat -ano | findstr LISTENING | findstr :" & port)
+    Do While Not oExec.StdOut.AtEndOfStream
+        line = Trim(oExec.StdOut.ReadLine())
+        If InStr(line, ":" & port & " ") > 0 Then
+            parts = Split(line, " ")
+            ' è·å–è¡Œæœ«çš„ PID
+            For i = UBound(parts) To 0 Step -1
+                If Trim(parts(i)) <> "" Then
+                    pid = Trim(parts(i))
+                    Exit For
+                End If
             Next
+            If IsNumeric(pid) And CInt(pid) > 4 Then
+                WshShell.Run "taskkill /PID " & pid & " /F", 0, True
+            End If
         End If
     Loop
+    On Error GoTo 0
 End Sub
 
 Sub OpenFrontendBrowser()
     Dim url : url = "http://localhost:5173"
+    ' ä¼˜å…ˆçº§æ£€æµ‹ï¼šChrome -> Edge -> ç³»ç»Ÿé»˜è®¤
     If fso.FileExists("C:\Program Files\Google\Chrome\Application\chrome.exe") Then
         WshShell.Run """C:\Program Files\Google\Chrome\Application\chrome.exe"" --start-fullscreen " & url, 1, False
+    ElseIf fso.FileExists("C:\Program Files (x86)\Microsoft\Edge\Application\msedge.exe") Then
+        WshShell.Run """C:\Program Files (x86)\Microsoft\Edge\Application\msedge.exe"" --start-fullscreen " & url, 1, False
+    Else
+        WshShell.Run "explorer " & url, 1, False
+    End If
+End Sub
+
+Sub AppendSummary(text)
+    summary = summary & text & vbCrLf
+End SubOption Explicit
+
+' ============================================================
+'   ï¿½ï¿½Ò½AIï¿½ï¿½ï¿½ï¿½ÏµÍ³ - ï¿½ï¿½Ä¬ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½Å±ï¿½ v3.0
+'   ï¿½Øµã£ºï¿½ŞºÚ¿ò¡¢ºï¿½Ì¨ï¿½ï¿½ï¿½Ğ¡ï¿½ï¿½Ö¶ï¿½ï¿½ï¿½ï¿½È·ï¿½Ï½ï¿½ï¿½ï¿½ï¿½ï¿½Ò»ï¿½ï¿½
+' ============================================================
+
+Dim WshShell, fso, scriptDir
+Dim demoDir, aiDir, pulseDir, vueDir, idCardDir
+Dim summary
+
+Set WshShell = CreateObject("WScript.Shell")
+Set fso = CreateObject("Scripting.FileSystemObject")
+
+' ï¿½Å±ï¿½ï¿½ï¿½ï¿½ï¿½Ä¿Â¼
+scriptDir = Left(WScript.ScriptFullName, InStrRev(WScript.ScriptFullName, "\") - 1)
+
+' Ä¿Â¼ï¿½ï¿½ï¿½ï¿½
+demoDir   = scriptDir & "\demo"
+aiDir     = scriptDir & "\tcm-ai-service"
+pulseDir    = scriptDir & "\pulse2"
+vueDir      = scriptDir & "\Vue\zhongyi"
+idCardDir   = scriptDir & "\IdCardReaderService"
+
+summary = ""
+
+' ï¿½ï¿½ï¿½ï¿½Ç°ï¿½ï¿½ï¿½
+If Not fso.FolderExists(demoDir) Then
+    MsgBox "ï¿½Ò²ï¿½ï¿½ï¿½ demo Ä¿Â¼ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½Å±ï¿½ï¿½ï¿½ï¿½ï¿½Î»ï¿½Ã¡ï¿½", 16, "ï¿½ï¿½ï¿½ï¿½Ê§ï¿½ï¿½"
+    WScript.Quit 1
+End If
+
+' ï¿½ï¿½ï¿½ï¿½ï¿½É¶Ë¿ï¿½Õ¼ï¿½ï¿½
+KillPort 8080
+KillPort 5000
+KillPort 8000
+KillPort 5173
+KillPort 9009
+
+' ---------- [1] Spring Boot ï¿½ï¿½ï¿½ ----------
+If fso.FileExists(demoDir & "\pom.xml") Then
+    ' Ê¹ï¿½ï¿½ 0 ï¿½ï¿½ï¿½ï¿½Êµï¿½ï¿½ï¿½ŞºÚ¿ï¿½ï¿½ï¿½ï¿½ï¿½
+    WshShell.Run "cmd /c cd /d """ & demoDir & """ && mvn spring-boot:run", 0, False
+    MsgBox "ï¿½ï¿½Ë·ï¿½ï¿½ï¿½(8080)ï¿½ï¿½ï¿½Úºï¿½Ì¨ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½" & vbCrLf & "ï¿½ï¿½ï¿½Ôºï¿½Æ¬ï¿½Ì£ï¿½È·ï¿½Ïºï¿½Ë¾ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½È·ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ AI ï¿½ï¿½ï¿½ï¿½", 64, "ï¿½ï¿½ï¿½ï¿½ 1/5"
+Else
+    AppendSummary "[ï¿½ï¿½ï¿½ï¿½] Î´ï¿½Òµï¿½ï¿½ï¿½ï¿½ pom.xml"
+End If
+
+' ---------- [2] TCM AI ï¿½ï¿½ï¿½ï¿½ ----------
+If fso.FileExists(aiDir & "\main.py") Then
+    If fso.FileExists(aiDir & "\venv\Scripts\python.exe") Then
+        WshShell.Run "cmd /c cd /d """ & aiDir & """ && venv\Scripts\python.exe main.py", 0, False
+    Else
+        WshShell.Run "cmd /c cd /d """ & aiDir & """ && python main.py", 0, False
+    End If
+    MsgBox "AI ï¿½ï¿½ï¿½ï¿½(5000)ï¿½ï¿½ï¿½Úºï¿½Ì¨ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½" & vbCrLf & "ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½È·ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ã·¨ï¿½ï¿½ï¿½ï¿½", 64, "ï¿½ï¿½ï¿½ï¿½ 2/5"
+Else
+    AppendSummary "[ï¿½ï¿½ï¿½ï¿½] Î´ï¿½Òµï¿½ AI ï¿½ï¿½ï¿½ï¿½ main.py"
+End If
+
+' ---------- [3] ï¿½ï¿½ï¿½ï¿½ï¿½ã·¨ï¿½ï¿½ï¿½ï¿½ ----------
+If fso.FileExists(pulseDir & "\main.py") Then
+    WshShell.Run "cmd /c cd /d """ & pulseDir & """ && python main.py", 1, False
+    MsgBox "ï¿½ï¿½ï¿½ï¿½ï¿½ã·¨(8000)ï¿½ï¿½ï¿½Úºï¿½Ì¨ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½" & vbCrLf & "ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½È·ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½Ö¤ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½", 64, "ï¿½ï¿½ï¿½ï¿½ 3/5"
+Else
+    AppendSummary "[ï¿½ï¿½ï¿½ï¿½] Î´ï¿½Òµï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ main.py"
+End If
+
+' ---------- [4] ï¿½ï¿½ï¿½ï¿½Ö¤ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ ----------
+If fso.FolderExists(idCardDir) Then
+    If fso.FileExists(idCardDir & "\run.bat") Then
+        WshShell.Run "cmd /c cd /d """ & idCardDir & """ && run.bat", 0, False
+        MsgBox "ï¿½ï¿½ï¿½ï¿½Ö¤ï¿½ï¿½ï¿½ï¿½(9009)ï¿½ï¿½Í¨ï¿½ï¿½ bat ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½" & vbCrLf & "ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½È·ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½Ç°ï¿½Ë·ï¿½ï¿½ï¿½", 64, "ï¿½ï¿½ï¿½ï¿½ 4/5"
+    ElseIf fso.FileExists(idCardDir & "\IdCardReaderService\IdCardReaderService.csproj") Then
+        WshShell.Run "cmd /c cd /d """ & idCardDir & """ && dotnet run --project IdCardReaderService\IdCardReaderService.csproj", 0, False
+        MsgBox "ï¿½ï¿½ï¿½ï¿½Ö¤ï¿½ï¿½ï¿½ï¿½(9009)ï¿½ï¿½Í¨ï¿½ï¿½ dotnet ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½" & vbCrLf & "ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½È·ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½Ç°ï¿½Ë·ï¿½ï¿½ï¿½", 64, "ï¿½ï¿½ï¿½ï¿½ 4/5"
+    End If
+Else
+    AppendSummary "[ï¿½ï¿½ï¿½ï¿½] Î´ï¿½Òµï¿½ï¿½ï¿½ï¿½ï¿½Ö¤ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½Ä¼ï¿½ï¿½ï¿½"
+End If
+
+' ---------- [5] Vue3 Ç°ï¿½ï¿½ ----------
+If fso.FileExists(vueDir & "\package.json") Then
+    If Not fso.FolderExists(vueDir & "\node_modules") Then
+        WshShell.Run "cmd /c cd /d """ & vueDir & """ && npm install && npm run dev", 0, False
+    Else
+        WshShell.Run "cmd /c cd /d """ & vueDir & """ && npm run dev", 0, False
+    End If
+    MsgBox "Ç°ï¿½Ë·ï¿½ï¿½ï¿½(5173)ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½Ñ·ï¿½ï¿½Í¡ï¿½" & vbCrLf & "ï¿½ï¿½ï¿½Ôµï¿½ Vite ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½É£ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½È·ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½", 64, "ï¿½ï¿½ï¿½ï¿½ 5/5"
+Else
+    AppendSummary "[ï¿½ï¿½ï¿½ï¿½] Î´ï¿½Òµï¿½Ç°ï¿½ï¿½ package.json"
+End If
+
+' ---------- ï¿½ï¿½ó£º´ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ ----------
+OpenFrontendBrowser
+
+If Len(summary) > 0 Then
+    MsgBox "ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½Ï¡ï¿½ï¿½ï¿½ï¿½ï¿½Ä£ï¿½ï¿½×´Ì¬ï¿½ï¿½" & vbCrLf & summary, 48, "ï¿½ï¿½Ê¾"
+End If
+
+' --- ï¿½Ó³ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ ---
+
+Sub KillPort(port)
+    Dim oExec, line, pid, parts
+    On Error Resume Next
+    ' ï¿½ï¿½Ä¬ï¿½ï¿½ï¿½Ò²ï¿½Ç¿É±ï¿½Ë¿ï¿½
+    Set oExec = WshShell.Exec("cmd /c netstat -ano")
+    Do While Not oExec.StdOut.AtEndOfStream
+        line = Trim(oExec.StdOut.ReadLine())
+        If InStr(line, ":" & port & " ") > 0 And InStr(line, "LISTEN") > 0 Then
+            parts = Split(line, " ")
+            pid = Trim(parts(UBound(parts)))
+            If IsNumeric(pid) And CInt(pid) > 4 Then
+                WshShell.Run "taskkill /PID " & pid & " /F", 0, True
+            End If
+        End If
+    Loop
+    On Error GoTo 0
+End Sub
+
+Sub OpenFrontendBrowser()
+    ' ï¿½ï¿½ï¿½ï¿½Ñ°ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½È«ï¿½ï¿½ï¿½ï¿½
+    Dim browserPath, url
+    url = "http://localhost:5173"
+    
+    ' ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½È¼ï¿½ï¿½ï¿½Chrome -> Edge -> ÏµÍ³Ä¬ï¿½ï¿½
+    If fso.FileExists("C:\Program Files\Google\Chrome\Application\chrome.exe") Then
+        WshShell.Run """C:\Program Files\Google\Chrome\Application\chrome.exe"" --start-fullscreen " & url, 1, False
+    ElseIf fso.FileExists("C:\Program Files (x86)\Microsoft\Edge\Application\msedge.exe") Then
+        WshShell.Run """C:\Program Files (x86)\Microsoft\Edge\Application\msedge.exe"" --start-fullscreen " & url, 1, False
     Else
         WshShell.Run "explorer " & url, 1, False
     End If
