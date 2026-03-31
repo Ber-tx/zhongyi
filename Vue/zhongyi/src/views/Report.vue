@@ -106,14 +106,17 @@
 
       <!-- 患者信息章节 -->
       <section class="report-section patient-info">
-        <h2>患者信息</h2>
+        <h2>患者信息：</h2>
         <el-descriptions :column="4" border>
-          <el-descriptions-item label="姓名">{{ reportData.patientInfo.name }}</el-descriptions-item>
-          <el-descriptions-item label="性别">{{ reportData.patientInfo.gender }}</el-descriptions-item>
-          <el-descriptions-item label="年龄">{{ reportData.patientInfo.age || '' }}岁</el-descriptions-item>
-          <el-descriptions-item label="生日">{{ reportData.patientInfo.birthday || '' }}</el-descriptions-item>
-          <el-descriptions-item label="住址" :span="3">{{ reportData.patientInfo.address }}</el-descriptions-item>
+          <el-descriptions-item label="姓名：">{{ reportData.patientInfo.name }}</el-descriptions-item>
+          <el-descriptions-item label="性别：">{{ reportData.patientInfo.gender }}</el-descriptions-item>
+          <el-descriptions-item label="年龄：">{{ reportData.patientInfo.age || '' }}岁</el-descriptions-item>
+          <el-descriptions-item label="生日：">{{ reportData.patientInfo.birthday || '' }}</el-descriptions-item>
+          <el-descriptions-item label="住址：" :span="3">{{ reportData.patientInfo.address }}</el-descriptions-item>
         </el-descriptions>
+        <div v-if="idCardDisplaySrc" class="report-idcard-card-box">
+          <img :src="idCardDisplaySrc" alt="身份证" class="report-idcard-card" />
+        </div>
       </section>
 
       <!-- 四诊初步诊断章节 -->
@@ -236,6 +239,8 @@ const controllerRef = ref(null);
 const currentPatientId = ref(null);
 const currentCaseId = ref(null);
 const reportRef = ref(null);
+const idCardPhotoBase64 = ref(localStorage.getItem("current_idcard_photo_base64") || "");
+const idCardFullImageBase64 = ref(localStorage.getItem("current_idcard_image_base64") || "");
 
 const reportTitle = ref("四诊合参诊断报告");
 const completionPercentage = ref(0);
@@ -247,6 +252,22 @@ const reportSettings = computed(() => {
     return saved ? JSON.parse(saved) : {};
   } catch { return {}; }
 });
+
+const idCardPhotoSrc = computed(() => {
+  const rawPhoto = idCardPhotoBase64.value;
+  if (!rawPhoto) return "";
+  if (rawPhoto.startsWith("data:")) return rawPhoto;
+  return `data:image/bmp;base64,${rawPhoto}`;
+});
+
+const idCardFullImageSrc = computed(() => {
+  const rawImage = idCardFullImageBase64.value;
+  if (!rawImage) return "";
+  if (rawImage.startsWith("data:")) return rawImage;
+  return `data:image/svg+xml;base64,${rawImage}`;
+});
+
+const idCardDisplaySrc = computed(() => idCardFullImageSrc.value || idCardPhotoSrc.value);
 
 const calculateCompletion = () => {
   if (!reportData.value || !reportData.value.diagnosis) {
@@ -363,6 +384,8 @@ onUnmounted(() => {
 
 // ===== 数据获取 =====
 onMounted(async () => {
+  idCardPhotoBase64.value = localStorage.getItem("current_idcard_photo_base64") || "";
+  idCardFullImageBase64.value = localStorage.getItem("current_idcard_image_base64") || "";
   const patientId = route.query.id || localStorage.getItem("current_patient_id");
   const caseId = route.query.caseId || localStorage.getItem("current_case_id");
   const completedTypesParam = route.query.completedTypes;
@@ -691,6 +714,19 @@ ${reportRef.value.outerHTML}
 .footer-actions { margin-top: 20px; }
 .footer-actions :deep(.el-button) { min-width: 140px; }
 .no-data { padding: 60px 20px; text-align: center; }
+.report-idcard-card-box {
+  margin-top: 20px;
+  display: flex;
+  justify-content: center;
+  align-items: center;
+}
+.report-idcard-card {
+  max-width: 420px;
+  width: 100%;
+  height: auto;
+  border-radius: 12px;
+  box-shadow: 0 6px 20px rgba(90, 45, 0, 0.2);
+}
 
 /* ===== 机构抬头 ===== */
 .org-header {

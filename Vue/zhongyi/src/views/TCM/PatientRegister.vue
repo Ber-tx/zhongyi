@@ -18,15 +18,18 @@
     <!-- 身份证感应区 -->
     <div v-if="inputMode === 'scan'" class="scan-zone">
       <div class="scan-card" :class="{ scanning: isScanning, done: scanDone }">
-        <div class="card-chip"></div>
-        <div class="card-lines">
-          <div class="card-line"></div>
-          <div class="card-line short"></div>
+        <img v-if="idCardDisplaySrc" :src="idCardDisplaySrc" alt="身份证图像" class="scan-card-image" />
+        <div v-else>
+          <div class="card-chip"></div>
+          <div class="card-lines">
+            <div class="card-line"></div>
+            <div class="card-line short"></div>
+          </div>
         </div>
         <div class="scan-glow"></div>
         <div class="scan-sweep" v-if="isScanning"></div>
       </div>
-      <p class="scan-status">{{ scanStatus }}</p>
+      <p class="scan-status">{{ scanStatus }}<span v-if="scanDone">，</span><span v-if="scanDone" class="link" @click="switchToManual">手动修改</span></p>
       <el-button
         class="btn-primary"
         :loading="isScanning"
@@ -35,10 +38,6 @@
       >
         {{ isScanning ? '读取中...' : scanDone ? '✓ 读取完成' : '开始感应读取' }}
       </el-button>
-      <p v-if="scanDone" class="scan-tip">
-        已自动填入信息，请在下方确认后提交。
-        <span class="link" @click="switchToManual">手动修改</span>
-      </p>
     </div>
 
     <!-- 表单 -->
@@ -218,10 +217,11 @@
 </template>
 
 <script setup>
-import { ref, reactive } from 'vue'
+import { ref, reactive, computed } from 'vue'
 import { useRouter } from 'vue-router'
 import { ElMessage } from 'element-plus'
 import { loginAndSave } from '@/api/auth'
+import axios from 'axios'
 
 const router = useRouter()
 
@@ -230,25 +230,68 @@ const inputMode = ref('manual')
 const isScanning = ref(false)
 const scanDone = ref(false)
 const scanStatus = ref('请将二代居民身份证平放在读卡区域，感应距离约 2~5 cm')
+const idCardPhotoBase64 = ref('')
+const idCardFullImageBase64 = ref('')
+
+const idCardPhotoSrc = computed(() => {
+  if (!idCardPhotoBase64.value) return ''
+  if (idCardPhotoBase64.value.startsWith('data:')) return idCardPhotoBase64.value
+  return `data:image/bmp;base64,${idCardPhotoBase64.value}`
+})
+
+const idCardFullImageSrc = computed(() => {
+  if (!idCardFullImageBase64.value) return ''
+  if (idCardFullImageBase64.value.startsWith('data:')) return idCardFullImageBase64.value
+  return `data:image/jpeg;base64,${idCardFullImageBase64.value}`
+})
+
+const idCardDisplaySrc = computed(() => idCardFullImageSrc.value || idCardPhotoSrc.value)
 
 const startScan = async () => {
   isScanning.value = true
   scanStatus.value = '正在读取身份证信息...'
-  // 模拟读卡延迟
-  await new Promise(r => setTimeout(r, 2200))
-  // 模拟读到的数据（实际接入读卡器 SDK 替换此处）
-  Object.assign(form, {
-    name: '张三丰',
-    gender: '男',
-    birthday: '1980-05-15',
-    idCard: '420301198005153219',
-    address: '湖北省武当山特区太极路1号',
-    nation: '汉族',
-  })
-  isScanning.value = false
-  scanDone.value = true
-  scanStatus.value = '✓ 读取成功！请确认以下信息后提交。'
-  inputMode.value = 'scan' // 保留感应模式，显示表单
+  
+  try {
+    // 调用后端读卡接口 (会继续代理到 x86 读卡服务)
+    const response = await axios.get('/api/idcard/read')
+
+    const result = response.data || {}
+    const isSuccess = result.success === true || result.code === 200
+    const idCardData = result.data
+
+    if (isSuccess && idCardData) {
+      idCardPhotoBase64.value = idCardData.photoBase64 || ''
+      idCardFullImageBase64.value =
+        idCardData.idCardImageBase64 || idCardData.cardImageBase64 || idCardData.fullImageBase64 || ''
+      
+      // 将读卡结果填入表单
+      Object.assign(form, {
+        name: idCardData.name || '',
+        gender: idCardData.gender === '女' ? '女' : '男',
+        birthday: idCardData.dateOfBirth ? idCardData.dateOfBirth.split(' ')[0] : '', // 取日期部分
+        idCard: idCardData.idNumber || '',
+        address: idCardData.address || '',
+        nation: idCardData.nationality || '',
+      })
+      
+      isScanning.value = false
+      scanDone.value = true
+      scanStatus.value = '✓ 读取成功，请确认后提交。'
+      inputMode.value = 'scan' // 保留感应模式，显示表单
+      ElMessage.success('身份证读取成功！')
+    } else {
+      throw new Error(result.msg || result.message || '读卡失败')
+    }
+  } catch (error) {
+    isScanning.value = false
+    scanDone.value = false
+    idCardPhotoBase64.value = ''
+    idCardFullImageBase64.value = ''
+    const errorMsg = error.response?.data?.message || error.message || '读卡失败，请重试'
+    scanStatus.value = `❌ ${errorMsg}`
+    ElMessage.error(errorMsg)
+    console.error('读卡错误:', error)
+  }
 }
 
 const switchToManual = () => {
@@ -269,6 +312,9 @@ const form = reactive({
 const resetForm = () => {
   Object.keys(form).forEach(k => { form[k] = k === 'gender' ? '男' : '' })
   scanDone.value = false
+  idCardPhotoBase64.value = ''
+  idCardFullImageBase64.value = ''
+  localStorage.removeItem('current_idcard_photo_base64')
   scanStatus.value = '请将二代居民身份证平放在读卡区域，感应距离约 2~5 cm'
 }
 
@@ -299,6 +345,16 @@ const handleSubmit = async () => {
       if (patient?.id) {
         localStorage.setItem('current_patient_id', String(patient.id))
         localStorage.setItem('current_patient_idCard', patient.idCard)
+        if (idCardPhotoBase64.value) {
+          localStorage.setItem('current_idcard_photo_base64', idCardPhotoBase64.value)
+        } else {
+          localStorage.removeItem('current_idcard_photo_base64')
+        }
+        if (idCardFullImageBase64.value) {
+          localStorage.setItem('current_idcard_image_base64', idCardFullImageBase64.value)
+        } else {
+          localStorage.removeItem('current_idcard_image_base64')
+        }
         // 存储补充信息供后续使用
         localStorage.setItem('patient_extra', JSON.stringify({
           phone: form.phone, occupation: form.occupation,
@@ -354,12 +410,12 @@ const handleSubmit = async () => {
 /* 身份证感应区 */
 .scan-zone {
   display: flex; flex-direction: column; align-items: center;
-  padding: 28px 20px 20px;
-  gap: 14px; flex-shrink: 0;
+  padding: 20px 20px 14px;
+  gap: 8px; flex-shrink: 0;
 }
 
 .scan-card {
-  position: relative; width: 200px; height: 126px;
+  position: relative; width: 320px; height: 202px;
   background: linear-gradient(135deg, #2c4a8a 0%, #1a3060 40%, #3d2b10 100%);
   border-radius: 10px;
   box-shadow: 0 8px 24px rgba(0,0,0,.25);
@@ -371,6 +427,14 @@ const handleSubmit = async () => {
 }
 .scan-card.done {
   box-shadow: 0 0 0 3px #4a907e, 0 8px 24px rgba(0,0,0,.25);
+}
+
+.scan-card-image {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
 }
 
 .card-chip {
@@ -399,8 +463,13 @@ const handleSubmit = async () => {
 }
 @keyframes sweep { from { top: 0; } to { top: 100%; } }
 
-.scan-status { font-size: 13px; color: #6b4c24; text-align: center; }
-.scan-tip { font-size: 12px; color: #7a5520; text-align: center; }
+.scan-status {
+  font-size: 13px;
+  color: #6b4c24;
+  text-align: center;
+  white-space: nowrap;
+  margin: 2px 0;
+}
 .link { color: #8b3d1a; cursor: pointer; text-decoration: underline; }
 
 /* 表单区 */

@@ -1,0 +1,36 @@
+# .gitignore for IdCardReaderService
+
+# Build results
+bin/
+obj/
+*.exe
+*.dll
+*.pdb
+*.so
+*.dylib
+
+# IDE files
+.vs/
+.vscode/
+*.user
+*.suo
+*.sln.docstates
+
+# DLL files (keep track of which should be included)
+Libs/*.dll
+Libs/*.so
+
+# Logs
+logs/
+*.log
+
+# Dependencies
+packages/
+.nuget
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Runtime
+appsettings.Development.json

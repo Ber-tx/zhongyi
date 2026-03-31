@@ -1,0 +1,28 @@
+<Project Sdk="Microsoft.NET.Sdk.Web">
+
+  <PropertyGroup>
+    <TargetFramework>net8.0</TargetFramework>
+    <Nullable>enable</Nullable>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <PlatformTarget>x86</PlatformTarget>
+    <RuntimeIdentifier>win-x86</RuntimeIdentifier>
+    <UseAppHost>true</UseAppHost>
+    <RestoreIgnoreFailedSources>true</RestoreIgnoreFailedSources>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <Content Include="Libs\sdtapi.dll">
+      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+      <Link>sdtapi.dll</Link>
+    </Content>
+    <Content Include="Libs\DLL_File.dll">
+      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+      <Link>DLL_File.dll</Link>
+    </Content>
+    <Content Include="Libs\license.dat">
+      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+      <Link>license.dat</Link>
+    </Content>
+  </ItemGroup>
+
+</Project>
