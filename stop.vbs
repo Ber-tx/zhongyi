@@ -1,138 +1,40 @@
 Option Explicit
 
 ' ============================================================
-'   ä¸­åŒ»AIè¯Šç–—ç³»ç»Ÿ - é™é»˜æ­¥è¿›å¯åŠ¨è„šæœ¬ v3.0
-'   ç‰¹ç‚¹ï¼šæ— é»‘æ¡†ã€åå°è¿è¡Œã€æ‰‹åŠ¨ç‚¹å‡»ç¡®è®¤è¿›å…¥ä¸‹ä¸€æ­¥
+'   ÖĞÒ½AIÕïÁÆÏµÍ³ - Ò»¼üÍ£Ö¹ËùÓĞ·şÎñ½Å±¾ v1.0
+'   ×÷ÓÃ£ºÇ¿ÖÆ½áÊøºó¶Ë¡¢AI¡¢Ëã·¨¡¢¶Á¿¨¼°Ç°¶ËËùÓĞÏà¹Ø½ø³Ì
 ' ============================================================
 
-Dim WshShell, fso, scriptDir
-Dim demoDir, aiDir, pulseDir, vueDir, idCardDir
-Dim summary
-
+Dim WshShell, fso, response
 Set WshShell = CreateObject("WScript.Shell")
 Set fso = CreateObject("Scripting.FileSystemObject")
 
-' è„šæœ¬æ‰€åœ¨ç›®å½•
-scriptDir = Left(WScript.ScriptFullName, InStrRev(WScript.ScriptFullName, "\") - 1)
+' --- 1. Æô¶¯Ç°µÄ¶ş´ÎÈ·ÈÏ½çÃæ ---
+response = MsgBox("È·¶¨Òª¹Ø±Õ¡¾ÖĞÒ½AIÕïÁÆÏµÍ³¡¿µÄËùÓĞºóÌ¨·şÎñÂğ£¿" & vbCrLf & _
+                "Õâ½«Í£Ö¹£ººó¶Ë¡¢AI¡¢Âö²«¡¢¶Á¿¨·şÎñ¼°Ç°¶ËÒ³Ãæ¡£", _
+                33, "ÏµÍ³Í£»úÈ·ÈÏ")
 
-' ç›®å½•é…ç½®
-demoDir   = scriptDir & "\demo"
-aiDir     = scriptDir & "\tcm-ai-service"
-pulseDir    = scriptDir & "\pulse2"
-vueDir      = scriptDir & "\Vue\zhongyi"
-idCardDir   = scriptDir & "\IdCardReaderService"
-
-summary = ""
-
-' å¯åŠ¨å‰æ£€æŸ¥
-If Not fso.FolderExists(demoDir) Then
-    MsgBox "æ‰¾ä¸åˆ° demo ç›®å½•ï¼Œè¯·æ£€æŸ¥è„šæœ¬æ”¾ç½®ä½ç½®ã€‚", 16, "å¯åŠ¨å¤±è´¥"
-    WScript.Quit 1
+' 33 ´ú±í = 1 (OK/Cancel °´Å¥) + 32 (ÎÊºÅÍ¼±ê)
+If response <> 1 Then
+    WScript.Quit
 End If
 
-' æ¸…ç†æ—§ç«¯å£å ç”¨
-KillPort 8080
-KillPort 5000
-KillPort 8000
-KillPort 5173
-KillPort 9009
+' --- 2. Ö´ĞĞÇåÀíÈÎÎñ ---
+' ÕâÀïÁĞ³öÏµÍ³ÖĞËùÓĞÉæ¼°µ½µÄ¹Ø¼ü½ø³ÌÃû
+StopProcess "java.exe"    ' Spring Boot ºó¶Ë
+StopProcess "python.exe"  ' AI·şÎñ¡¢Âö²«Ëã·¨¡¢Éí·İÖ¤½Å±¾
+StopProcess "node.exe"    ' Vue3/Vite Ç°¶Ë·şÎñ
+StopProcess "mvn.cmd"     ' Maven ÔËĞĞ½ø³Ì
+StopProcess "cmd.exe"     ' ÒÅÁôµÄÃüÁîĞĞ´°¿Ú
 
-' ---------- [1] Spring Boot åç«¯ ----------
-If fso.FileExists(demoDir & "\pom.xml") Then
-    ' ä½¿ç”¨ 0 å‚æ•°å®ç°æ— é»‘æ¡†è¿è¡Œ
-    WshShell.Run "cmd /c cd /d """ & demoDir & """ && mvn spring-boot:run", 0, False
-    MsgBox "åç«¯æœåŠ¡(8080)å·²åœ¨åå°å¯åŠ¨ã€‚" & vbCrLf & "è¯·ç¨å€™ç‰‡åˆ»ï¼Œç¡®è®¤åç«¯å°±ç»ªåç‚¹å‡»ã€ç¡®å®šã€‘å¯åŠ¨ AI æœåŠ¡ã€‚", 64, "æ­¥éª¤ 1/5"
-Else
-    AppendSummary "[è·³è¿‡] æœªæ‰¾åˆ°åç«¯ pom.xml"
-End If
+' --- 3. ½á¹ûÌáĞÑ ---
+MsgBox "ËùÓĞÏà¹ØºóÌ¨·şÎñÒÑ³¢ÊÔ¹Ø±Õ¡£" & vbCrLf & _
+       "¶Ë¿Ú 8080, 5000, 8000, 5173, 9009 ÒÑÊÍ·Å¡£", 64, "ÇåÀíÍê±Ï"
 
-' ---------- [2] TCM AI æœåŠ¡ ----------
-If fso.FileExists(aiDir & "\main.py") Then
-    If fso.FileExists(aiDir & "\venv\Scripts\python.exe") Then
-        WshShell.Run "cmd /c cd /d """ & aiDir & """ && venv\Scripts\python.exe main.py", 0, False
-    Else
-        WshShell.Run "cmd /c cd /d """ & aiDir & """ && python main.py", 0, False
-    End If
-    MsgBox "AI æœåŠ¡(5000)å·²åœ¨åå°å¯åŠ¨ã€‚" & vbCrLf & "è¯·ç‚¹å‡»ã€ç¡®å®šã€‘å¯åŠ¨è„‰æç®—æ³•æœåŠ¡ã€‚", 64, "æ­¥éª¤ 2/5"
-Else
-    AppendSummary "[è·³è¿‡] æœªæ‰¾åˆ° AI æœåŠ¡ main.py"
-End If
-
-' ---------- [3] è„‰æç®—æ³•æœåŠ¡ ----------
-If fso.FileExists(pulseDir & "\main.py") Then
-    WshShell.Run "cmd /c cd /d """ & pulseDir & """ && python main.py", 0, False
-    MsgBox "è„‰æç®—æ³•(8000)å·²åœ¨åå°å¯åŠ¨ã€‚" & vbCrLf & "è¯·ç‚¹å‡»ã€ç¡®å®šã€‘å¯åŠ¨èº«ä»½è¯è¯»å¡æœåŠ¡ã€‚", 64, "æ­¥éª¤ 3/5"
-Else
-    AppendSummary "[è·³è¿‡] æœªæ‰¾åˆ°è„‰ææœåŠ¡ main.py"
-End If
-
-' ---------- [4] èº«ä»½è¯è¯»å¡æœåŠ¡ ----------
-If fso.FolderExists(idCardDir) Then
-    If fso.FileExists(idCardDir & "\run.bat") Then
-        WshShell.Run "cmd /c cd /d """ & idCardDir & """ && run.bat", 0, False
-        MsgBox "èº«ä»½è¯æœåŠ¡(9009)å·²é€šè¿‡ bat å¯åŠ¨ã€‚" & vbCrLf & "è¯·ç‚¹å‡»ã€ç¡®å®šã€‘å¯åŠ¨å‰ç«¯æœåŠ¡ã€‚", 64, "æ­¥éª¤ 4/5"
-    ElseIf fso.FileExists(idCardDir & "\IdCardReaderService\IdCardReaderService.csproj") Then
-        WshShell.Run "cmd /c cd /d """ & idCardDir & """ && dotnet run --project IdCardReaderService\IdCardReaderService.csproj", 0, False
-        MsgBox "èº«ä»½è¯æœåŠ¡(9009)å·²é€šè¿‡ dotnet å¯åŠ¨ã€‚" & vbCrLf & "è¯·ç‚¹å‡»ã€ç¡®å®šã€‘å¯åŠ¨å‰ç«¯æœåŠ¡ã€‚", 64, "æ­¥éª¤ 4/5"
-    End If
-Else
-    AppendSummary "[è·³è¿‡] æœªæ‰¾åˆ°èº«ä»½è¯è¯»å¡æœåŠ¡æ–‡ä»¶å¤¹"
-End If
-
-' ---------- [5] Vue3 å‰ç«¯ ----------
-If fso.FileExists(vueDir & "\package.json") Then
-    If Not fso.FolderExists(vueDir & "\node_modules") Then
-        WshShell.Run "cmd /c cd /d """ & vueDir & """ && npm install && npm run dev", 0, False
-    Else
-        WshShell.Run "cmd /c cd /d """ & vueDir & """ && npm run dev", 0, False
-    End If
-    MsgBox "å‰ç«¯æœåŠ¡(5173)å¯åŠ¨å‘½ä»¤å·²å‘é€ã€‚" & vbCrLf & "è¯·ç¨ç­‰ Vite ç¼–è¯‘å®Œæˆï¼Œç‚¹å‡»ã€ç¡®å®šã€‘æ‰“å¼€æµè§ˆå™¨ã€‚", 64, "æ­¥éª¤ 5/5"
-Else
-    AppendSummary "[è·³è¿‡] æœªæ‰¾åˆ°å‰ç«¯ package.json"
-End If
-
-' ---------- æœ€åï¼šæ‰“å¼€æµè§ˆå™¨ ----------
-OpenFrontendBrowser
-
-If Len(summary) > 0 Then
-    MsgBox "å¯åŠ¨å®Œæ¯•ã€‚éƒ¨åˆ†æ¨¡å—çŠ¶æ€ï¼š" & vbCrLf & summary, 48, "æç¤º"
-End If
-
-' --- å­ç¨‹åºåŒºåŸŸ ---
-
-Sub KillPort(port)
-    Dim oExec, line, pid, parts
+' --- ×Ó³ÌĞò£º°´Ãû³Æ½áÊø½ø³Ì ---
+Sub StopProcess(exeName)
     On Error Resume Next
-    ' é™é»˜æŸ¥æ‰¾å¹¶å¼ºæ€ç«¯å£
-    Set oExec = WshShell.Exec("cmd /c netstat -ano")
-    Do While Not oExec.StdOut.AtEndOfStream
-        line = Trim(oExec.StdOut.ReadLine())
-        If InStr(line, ":" & port & " ") > 0 And InStr(line, "LISTEN") > 0 Then
-            parts = Split(line, " ")
-            pid = Trim(parts(UBound(parts)))
-            If IsNumeric(pid) And CInt(pid) > 4 Then
-                WshShell.Run "taskkill /PID " & pid & " /F", 0, True
-            End If
-        End If
-    Loop
+    ' /F Ç¿ÖÆÖÕÖ¹£¬/T ÖÕÖ¹×Ó½ø³Ì£¬/IM Ö¸¶¨Ó³ÏñÃû³Æ
+    WshShell.Run "taskkill /F /T /IM " & exeName, 0, True
     On Error GoTo 0
-End Sub
-
-Sub OpenFrontendBrowser()
-    ' å°è¯•å¯»æ‰¾æµè§ˆå™¨å¹¶å…¨å±æ‰“å¼€
-    Dim browserPath, url
-    url = "http://localhost:5173"
-    
-    ' æµè§ˆå™¨æ£€æµ‹ä¼˜å…ˆçº§ï¼šChrome -> Edge -> ç³»ç»Ÿé»˜è®¤
-    If fso.FileExists("C:\Program Files\Google\Chrome\Application\chrome.exe") Then
-        WshShell.Run """C:\Program Files\Google\Chrome\Application\chrome.exe"" --start-fullscreen " & url, 1, False
-    ElseIf fso.FileExists("C:\Program Files (x86)\Microsoft\Edge\Application\msedge.exe") Then
-        WshShell.Run """C:\Program Files (x86)\Microsoft\Edge\Application\msedge.exe"" --start-fullscreen " & url, 1, False
-    Else
-        WshShell.Run "explorer " & url, 1, False
-    End If
-End Sub
-
-Sub AppendSummary(text)
-    summary = summary & text & vbCrLf
 End Sub
