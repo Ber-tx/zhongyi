@@ -69,6 +69,32 @@ public interface AdminMapper {
     @Select("SELECT COUNT(*) FROM diagnosis")
     int countDiagnoses();
 
+    @Select("<script>" +
+            "SELECT d.id, d.patient_id as patientId, d.create_time as createTime, d.status, " +
+            "d.wang_result as wangResult, " +
+            "d.wang_tongue_metrics as wangTongueMetrics, " +
+            "d.wen_conclusion as wenConclusion, " +
+            "d.wen_audio_conclusion as wenAudioConclusion, " +
+            "d.wen_audio_confidence as wenAudioConfidence, " +
+            "d.qie_heart_rate as qieHeartRate, d.qie_spo2 as qieSpo2, " +
+            "d.qie_tcm_suggestion as qieTcmSuggestion, " +
+            "d.qie_valid_rate as qieValidRate, d.qie_sample_count as qieSampleCount, " +
+            "d.wen_scores as wenScores, " +
+            "p.name as patientName, p.id_card as patientIdCard, p.gender as patientGender " +
+            "FROM diagnosis d LEFT JOIN patients p ON d.patient_id = p.id " +
+            "<where>" +
+            "  <if test='keyword != null and keyword != \"\"'>" +
+            "    p.name LIKE CONCAT('%',#{keyword},'%') " +
+            "    OR p.id_card LIKE CONCAT('%',#{keyword},'%')" +
+            "  </if>" +
+            "</where>" +
+            "ORDER BY d.create_time DESC " +
+            "LIMIT #{offset}, #{size}" +
+            "</script>")
+    List<Map<String, Object>> listDiagnosesWithPatient(@Param("keyword") String keyword,
+                                                        @Param("offset") int offset,
+                                                        @Param("size") int size);
+
     @Select("SELECT COUNT(*) FROM diagnosis WHERE DATE(create_time) = CURDATE()")
     int countTodayDiagnoses();
 

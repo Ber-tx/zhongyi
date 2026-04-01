@@ -141,6 +141,7 @@ public class WenController {
                     record.setWenAudioConfidence(confidence);
                     record.setWenAudioTags(tags);
                     record.setWenAudioFeatures(features);
+                    record.setWenAudioUrl(localPath);
 
                     diagnosisMapper.updateWenAudio(record);
                 } else {

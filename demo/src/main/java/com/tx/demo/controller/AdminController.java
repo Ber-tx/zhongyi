@@ -135,6 +135,28 @@ public class AdminController {
         return Result.success(result);
     }
 
+    /**
+     * GET /api/admin/diagnoses-with-patient?page=1&size=10&keyword=张三
+     * 供辨识档案页使用：支持按姓名/身份证搜索。
+     */
+    @GetMapping("/diagnoses-with-patient")
+    public Result listDiagnosesWithPatient(
+            @RequestParam(defaultValue = "1") int page,
+            @RequestParam(defaultValue = "10") int size,
+            @RequestParam(defaultValue = "") String keyword) {
+
+        int offset = (page - 1) * size;
+        List<Map<String, Object>> list = adminMapper.listDiagnosesWithPatient(keyword, offset, size);
+        int total = adminMapper.countDiagnosesWithPatient(keyword);
+
+        Map<String, Object> result = new HashMap<>();
+        result.put("list", list);
+        result.put("total", total);
+        result.put("page", page);
+        result.put("size", size);
+        return Result.success(result);
+    }
+
 
     //  诊断数据分析的controller
     @GetMapping("/constitution-stats")
