@@ -26,8 +26,10 @@ import java.nio.charset.StandardCharsets;
 import java.time.LocalDate;
 import java.time.format.DateTimeFormatter;
 import java.time.temporal.ChronoUnit;
+import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.LinkedHashMap;
+import java.util.List;
 import java.util.Map;
 import java.util.concurrent.Executors;
 
@@ -403,7 +405,8 @@ public class ReportController {
     }
 
     private boolean hasCompletedDiagnosis(Diagnosis diagnosis) {
-        if (diagnosis.getWangImageUrl() != null && !diagnosis.getWangImageUrl().isEmpty()) {
+        if ((diagnosis.getWangResult() != null && !diagnosis.getWangResult().isEmpty()) ||
+                (diagnosis.getWangTongueMetrics() != null && !diagnosis.getWangTongueMetrics().isEmpty())) {
             return true;
         }
         if (diagnosis.getWenAudioConclusion() != null && !diagnosis.getWenAudioConclusion().isEmpty()) {
@@ -476,10 +479,14 @@ public class ReportController {
         Map<String, Object> diagnoses = new LinkedHashMap<>();
 
         // 望诊
-        if (diagnosis.getWangResult() != null && !diagnosis.getWangResult().isEmpty()) {
+        if ((diagnosis.getWangResult() != null && !diagnosis.getWangResult().isEmpty()) ||
+            (diagnosis.getWangTongueMetrics() != null && !diagnosis.getWangTongueMetrics().isEmpty())) {
             Map<String, Object> wang = new LinkedHashMap<>();
             wang.put("result", diagnosis.getWangResult());
-            wang.put("imageUrl", diagnosis.getWangImageUrl());
+            Object tongueMetrics = parseJsonOrRaw(diagnosis.getWangTongueMetrics());
+            if (tongueMetrics != null) {
+                wang.put("tongueMetrics", tongueMetrics);
+            }
             diagnoses.put("wang", wang);
         }
 
@@ -495,6 +502,10 @@ public class ReportController {
                     wen.put("tags", diagnosis.getWenAudioTags());
                 }
             }
+            Object audioFeatures = parseJsonOrRaw(diagnosis.getWenAudioFeatures());
+            if (audioFeatures != null) {
+                wen.put("features", audioFeatures);
+            }
             diagnoses.put("wen_audio", wen);
         }
 
@@ -509,6 +520,10 @@ public class ReportController {
                     wenQuestionnaire.put("scores", diagnosis.getWenScores());
                 }
             }
+            Object profile = buildQuestionnaireProfile(diagnosis.getWenScores());
+            if (profile != null) {
+                wenQuestionnaire.put("constitutionProfile", profile);
+            }
             diagnoses.put("wen_questionnaire", wenQuestionnaire);
         }
 
@@ -520,10 +535,14 @@ public class ReportController {
             qie.put("validRate", diagnosis.getQieValidRate());
             qie.put("sampleCount", diagnosis.getQieSampleCount());
             qie.put("tcmSuggestion", diagnosis.getQieTcmSuggestion());
+            qie.put("qualityLevel", determineQieQualityLevel(diagnosis.getQieValidRate(), diagnosis.getQieSampleCount()));
+            qie.put("heartRateBand", determineHeartRateBand(diagnosis.getQieHeartRate()));
+            qie.put("spo2Band", determineSpo2Band(diagnosis.getQieSpo2()));
             diagnoses.put("qie", qie);
         }
 
         info.put("diagnoses", diagnoses);
+        info.put("llmContext", buildLlmContext());
         return info;
     }
 
@@ -556,10 +575,14 @@ public class ReportController {
         Map<String, Object> info = new LinkedHashMap<>();
 
         // 望诊
-        if (diagnosis.getWangResult() != null) {
+        if (diagnosis.getWangResult() != null || diagnosis.getWangTongueMetrics() != null) {
             Map<String, Object> wang = new LinkedHashMap<>();
             wang.put("result", diagnosis.getWangResult());
             wang.put("imageUrl", diagnosis.getWangImageUrl());
+            Object tongueMetrics = parseJsonOrRaw(diagnosis.getWangTongueMetrics());
+            if (tongueMetrics != null) {
+                wang.put("tongueMetrics", tongueMetrics);
+            }
             info.put("wang", wang);
         }
 
@@ -575,6 +598,10 @@ public class ReportController {
                     wen.put("tags", diagnosis.getWenAudioTags());
                 }
             }
+            Object audioFeatures = parseJsonOrRaw(diagnosis.getWenAudioFeatures());
+            if (audioFeatures != null) {
+                wen.put("features", audioFeatures);
+            }
             info.put("wen_audio", wen);
         }
 
@@ -582,6 +609,16 @@ public class ReportController {
         if (diagnosis.getWenConclusion() != null) {
             Map<String, Object> wenQuestionnaire = new LinkedHashMap<>();
             wenQuestionnaire.put("conclusion", diagnosis.getWenConclusion());
+            if (diagnosis.getWenScores() != null) {
+                Object scores = parseJsonOrRaw(diagnosis.getWenScores());
+                if (scores != null) {
+                    wenQuestionnaire.put("scores", scores);
+                }
+            }
+            Object profile = buildQuestionnaireProfile(diagnosis.getWenScores());
+            if (profile != null) {
+                wenQuestionnaire.put("constitutionProfile", profile);
+            }
             info.put("wen_questionnaire", wenQuestionnaire);
         }
 
@@ -593,6 +630,9 @@ public class ReportController {
             qie.put("validRate", diagnosis.getQieValidRate());
             qie.put("sampleCount", diagnosis.getQieSampleCount());
             qie.put("tcmSuggestion", diagnosis.getQieTcmSuggestion());
+            qie.put("qualityLevel", determineQieQualityLevel(diagnosis.getQieValidRate(), diagnosis.getQieSampleCount()));
+            qie.put("heartRateBand", determineHeartRateBand(diagnosis.getQieHeartRate()));
+            qie.put("spo2Band", determineSpo2Band(diagnosis.getQieSpo2()));
             info.put("qie", qie);
         }
 
@@ -733,5 +773,200 @@ public class ReportController {
             return "****";
         }
         return idCard.substring(0, 3) + "****" + idCard.substring(idCard.length() - 4);
+    }
+
+    private Object parseJsonOrRaw(String raw) {
+        if (raw == null || raw.trim().isEmpty()) {
+            return null;
+        }
+        try {
+            return JSON.parse(raw);
+        } catch (Exception e) {
+            return raw;
+        }
+    }
+
+    private Object buildQuestionnaireProfile(String scoresRaw) {
+        Object parsed = parseJsonOrRaw(scoresRaw);
+        if (!(parsed instanceof JSONObject)) {
+            return null;
+        }
+
+        JSONObject scores = (JSONObject) parsed;
+        List<Map<String, Object>> ranking = new ArrayList<>();
+        for (String key : scores.keySet()) {
+            Object value = scores.get(key);
+            if (!(value instanceof Number)) {
+                continue;
+            }
+            Map<String, Object> row = new LinkedHashMap<>();
+            row.put("code", key);
+            row.put("name", constitutionCodeToName(key));
+            row.put("score", ((Number) value).doubleValue());
+            ranking.add(row);
+        }
+
+        ranking.sort((a, b) -> Double.compare((Double) b.get("score"), (Double) a.get("score")));
+        if (ranking.size() > 3) {
+            ranking = new ArrayList<>(ranking.subList(0, 3));
+        }
+
+        Map<String, Object> profile = new LinkedHashMap<>();
+        profile.put("topConstitutions", ranking);
+        return profile;
+    }
+
+    private Map<String, Object> buildLlmContext() {
+        Map<String, Object> context = new LinkedHashMap<>();
+        context.put("version", "llm_context_v1");
+        context.put("fieldGlossary", buildFieldGlossary());
+        context.put("algorithmNotes", buildAlgorithmNotes());
+        context.put("diagnosisRules", buildDiagnosisRules());
+        return context;
+    }
+
+    private Map<String, Object> buildFieldGlossary() {
+        Map<String, Object> glossary = new LinkedHashMap<>();
+
+        Map<String, Object> wang = new LinkedHashMap<>();
+        wang.put("result", "望诊算法输出的主结论文本，属于算法结论层。可用于提炼舌象证据。");
+        wang.put("tongueMetrics", "舌像结构化维度，0-100 分。推荐按 mean 解释强度：0-30 低，30-70 中，70-100 高。std 表示波动/不确定性。");
+        glossary.put("wang", wang);
+
+        Map<String, Object> wenAudio = new LinkedHashMap<>();
+        wenAudio.put("conclusion", "闻诊算法主结论文本，属于算法结论层。");
+        wenAudio.put("confidence", "闻诊模型置信度，0-1，越高越可信。");
+        wenAudio.put("tags", "闻诊体质/证候标签集合，供辨证映射参考。");
+        wenAudio.put("features", "音频特征摘要，属于信号层，不等同于诊断结论。");
+        glossary.put("wen_audio", wenAudio);
+
+        Map<String, Object> wenQuestionnaire = new LinkedHashMap<>();
+        wenQuestionnaire.put("conclusion", "问卷算法主结论文本。");
+        wenQuestionnaire.put("scores", "各体质原始得分，分值越高表示该体质倾向越明显。");
+        wenQuestionnaire.put("constitutionProfile", "体质排名摘要，topConstitutions 为高分体质 Top 列表。");
+        glossary.put("wen_questionnaire", wenQuestionnaire);
+
+        Map<String, Object> qie = new LinkedHashMap<>();
+        qie.put("heartRate", "心率（bpm）。");
+        qie.put("spo2", "血氧饱和度（%）。");
+        qie.put("validRate", "有效采样率（%），反映采集质量。");
+        qie.put("sampleCount", "采样点数量，数量越高一般稳定性越好。");
+        qie.put("qualityLevel", "切诊质量等级（高/中/低），由 validRate 与 sampleCount 共同推断。");
+        qie.put("heartRateBand", "心率分段标签（偏低/正常/偏高等）。");
+        qie.put("spo2Band", "血氧分段标签（偏低/临界/正常）。");
+        qie.put("tcmSuggestion", "切诊算法建议文本，可作为调理建议参考但需与其他板块交叉验证。");
+        glossary.put("qie", qie);
+
+        return glossary;
+    }
+
+    private Map<String, Object> buildAlgorithmNotes() {
+        Map<String, Object> notes = new LinkedHashMap<>();
+
+        Map<String, Object> wang = new LinkedHashMap<>();
+        wang.put("name", "舌像结构化评估");
+        wang.put("inputs", "舌面图像");
+        wang.put("outputs", "result + tongueMetrics");
+        wang.put("interpretation", "tongueMetrics 为规则映射后的结构化指标，适合做证据链，不可单独替代临床诊断。");
+        notes.put("wang", wang);
+
+        Map<String, Object> wenAudio = new LinkedHashMap<>();
+        wenAudio.put("name", "音频特征融合评估");
+        wenAudio.put("inputs", "语音片段");
+        wenAudio.put("outputs", "conclusion + confidence + tags + features");
+        wenAudio.put("interpretation", "features 为声学测量值，conclusion/tags 为模型解释层。需避免把单一声学指标直接等价为证型。");
+        notes.put("wen_audio", wenAudio);
+
+        Map<String, Object> wenQuestionnaire = new LinkedHashMap<>();
+        wenQuestionnaire.put("name", "体质问卷评分");
+        wenQuestionnaire.put("inputs", "问卷答案");
+        wenQuestionnaire.put("outputs", "scores + conclusion + constitutionProfile");
+        wenQuestionnaire.put("interpretation", "scores 反映倾向强弱，需结合望闻切共同判断。");
+        notes.put("wen_questionnaire", wenQuestionnaire);
+
+        Map<String, Object> qie = new LinkedHashMap<>();
+        qie.put("name", "脉搏采样统计评估");
+        qie.put("inputs", "脉搏信号采样");
+        qie.put("outputs", "heartRate/spo2/validRate/sampleCount + band/quality");
+        qie.put("interpretation", "qualityLevel 低时应降低切诊结论置信度，并给出复测建议。");
+        notes.put("qie", qie);
+
+        return notes;
+    }
+
+    private List<String> buildDiagnosisRules() {
+        List<String> rules = new ArrayList<>();
+        rules.add("区分三层信息：事实数据层、算法结论层、中医推断层。");
+        rules.add("优先使用 fieldGlossary 理解字段，不得臆造字段含义。");
+        rules.add("当 confidence 较低或 qualityLevel=低 时，必须降低结论强度并建议补采。");
+        rules.add("侧重板块可加长分析，但不得忽略其余板块的冲突证据。");
+        return rules;
+    }
+
+    private String constitutionCodeToName(String code) {
+        if (code == null) {
+            return "未知";
+        }
+        switch (code.toLowerCase()) {
+            case "ph":
+                return "平和质";
+            case "qx":
+                return "气虚质";
+            case "xy":
+                return "血瘀质";
+            case "yx0":
+                return "阴虚质";
+            case "yx1":
+                return "阳虚质";
+            case "ts":
+                return "痰湿质";
+            case "sr":
+                return "湿热质";
+            case "qy":
+                return "气郁质";
+            case "tb":
+                return "特禀质";
+            default:
+                return code;
+        }
+    }
+
+    private String determineQieQualityLevel(Double validRate, Integer sampleCount) {
+        if (validRate == null) {
+            return "未知";
+        }
+        if (validRate >= 85 && sampleCount != null && sampleCount >= 80) {
+            return "高";
+        }
+        if (validRate >= 70) {
+            return "中";
+        }
+        return "低";
+    }
+
+    private String determineHeartRateBand(Double heartRate) {
+        if (heartRate == null) {
+            return "未知";
+        }
+        if (heartRate < 60) {
+            return "偏慢";
+        }
+        if (heartRate <= 100) {
+            return "正常范围";
+        }
+        return "偏快";
+    }
+
+    private String determineSpo2Band(Double spo2) {
+        if (spo2 == null) {
+            return "未知";
+        }
+        if (spo2 >= 95) {
+            return "正常范围";
+        }
+        if (spo2 >= 90) {
+            return "轻度下降";
+        }
+        return "偏低";
     }
 }

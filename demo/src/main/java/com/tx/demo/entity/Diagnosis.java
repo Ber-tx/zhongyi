@@ -24,6 +24,7 @@ public class Diagnosis {
     // --- 望诊字段 ---
     private String wangResult;
     private String wangImageUrl;   // 存放图片路径或 Base64
+    private String wangTongueMetrics; // 舌象结构化维度(JSON)
 
     // --- 切诊字段 ---
     private Double qieHeartRate;

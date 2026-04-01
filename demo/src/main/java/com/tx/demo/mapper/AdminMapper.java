@@ -53,6 +53,7 @@ public interface AdminMapper {
 
     @Select("SELECT d.id, d.patient_id as patientId, d.create_time as createTime, d.status, " +
             "d.wang_result as wangResult, " +
+            "d.wang_tongue_metrics as wangTongueMetrics, " +
             "d.wen_conclusion as wenConclusion, " +
             "d.wen_audio_conclusion as wenAudioConclusion, " +
             "d.qie_heart_rate as qieHeartRate, d.qie_spo2 as qieSpo2, " +

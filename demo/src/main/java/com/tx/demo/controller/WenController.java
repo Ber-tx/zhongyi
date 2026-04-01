@@ -20,6 +20,10 @@ import org.springframework.web.multipart.MultipartFile;
 
 import java.io.File;
 import java.io.IOException;
+import java.math.BigDecimal;
+import java.math.RoundingMode;
+import java.util.LinkedHashMap;
+import java.util.Map;
 import java.time.LocalDateTime;
 import java.util.UUID;
 
@@ -113,8 +117,7 @@ public class WenController {
                 Double confidence     = data.getDouble("confidence");
                 String tags           = data.getJSONArray("constitution_tags") != null
                         ? data.getJSONArray("constitution_tags").toJSONString() : null;
-                String features       = data.getJSONObject("features") != null
-                        ? data.getJSONObject("features").toJSONString() : null;
+                String features       = compactAudioFeatures(data.getJSONObject("features"));
                 String localPath      = destFile.getAbsolutePath();
 
                 System.out.println("==== [闻诊] 分析结果: " + mainFinding + "，置信度: " + confidence);
@@ -168,5 +171,66 @@ public class WenController {
             e.printStackTrace();
             return Result.error("算法服务访问失败，请检查 Python 后端状态");
         }
+    }
+
+    /**
+     * 将完整音频特征压缩为可解释且短小的摘要，避免数据库存储过长JSON。
+     */
+    private String compactAudioFeatures(JSONObject raw) {
+        if (raw == null || raw.isEmpty()) {
+            return null;
+        }
+
+        Map<String, Object> compact = new LinkedHashMap<>();
+        compact.put("schema", "audio_features_v2_compact");
+
+        // 一阶核心声学指标
+        putRounded(compact, "duration", raw.getDouble("duration"), 2);
+        putRounded(compact, "rmsEnergy", raw.getDouble("rms_energy"), 4);
+        putRounded(compact, "voicedRatio", raw.getDouble("voiced_ratio"), 4);
+        putRounded(compact, "f0Mean", raw.getDouble("f0_mean"), 2);
+        putRounded(compact, "f0Std", raw.getDouble("f0_std"), 2);
+        putRounded(compact, "jitter", raw.getDouble("jitter"), 4);
+        putRounded(compact, "shimmer", raw.getDouble("shimmer"), 4);
+        putRounded(compact, "hnr", raw.getDouble("hnr"), 2);
+
+        // 频谱兜底特征（当MFCC不可用时仍保留信息）
+        putRounded(compact, "lowFreqRatio", raw.getDouble("low_freq_ratio"), 4);
+        putRounded(compact, "midFreqRatio", raw.getDouble("mid_freq_ratio"), 4);
+        putRounded(compact, "highFreqRatio", raw.getDouble("high_freq_ratio"), 4);
+
+        // MFCC从26维压缩为3组统计，保留趋势但显著缩短长度
+        putRounded(compact, "mfccMeanLow", avg(raw, "mfcc_mean_1", "mfcc_mean_2", "mfcc_mean_3", "mfcc_mean_4"), 3);
+        putRounded(compact, "mfccMeanMid", avg(raw, "mfcc_mean_5", "mfcc_mean_6", "mfcc_mean_7", "mfcc_mean_8", "mfcc_mean_9"), 3);
+        putRounded(compact, "mfccMeanHigh", avg(raw, "mfcc_mean_10", "mfcc_mean_11", "mfcc_mean_12", "mfcc_mean_13"), 3);
+        putRounded(compact, "mfccStdLow", avg(raw, "mfcc_std_1", "mfcc_std_2", "mfcc_std_3", "mfcc_std_4"), 3);
+        putRounded(compact, "mfccStdMid", avg(raw, "mfcc_std_5", "mfcc_std_6", "mfcc_std_7", "mfcc_std_8", "mfcc_std_9"), 3);
+        putRounded(compact, "mfccStdHigh", avg(raw, "mfcc_std_10", "mfcc_std_11", "mfcc_std_12", "mfcc_std_13"), 3);
+
+        return JSON.toJSONString(compact);
+    }
+
+    private Double avg(JSONObject src, String... keys) {
+        double sum = 0;
+        int count = 0;
+        for (String key : keys) {
+            Double value = src.getDouble(key);
+            if (value != null) {
+                sum += value;
+                count++;
+            }
+        }
+        if (count == 0) {
+            return null;
+        }
+        return sum / count;
+    }
+
+    private void putRounded(Map<String, Object> target, String key, Double value, int scale) {
+        if (value == null || value.isNaN() || value.isInfinite()) {
+            return;
+        }
+        BigDecimal rounded = BigDecimal.valueOf(value).setScale(scale, RoundingMode.HALF_UP);
+        target.put(key, rounded.doubleValue());
     }
 }

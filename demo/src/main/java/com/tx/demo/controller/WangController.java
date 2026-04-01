@@ -116,6 +116,7 @@ public class WangController {
                 JSONObject scores = data.getJSONObject("scores");
                 String mainResult = data.getString("main_result");//要存入的数据
                 String localPath=destFile.getAbsolutePath();
+                String tongueMetricsJson = scores != null ? scores.toJSONString() : null;
                 // 【业务拦截】如果识别结果无效，不写入数据库，方便用户重测
                 if (mainResult.contains("未检测到") || mainResult.contains("不佳")) {
                     System.out.println("==== [DEBUG] AI 识别无效，拦截入库操作 ====");
@@ -140,6 +141,7 @@ public class WangController {
                     System.out.println("==== [合并数据] 正在将望诊结果更新至已有记录 ID: " + record.getId());
                     record.setWangResult(mainResult);
                     record.setWangImageUrl(localPath);
+                    record.setWangTongueMetrics(tongueMetricsJson);
                     diagnosisMapper.updateWang(record);
                 } else {
                     // 【第二步：情况B】完全没记录（说明望诊是第一个开始的），新建一行
@@ -148,6 +150,7 @@ public class WangController {
                     newOne.setPatientId(patient.getId());
                     newOne.setWangResult(mainResult);
                     newOne.setWangImageUrl(localPath);
+                    newOne.setWangTongueMetrics(tongueMetricsJson);
                     newOne.setCreateTime(LocalDateTime.now());
                     newOne.setStatus(0); // 0表示进行中，等所有板块齐了可以设为1
                     diagnosisMapper.insert(newOne);

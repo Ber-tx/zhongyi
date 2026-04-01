@@ -11,12 +11,12 @@ function getPromptSettings() {
     const settings = JSON.parse(localStorage.getItem('report_settings') || '{}');
     return {
       customPromptTemplate: settings.llmPromptTemplate || undefined,
-      focusMode: settings.llmFocusMode || 'balanced',
+      focusMode: settings.llmFocusMode || undefined,
     };
   } catch (e) {
     return {
       customPromptTemplate: undefined,
-      focusMode: 'balanced',
+      focusMode: undefined,
     };
   }
 }

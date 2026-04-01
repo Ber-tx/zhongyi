@@ -24,11 +24,11 @@ public interface DiagnosisMapper {
      */
     @Insert("INSERT INTO diagnosis(patient_id, status, create_time, " +
             "wen_scores, wen_conclusion, wen_audio_conclusion, wen_audio_features, wen_audio_confidence, wen_audio_tags,wen_audio_url, " +
-            "wang_result, wang_image_url, " +
+            "wang_result, wang_image_url, wang_tongue_metrics, " +
             "qie_heart_rate, qie_spo2, qie_valid_rate, qie_sample_count, qie_tcm_suggestion) " +
             "VALUES(#{patientId}, 0, NOW(), " +
             "#{wenScores}, #{wenConclusion}, #{wenAudioConclusion}, #{wenAudioFeatures}, #{wenAudioConfidence}, #{wenAudioTags},#{wenAudioUrl}, " +
-            "#{wangResult}, #{wangImageUrl}, " +
+            "#{wangResult}, #{wangImageUrl}, #{wangTongueMetrics}, " +
             "#{qieHeartRate}, #{qieSpo2}, #{qieValidRate}, #{qieSampleCount}, #{qieTcmSuggestion})")
     @Options(useGeneratedKeys = true, keyProperty = "id")
     int insert(Diagnosis diagnosis);
@@ -36,7 +36,7 @@ public interface DiagnosisMapper {
     /**
      * 望诊更新
      */
-    @Update("UPDATE diagnosis SET wang_result = #{wangResult}, wang_image_url = #{wangImageUrl} WHERE id = #{id}")
+        @Update("UPDATE diagnosis SET wang_result = #{wangResult}, wang_image_url = #{wangImageUrl}, wang_tongue_metrics = #{wangTongueMetrics} WHERE id = #{id}")
     int updateWang(Diagnosis diagnosis);
 
     /**

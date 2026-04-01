@@ -38,16 +38,22 @@ class Visualizer:
         if not isinstance(scores_dict, dict) or len(scores_dict) == 0:
             raise ValueError('scores_dict must be a non-empty dict')
 
-        # 预设维度（顺序固定）和次级描述
-        dims = [
-            ("气血状态", "舌质颜色/饱和度"),
-            ("体液滋润度", "表面反光率/干燥度"),
-            ("湿浊程度", "舌苔厚度/腐腻感"),
-            ("脾胃状态", "舌体轮廓/齿痕算法"),
-            ("血脉通畅度", "斑点/脉络/紫色分量"),
-            ("外邪影响", "苔色/色温偏向")
-        ]
-        labels = [d[0] for d in dims]
+        # 动态维度：优先使用传入键名，避免键名升级后出现全 0 渲染
+        detail_map = {
+            "舌色偏红指数": "舌色红绛/热象倾向",
+            "舌色偏淡指数": "舌色淡白/虚寒倾向",
+            "苔色黄腻指数": "黄腻苔/湿热痰浊",
+            "瘀血征象指数": "紫暗斑点/瘀阻倾向",
+            "津液亏虚指数": "干燥少津/阴液不足",
+            "气血状态": "舌质颜色/饱和度",
+            "体液滋润度": "表面反光率/干燥度",
+            "湿浊程度": "舌苔厚度/腐腻感",
+            "脾胃状态": "舌体轮廓/齿痕算法",
+            "血脉通畅度": "斑点/脉络/紫色分量",
+            "外邪影响": "苔色/色温偏向"
+        }
+        labels = list(scores_dict.keys())
+        dims = [(lab, detail_map.get(lab, "结构化指标")) for lab in labels]
 
         means = []
         stds = []
@@ -120,7 +126,7 @@ class Visualizer:
             ax.grid(ls='-', lw=1.2, color='#666666', alpha=0.4)
 
             # 增大：总标题字号
-            ax.set_title('中医体质多维分析图谱', y=1.12, fontproperties=prop, fontsize=24, fontweight='bold')
+            ax.set_title('舌像结构化多维分析图谱', y=1.12, fontproperties=prop, fontsize=24, fontweight='bold')
 
             if annotate:
                 for angle, m, s in zip(angles, means, stds):

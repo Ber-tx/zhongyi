@@ -445,22 +445,27 @@ class SoundAnalyzer:
         constitution = max(scores, key=scores.get)
         top_score    = scores[constitution]
 
-        # ------ 置信度计算（基于分数差异，避免链式惩罚） ------ #
+        # ------ 置信度计算（基于分数差异 + 质量校准） ------ #
         sorted_scores = sorted(scores.values(), reverse=True)
         margin = sorted_scores[0] - sorted_scores[1]  # 第一名与第二名的差距
-        base_confidence = 0.45 + min(0.45, margin * 1.5)
+        # 提升基础置信度，避免规则系统在中等信号下普遍偏低
+        base_confidence = 0.55 + min(0.35, margin * 1.25)
 
-        # 仅根据数据质量做一次性调整，不链式惩罚
+        # 数据质量惩罚：保留趋势但降低惩罚强度
         if rms < 0.03:
-            base_confidence -= 0.10   # 音量太小，降低置信度
+            base_confidence -= 0.06   # 音量太小，降低置信度
         if features.get('duration', 0) < 1.5:
-            base_confidence -= 0.08   # 时长过短
+            base_confidence -= 0.04   # 时长过短
         if using_fallback:
-            base_confidence -= 0.08   # 降级模式
+            base_confidence -= 0.06   # 降级模式
         if jitter == 0.0 and shimmer == 0.0:
-            base_confidence -= 0.05   # 缺少Praat特征
+            base_confidence -= 0.03   # 缺少Praat特征
 
-        confidence = float(np.clip(base_confidence, 0.35, 0.92))
+        # 高质量录音小幅加分
+        if features.get('duration', 0) >= 3.0 and rms >= 0.05 and not using_fallback:
+            base_confidence += 0.04
+
+        confidence = float(np.clip(base_confidence, 0.45, 0.95))
 
         # ------ 填写标签与说明 ------ #
         diagnosis['constitution'] = constitution

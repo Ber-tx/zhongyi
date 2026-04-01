@@ -446,7 +446,7 @@ const generateReport = async (patientId, caseId = null) => {
     const idCard = localStorage.getItem("current_patient_idCard") || "";
     const completedTypes = getCompletedTypes();
     const promptTemplate = reportSettings.value?.llmPromptTemplate || "";
-    const focusMode = reportSettings.value?.llmFocusMode || "balanced";
+    const focusMode = reportSettings.value?.llmFocusMode || "";
 
     // 使用 AbortController 支持取消
     const controller = new AbortController();
@@ -460,7 +460,7 @@ const generateReport = async (patientId, caseId = null) => {
         caseId: caseId || undefined,
         idCard,
         customPromptTemplate: promptTemplate || undefined,
-        focusMode: focusMode || "balanced",
+        focusMode: focusMode || undefined,
         ...(completedTypes ? { completedTypes } : {})
       }),
       signal: controller.signal
