@@ -160,7 +160,65 @@
         <div class="diagnosis-item">
           <h3>问诊（症状问卷）</h3>
           <el-card>
-            <p>{{ reportData.diagnosis.wen_questionnaire ? reportData.diagnosis.wen_questionnaire.conclusion : '暂未进行症状问卷调查，请补充问诊数据。' }}</p>
+            <div v-if="reportData.diagnosis.wen_questionnaire" class="questionnaire-result">
+              <div class="questionnaire-header">
+                <div>
+                  <p class="questionnaire-kicker">专项问诊结论</p>
+                  <h4>{{ reportData.diagnosis.wen_questionnaire.conclusion }}</h4>
+                </div>
+                <el-tag type="success" effect="light">{{ questionnaireAnalysis?.title || '问诊结果' }}</el-tag>
+              </div>
+              <p class="questionnaire-summary">{{ questionnaireAnalysis?.summary }}</p>
+
+              <el-row :gutter="16" class="questionnaire-panels">
+                <el-col :span="12" :xs="24">
+                  <div class="questionnaire-panel">
+                    <strong>饮食建议</strong>
+                    <ul>
+                      <li v-for="item in questionnaireAnalysis?.diet || []" :key="item">{{ item }}</li>
+                    </ul>
+                  </div>
+                </el-col>
+                <el-col :span="12" :xs="24">
+                  <div class="questionnaire-panel danger">
+                    <strong>禁忌提醒</strong>
+                    <ul>
+                      <li v-for="item in questionnaireAnalysis?.avoid || []" :key="item">{{ item }}</li>
+                    </ul>
+                  </div>
+                </el-col>
+              </el-row>
+
+              <div class="questionnaire-panel">
+                <strong>后续建议</strong>
+                <ul>
+                  <li v-for="item in questionnaireAnalysis?.suggestions || []" :key="item">{{ item }}</li>
+                </ul>
+              </div>
+
+              <div class="questionnaire-panel" v-if="questionnaireAnalysis?.constitutionScores?.length">
+                <strong>体质量化结果</strong>
+                <p class="questionnaire-score-rule">{{ questionnaireAnalysis?.scoringRule }}</p>
+                <ul>
+                  <li v-for="item in questionnaireAnalysis?.constitutionScores || []" :key="item.name">
+                    {{ item.name }}：{{ item.score }}分（{{ item.level }}）
+                  </li>
+                </ul>
+              </div>
+
+              <div class="questionnaire-panel" v-if="questionnaireAnalysis?.candidateConstitutions?.length">
+                <strong>候选体质参考</strong>
+                <ul>
+                  <li v-for="item in questionnaireAnalysis?.candidateConstitutions.slice(0, 3) || []" :key="item.name">
+                    {{ item.name }}：{{ item.score }}分（{{ item.level }}）
+                  </li>
+                </ul>
+                <p v-if="questionnaireAnalysis?.thirdConstitution" class="questionnaire-score-rule">
+                  第三参考：{{ questionnaireAnalysis.thirdConstitution.name }} {{ questionnaireAnalysis.thirdConstitution.score }}分
+                </p>
+              </div>
+            </div>
+            <div v-else>暂未进行症状问卷调查，请补充问诊数据。</div>
           </el-card>
         </div>
 
@@ -226,6 +284,7 @@ import { ElMessage } from "element-plus";
 import axios from "axios";
 import html2pdf from "html2pdf.js";
 import { marked } from "marked";
+import { getConstitutionAdvice } from '@/utils/reportUtils';
 
 const router = useRouter();
 const route = useRoute();
@@ -268,6 +327,17 @@ const idCardFullImageSrc = computed(() => {
 });
 
 const idCardDisplaySrc = computed(() => idCardFullImageSrc.value || idCardPhotoSrc.value);
+
+const questionnaireAnalysis = computed(() => {
+  const diagnosis = reportData.value?.diagnosis?.wen_questionnaire;
+  if (!diagnosis) return null;
+  const scores = diagnosis.scores || {};
+  if (scores && typeof scores === 'object' && scores.templateResult) {
+    return scores.templateResult;
+  }
+  return getConstitutionAdvice(diagnosis.conclusion || '', scores || {});
+});
+
 
 const calculateCompletion = () => {
   if (!reportData.value || !reportData.value.diagnosis) {
@@ -684,6 +754,49 @@ ${reportRef.value.outerHTML}
 .tag { margin: 5px 5px 5px 0; }
 .unit { color: #999; font-size: 14px; margin-left: 5px; }
 .tcm-suggestion { margin-top: 15px; padding-top: 15px; border-top: 1px solid #eee; }
+.questionnaire-result { display: flex; flex-direction: column; gap: 14px; }
+.questionnaire-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  gap: 12px;
+}
+.questionnaire-kicker {
+  margin: 0 0 6px;
+  font-size: 12px;
+  color: #9a7040;
+  letter-spacing: 1px;
+}
+.questionnaire-header h4 { margin: 0; color: #5a2d00; font-size: 18px; }
+.questionnaire-summary { margin: 0; color: #4a3020; line-height: 1.8; }
+.questionnaire-panels { margin-top: 2px; }
+.questionnaire-panel {
+  padding: 14px;
+  border-radius: 10px;
+  border: 1px solid rgba(232, 213, 160, 0.95);
+  background: #fffdf7;
+}
+.questionnaire-panel.danger {
+  background: #fff7f4;
+  border-color: rgba(192, 57, 43, 0.22);
+}
+.questionnaire-panel strong {
+  display: inline-block;
+  margin-bottom: 10px;
+  color: #5a2d00;
+}
+.questionnaire-panel ul {
+  margin: 0;
+  padding-left: 18px;
+  color: #4a3020;
+  line-height: 1.7;
+}
+.questionnaire-score-rule {
+  margin: 0 0 8px;
+  color: #725130;
+  line-height: 1.6;
+}
+.questionnaire-panel li { margin: 6px 0; }
 .synthesis-content { line-height: 1.8; color: #333; font-size: 14px; }
 .synthesis-content :deep(h3) { color: #5a2d00; margin-top: 15px; margin-bottom: 10px; }
 .synthesis-content :deep(ul), .synthesis-content :deep(ol) { margin: 10px 0; padding-left: 20px; }
@@ -814,6 +927,7 @@ ${reportRef.value.outerHTML}
   .header { flex-direction: column; gap: 10px; }
   .header h1 { font-size: 18px; margin: 10px 0; }
   .report-section { padding: 20px; }
+  .questionnaire-header { flex-direction: column; }
   .loading-body { padding: 28px 20px 32px; }
   .steps { gap: 10px; }
   .step-icon { width: 44px; height: 44px; border-radius: 13px; }

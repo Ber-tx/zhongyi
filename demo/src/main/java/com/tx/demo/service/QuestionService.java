@@ -12,6 +12,6 @@ public interface QuestionService {
      * @return 包含主体质和各项分数的 Map
      */
 
-
-    Result calculateConstitution(List<Integer> answers, Long patientId, Long diagnosisId);
+    Result calculateConstitution(List<Integer> answers, Long patientId, Long diagnosisId,
+                                 String templateCode, String templateTitle, Map<String, Object> templateResult);
 }

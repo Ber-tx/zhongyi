@@ -2,6 +2,7 @@ package com.tx.demo.entity;
 
 import lombok.Data;
 import java.util.List;
+import java.util.Map;
 
 @Data
 public class Answer {
@@ -10,4 +11,7 @@ public class Answer {
     private Double bmi;
     private Long patientId;
     private Long diagnosisId;
+    private String templateCode;
+    private String templateTitle;
+    private Map<String, Object> templateResult;
 }

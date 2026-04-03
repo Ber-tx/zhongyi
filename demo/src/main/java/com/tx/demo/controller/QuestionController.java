@@ -41,12 +41,26 @@ public class QuestionController {
             return Result.error("无法关联病人！请检查是否已录入信息或身份证号是否传递。");
         }
 
-        // 校验问卷完整性
-        if (request.getAnswers() == null || request.getAnswers().size() < 33) {
+        String templateCode = request.getTemplateCode() == null || request.getTemplateCode().trim().isEmpty()
+                ? "original"
+                : request.getTemplateCode().trim();
+
+        // 校验问卷完整性：原始版本仍要求 33 题，专项模板允许按各自题数提交
+        if (request.getAnswers() == null || request.getAnswers().isEmpty()) {
             return Result.error("问卷数据不完整，请重新检查！");
+        }
+        if ("original".equalsIgnoreCase(templateCode) && request.getAnswers().size() < 33) {
+            return Result.error("原始问卷数据不完整，请重新检查！");
         }
 
         // 调用业务层：传入真实的 realId
-        return questionService.calculateConstitution(request.getAnswers(), realId, request.getDiagnosisId());
+        return questionService.calculateConstitution(
+                request.getAnswers(),
+                realId,
+                request.getDiagnosisId(),
+                templateCode,
+                request.getTemplateTitle(),
+                request.getTemplateResult()
+        );
     }
 }

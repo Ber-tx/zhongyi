@@ -3,13 +3,51 @@
     <div class="ink-bg"><div class="blob"></div></div>
     <div class="paper-texture"></div>
 
-    <div class="main-content" v-if="!isDone">
+    <div class="template-select-panel" v-if="!questionnaireStarted && !isDone">
+      <div class="template-select-card">
+        <div class="tcm-seal">模板选择</div>
+        <h2 class="template-title">先选择问诊人群 / 场景</h2>
+        <p class="template-desc">原始 33 题保留读题音频；专项模板仅保留文字题目，适合不同人群的问诊路径。</p>
+
+        <div class="template-grid">
+          <div
+            v-for="item in templateCards"
+            :key="item.code"
+            class="template-item"
+            :class="{ 'is-active': selectedTemplateCode === item.code }"
+            @click="selectTemplate(item.code)"
+          >
+            <div class="template-item-head">
+              <div>
+                <h3>{{ item.title }}</h3>
+                <p>{{ item.subtitle }}</p>
+              </div>
+              <el-tag effect="light" :type="item.audioEnabled ? 'success' : 'warning'">
+                {{ item.audioEnabled ? '含读题音频' : '仅文字问诊' }}
+              </el-tag>
+            </div>
+            <div class="template-meta">
+              <span>{{ item.questionCount }} 题</span>
+              <span>{{ item.badge }}</span>
+            </div>
+          </div>
+        </div>
+
+        <div class="template-actions">
+          <el-button type="primary" size="large" round @click="startQuestionnaire">开始问诊</el-button>
+          <el-button size="large" round plain @click="backToCenter">返回诊断中心</el-button>
+        </div>
+      </div>
+    </div>
+
+    <div class="main-content" v-else-if="!isDone">
       <div class="quiz-card">
         <div class="tcm-seal">问诊采集</div>
         
         <div class="header-nav">
           <div class="progress-info">
-            <span class="count">第 <b>{{ currentIndex + 1 }}</b> / 33 题</span>
+            <span class="count">第 <b>{{ currentIndex + 1 }}</b> / {{ questionCount }} 题</span>
+            <span class="template-badge">{{ activeTemplate.title }}</span>
             <el-progress :percentage="progress" :stroke-width="8" color="#5d665a" :show-text="false" />
           </div>
         </div>
@@ -22,7 +60,7 @@
               <span class="remark-text" v-if="currentQuestion.remark">（{{ currentQuestion.remark }}）</span>
             </h2>
 
-            <div v-if="currentIndex === 8" class="bmi-input-area">
+            <div v-if="currentQuestion.kind === 'bmi'" class="bmi-input-area">
               <div class="bmi-form">
                 <div class="bmi-row">
                   <span class="label">身高:</span>
@@ -43,14 +81,14 @@
 
             <div class="options-grid" v-else>
               <div 
-                v-for="(label, idx) in currentOptions" 
+                v-for="(option, idx) in currentOptionItems" 
                 :key="idx"
                 class="option-box"
-                :class="{ 'is-active': answers[currentIndex] === (idx + 1) }"
-                @click="handleSelect(idx + 1)"
+                :class="{ 'is-active': answers[currentIndex] === option.value }"
+                @click="handleSelect(option.value)"
               >
                 <div class="opt-indicator">{{ String.fromCharCode(65 + idx) }}</div>
-                <div class="opt-text">{{ label }}</div>
+                <div class="opt-text">{{ option.label }}</div>
               </div>
             </div>
           </div>
@@ -60,8 +98,8 @@
           <el-button @click="goPrev" :disabled="currentIndex === 0" round size="large">上一题</el-button>
           
           <div class="action-group">
-            <el-button v-if="currentIndex === 8" type="primary" round size="large" @click="handleBMIFinish">确认并继续</el-button>
-            <el-button v-else-if="currentIndex === 32" type="success" round size="large" @click="handleFinish" :loading="submitting" :disabled="!answers[currentIndex]">
+            <el-button v-if="currentQuestion.kind === 'bmi'" type="primary" round size="large" @click="handleBMIFinish">确认并继续</el-button>
+            <el-button v-else-if="isLastQuestion" type="success" round size="large" @click="handleFinish" :loading="submitting" :disabled="!answers[currentIndex]">
               提交并完成采集
             </el-button>
             <el-button v-else round size="large" @click="goNext" :disabled="!answers[currentIndex]">下一题</el-button>
@@ -76,10 +114,82 @@
           <el-icon class="done-icon"><CircleCheckFilled /></el-icon>
         </div>
         <h2>问诊数据采集完成</h2>
-        <p class="desc">您的 33 项问诊指标已成功同步至诊断系统。</p>
+        <p class="desc">{{ finishDescription }}</p>
+
+        <div class="result-card">
+          <div class="result-header">
+            <div>
+              <p class="result-kicker">问诊结论</p>
+              <h3>{{ resultAdvice.title }}</h3>
+            </div>
+            <el-tag type="success" effect="light">{{ resultTag }}</el-tag>
+          </div>
+
+          <p class="result-summary">{{ resultAdvice.summary }}</p>
+
+          <div class="result-grid">
+            <div class="result-block">
+              <h4>饮食建议</h4>
+              <ul>
+                <li v-for="item in resultAdvice.diet" :key="item">{{ item }}</li>
+              </ul>
+            </div>
+            <div class="result-block danger">
+              <h4>禁忌提醒</h4>
+              <ul>
+                <li v-for="item in resultAdvice.avoid" :key="item">{{ item }}</li>
+              </ul>
+            </div>
+          </div>
+
+          <div class="result-block">
+            <h4>后续建议</h4>
+            <ul>
+              <li v-for="item in resultAdvice.suggestions" :key="item">{{ item }}</li>
+            </ul>
+          </div>
+
+          <div class="result-grid" v-if="resultAdvice.music?.length || resultAdvice.behavior?.length">
+            <div class="result-block" v-if="resultAdvice.music?.length">
+              <h4>音乐养生</h4>
+              <ul>
+                <li v-for="item in resultAdvice.music" :key="item">{{ item }}</li>
+              </ul>
+            </div>
+            <div class="result-block danger" v-if="resultAdvice.behavior?.length">
+              <h4>行为养生</h4>
+              <ul>
+                <li v-for="item in resultAdvice.behavior" :key="item">{{ item }}</li>
+              </ul>
+            </div>
+          </div>
+
+          <div class="result-block" v-if="resultAdvice.constitutionScores?.length">
+            <h4>体质量化结果</h4>
+            <p class="score-rule">{{ resultAdvice.scoringRule }}</p>
+            <ul>
+              <li v-for="item in resultAdvice.constitutionScores" :key="item.name">
+                {{ item.name }}：{{ item.score }}分（{{ item.level }}）
+              </li>
+            </ul>
+          </div>
+
+          <div class="result-block" v-if="resultAdvice.candidateConstitutions?.length">
+            <h4>候选体质参考</h4>
+            <ul>
+              <li v-for="item in resultAdvice.candidateConstitutions.slice(0, 3)" :key="item.name">
+                {{ item.name }}：{{ item.score }}分（{{ item.level }}）
+              </li>
+            </ul>
+            <p v-if="resultAdvice.thirdConstitution" class="score-rule">
+              第三参考：{{ resultAdvice.thirdConstitution.name }} {{ resultAdvice.thirdConstitution.score }}分
+            </p>
+          </div>
+        </div>
+
         <div class="next-step-box">
-          <p>请返回诊断中心继续完成其他检测项目</p>
-          <small>（例如：面色采集、舌苔检测等）</small>
+          <p>如需继续完成综合诊断，请返回诊断中心继续其他项目</p>
+          <small>（例如：面色采集、舌苔检测、脉搏检测等）</small>
           <el-collapse style="margin-top: 16px;">
             <el-collapse-item title="📖 参考文献与出处" name="1">
               <div class="ref-list">
@@ -113,27 +223,15 @@ import { useRouter, useRoute } from 'vue-router'; // 【修复】必须引入 us
 import { CircleCheckFilled } from '@element-plus/icons-vue';
 import { ElMessage } from 'element-plus'; // 【补充】确保 ElMessage 可用
 import { submitQuestionnaire } from '@/api/detect';
-import { navigateToDiagnosisReport } from '@/utils/reportUtils';
+import { navigateToDiagnosisReport, getConstitutionAdvice } from '@/utils/reportUtils';
 import { algorithmReferences } from '@/constants/algorithmReferences';
+import { SPECIAL_QUESTIONNAIRE_TEMPLATES, buildSpecialQuestionnaireResult, getSpecialQuestionnaireDefaultOptions } from '@/constants/questionnaireTemplates';
 
 const router = useRouter();
 const route = useRoute(); // 【核心修复】初始化 route 对象
 const audio = new Audio();
 
-// 核心状态
-const currentIndex = ref(0);
-const answers = ref(new Array(33).fill(null));
-const isDone = ref(false);
-const submitting = ref(false);
-const wen_qReferences = ref(algorithmReferences.wen_questionnaire.references);
-
-// BMI 逻辑
-const bmiHeight = ref(1.72);
-const bmiWeight = ref(65.0);
-const computedBMI = computed(() => (bmiWeight.value / (bmiHeight.value * bmiHeight.value)).toFixed(1));
-
-// 题目数据（保持不变...）
-const questions = [
+const ORIGINAL_QUESTIONS = [
   { content: "您精力充沛吗?", remark: "指精神头足, 乐于做事" },
   { content: "您容易疲乏吗?", remark: "指体力如何, 动一下就累" },
   { content: "您容易气短吗，呼吸短促, 接不上气", remark: "" },
@@ -142,7 +240,7 @@ const questions = [
   { content: "您容易精神紧张，焦虑不安吗", remark: "指遇事是否容易紧张" },
   { content: "您因为生活状态改变而感到孤独、失落吗?", remark: "" },
   { content: "您容易感到害怕或受到惊吓吗?", remark: "" },
-  { content: "您感到身体超重不轻松吗", remark: "系统将通过身高体重自动计算BMI指数" }, 
+  { content: "您感到身体超重不轻松吗", remark: "系统将通过身高体重自动计算BMI指数", kind: 'bmi' }, 
   { content: "您眼睛干涩吗?", remark: "" },
   { content: "您手脚发凉吗?", remark: "不包含因周围温度改变或穿的少导致的手脚发凉" },
   { content: "您胃脘部，背部，或腰膝部怕冷吗?", remark: "" },
@@ -169,14 +267,149 @@ const questions = [
   { content: "您舌下脉络瘀紫或增粗吗?", remark: "可由调查员观察后填写" }
 ];
 
-const defaultOpts = ["没有(根本不)", "很少(有一点)", "有时(有些)", "经常(相当)", "总是(非常)"];
+const QUESTIONNAIRE_TEMPLATE_MAP = {
+  original: {
+    code: 'original',
+    title: '原始体质问卷',
+    subtitle: '33 题原始版本，保留读题音频',
+    badge: '原始版',
+    audioEnabled: true,
+    questions: ORIGINAL_QUESTIONS,
+    questionCount: ORIGINAL_QUESTIONS.length,
+    buildResult: (answers = [], payload = {}) => ({
+      kind: 'constitution',
+      title: getConstitutionAdvice(payload.mainType || 'ph', payload.scoreMap || {}).title,
+      summary: getConstitutionAdvice(payload.mainType || 'ph', payload.scoreMap || {}).summary,
+      diet: getConstitutionAdvice(payload.mainType || 'ph', payload.scoreMap || {}).diet,
+      avoid: getConstitutionAdvice(payload.mainType || 'ph', payload.scoreMap || {}).avoid,
+      suggestions: getConstitutionAdvice(payload.mainType || 'ph', payload.scoreMap || {}).suggestions,
+      badge: payload.mainType || '平和质',
+    }),
+  },
+  ...SPECIAL_QUESTIONNAIRE_TEMPLATES,
+};
 
-const currentQuestion = computed(() => questions[currentIndex.value]);
-const currentOptions = computed(() => currentQuestion.value.options || defaultOpts);
-const progress = computed(() => Math.round(((currentIndex.value + 1) / 33) * 100));
+// 核心状态
+const selectedTemplateCode = ref('original');
+const questionnaireStarted = ref(false);
+const currentIndex = ref(0);
+const answers = ref([]);
+const isDone = ref(false);
+const submitting = ref(false);
+const wen_qReferences = ref(algorithmReferences.wen_questionnaire.references);
+const resultData = ref({
+  kind: 'constitution',
+  mainType: '',
+  scoreMap: {},
+  diagnosisId: null,
+  templateCode: 'original',
+  templateResult: null,
+  templateTitle: '原始体质问卷',
+});
+
+// BMI 逻辑
+const bmiHeight = ref(1.72);
+const bmiWeight = ref(65.0);
+const computedBMI = computed(() => (bmiWeight.value / (bmiHeight.value * bmiHeight.value)).toFixed(1));
+
+const activeTemplate = computed(() => QUESTIONNAIRE_TEMPLATE_MAP[selectedTemplateCode.value] || QUESTIONNAIRE_TEMPLATE_MAP.original);
+const questions = computed(() => activeTemplate.value.questions || []);
+const questionCount = computed(() => questions.value.length || 0);
+const currentQuestion = computed(() => questions.value[currentIndex.value] || {});
+const currentOptions = computed(() => currentQuestion.value.options || getSpecialQuestionnaireDefaultOptions());
+const currentOptionItems = computed(() =>
+  (currentOptions.value || []).map((item, idx) => {
+    if (typeof item === 'string') {
+      return { label: item, value: idx + 1 };
+    }
+    return {
+      label: item.label,
+      value: Number.isFinite(Number(item.value)) ? Number(item.value) : idx + 1,
+    };
+  })
+);
+const progress = computed(() => questionCount.value ? Math.round(((currentIndex.value + 1) / questionCount.value) * 100) : 0);
+const isLastQuestion = computed(() => currentIndex.value === questionCount.value - 1);
+const resultAdvice = computed(() => {
+  if (resultData.value.templateResult) {
+    return resultData.value.templateResult;
+  }
+  if (resultData.value.kind === 'special') {
+    return buildSpecialQuestionnaireResult(resultData.value.templateCode, answers.value) || {
+      title: resultData.value.templateTitle || '专项问诊结果',
+      summary: '专项问诊已完成，请结合生活方式和线下评估进一步判断。',
+      diet: [],
+      avoid: [],
+      suggestions: [],
+    };
+  }
+  return getConstitutionAdvice(resultData.value.mainType || 'ph', resultData.value.scoreMap || {});
+});
+const resultTag = computed(() => {
+  if (resultData.value.templateCode === 'original') {
+    return resultData.value.mainType || activeTemplate.value.title;
+  }
+  return resultData.value.templateResult?.badge || resultData.value.templateTitle || activeTemplate.value.title;
+});
+const finishDescription = computed(() => {
+  if (resultData.value.templateCode && resultData.value.templateCode !== 'original') {
+    return `您的 ${activeTemplate.value.title} 已完成，系统已生成对应的问诊建议。`;
+  }
+  return '您的 33 项问诊指标已成功同步至诊断系统，系统已生成本次体质判断与调理建议。';
+});
+
+const templateCards = computed(() =>
+  Object.values(QUESTIONNAIRE_TEMPLATE_MAP).map((item) => ({
+    code: item.code,
+    title: item.title,
+    subtitle: item.subtitle,
+    questionCount: item.questionCount || (item.questions ? item.questions.length : 0),
+    audioEnabled: !!item.audioEnabled,
+    badge: item.badge || (item.audioEnabled ? '原始版' : '专项版'),
+  }))
+);
+
+const resetAnswers = (template = activeTemplate.value) => {
+  answers.value = new Array(template.questions.length).fill(null);
+  currentIndex.value = 0;
+  bmiHeight.value = 1.72;
+  bmiWeight.value = 65.0;
+};
+
+const selectTemplate = (code) => {
+  selectedTemplateCode.value = code;
+  isDone.value = false;
+};
+
+const startQuestionnaire = () => {
+  resetAnswers(QUESTIONNAIRE_TEMPLATE_MAP[selectedTemplateCode.value] || QUESTIONNAIRE_TEMPLATE_MAP.original);
+  questionnaireStarted.value = true;
+  isDone.value = false;
+  resultData.value = {
+    kind: selectedTemplateCode.value === 'original' ? 'constitution' : 'special',
+    mainType: '',
+    scoreMap: {},
+    diagnosisId: null,
+    templateCode: selectedTemplateCode.value,
+    templateResult: null,
+    templateTitle: activeTemplate.value.title,
+  };
+  if (activeTemplate.value.audioEnabled) {
+    playAudio();
+  }
+};
+
+const stopAudio = () => {
+  audio.pause();
+  audio.removeAttribute('src');
+};
 
 // 音频播放逻辑
 const playAudio = () => {
+  if (!questionnaireStarted.value || !activeTemplate.value.audioEnabled || currentQuestion.value.kind === 'bmi') {
+    stopAudio();
+    return;
+  }
   audio.pause();
   audio.src = `/src/assets/audio/question/${currentIndex.value + 1}.wav`;
   audio.play().catch(() => {});
@@ -185,7 +418,7 @@ const playAudio = () => {
 // 交互操作
 const handleSelect = (val) => {
   answers.value[currentIndex.value] = val;
-  if (currentIndex.value < 32) {
+  if (!isLastQuestion.value) {
     setTimeout(() => currentIndex.value++, 300);
   }
 };
@@ -232,19 +465,39 @@ const handleFinish = async () => {
     }
 
     // 3. 构造数据
+    const templateCode = selectedTemplateCode.value || 'original';
+    const template = activeTemplate.value;
+    const templateResult = templateCode === 'original'
+      ? null
+      : buildSpecialQuestionnaireResult(templateCode, answers.value);
+
     const postData = {
       answers: answers.value,
       bmi: computedBMI.value,
       idCard: finalIdCard,
       patientId: finalPid,
-      diagnosisId: route.query.caseId || localStorage.getItem('current_case_id')
+      diagnosisId: route.query.caseId || localStorage.getItem('current_case_id'),
+      templateCode,
+      templateTitle: template.title,
+      templateResult,
     };
 
     const res = await submitQuestionnaire(postData);
 
     if (res.data.success || res.data.code === 200) {
+      const payload = res.data.data || {};
+      resultData.value = {
+        kind: templateCode === 'original' ? 'constitution' : 'special',
+        mainType: payload.mainType || payload.mainConclusion || '',
+        scoreMap: payload.scores || payload.scoreMap || {},
+        diagnosisId: payload.diagnosisId || null,
+        templateCode,
+        templateResult: payload.templateResult || payload.scores?.templateResult || templateResult,
+        templateTitle: template.title,
+      };
       // 【关键修复】将完成状态与当前这个 finalPid 绑定，而不是笼统的 true/false
       localStorage.setItem('wenjuan_finished_id', String(finalPid));
+      localStorage.setItem('wenjuan_template_code', templateCode);
       
       isDone.value = true;
       ElMessage.success("问卷提交成功！");
@@ -280,8 +533,10 @@ const generateDiagnosisReport = () => {
   navigateToDiagnosisReport(router, finalPid, idCard);
 };
 
-onMounted(() => playAudio());
-watch(currentIndex, () => playAudio());
+onMounted(() => {
+  resetAnswers(QUESTIONNAIRE_TEMPLATE_MAP[selectedTemplateCode.value] || QUESTIONNAIRE_TEMPLATE_MAP.original);
+});
+watch([currentIndex, questionnaireStarted, selectedTemplateCode], () => playAudio());
 </script>
 
 <style scoped>
@@ -302,6 +557,98 @@ watch(currentIndex, () => playAudio());
 }
 .wenjuan-wrapper::before { left: 0;  box-shadow: inset -30px 0 40px rgba(0,0,0,0.06); }
 .wenjuan-wrapper::after  { right: 0; box-shadow: inset  30px 0 40px rgba(0,0,0,0.06); }
+
+.template-select-panel {
+  width: 100%;
+  display: flex;
+  justify-content: center;
+  align-items: center;
+}
+
+.template-select-card {
+  width: 920px;
+  max-width: calc(100% - 40px);
+  position: relative;
+  padding: 44px 40px;
+  border-radius: 14px;
+  background: linear-gradient(180deg, #fff9f0 0%, #f7ead0 100%);
+  border: 1px solid rgba(150,100,45,.32);
+  box-shadow: 0 24px 56px rgba(70,40,20,.12);
+}
+
+.template-title {
+  margin: 0 0 8px;
+  color: #4c2a10;
+  font-size: 2rem;
+}
+
+.template-desc {
+  margin: 0 0 24px;
+  color: #7c5731;
+  line-height: 1.8;
+}
+
+.template-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 16px;
+}
+
+.template-item {
+  padding: 18px 20px;
+  border-radius: 12px;
+  border: 1px solid rgba(200,169,110,.45);
+  background: linear-gradient(180deg, #fffdf8 0%, #fff8eb 100%);
+  box-shadow: 0 6px 18px rgba(100,60,10,.04);
+  cursor: pointer;
+  transition: transform .25s ease, box-shadow .25s ease, border-color .25s ease;
+}
+
+.template-item:hover {
+  transform: translateY(-3px);
+  box-shadow: 0 12px 28px rgba(70,40,20,.12);
+}
+
+.template-item.is-active {
+  border-color: rgba(107,42,18,.85);
+  background: linear-gradient(180deg, #fff2df 0%, #f9e4c6 100%);
+}
+
+.template-item-head {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  gap: 12px;
+  margin-bottom: 12px;
+}
+
+.template-item-head h3 {
+  margin: 0 0 6px;
+  color: #4c2a10;
+  font-size: 1.2rem;
+}
+
+.template-item-head p {
+  margin: 0;
+  color: #8a6340;
+  line-height: 1.6;
+}
+
+.template-meta {
+  display: flex;
+  justify-content: space-between;
+  gap: 12px;
+  color: #8b5f34;
+  font-size: 0.95rem;
+}
+
+.template-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 14px;
+  justify-content: center;
+  margin-top: 28px;
+}
 
 /* 隐藏旧的装饰元素（保持模板兼容） */
 .ink-bg, .paper-texture, .blob { display: none !important; }
@@ -337,6 +684,14 @@ watch(currentIndex, () => playAudio());
 
 .header-nav { margin-bottom: 8px; }
 .count b { font-size: 2rem; color: #8b3d1a; margin: 0 6px; }
+.template-badge {
+  margin-left: 12px;
+  padding: 4px 10px;
+  border-radius: 999px;
+  background: rgba(139,61,26,.08);
+  color: #8b3d1a;
+  font-size: 0.92rem;
+}
 
 .question-container { min-height: 340px; padding: 6px 0 6px; }
 .question-text {
@@ -401,6 +756,73 @@ watch(currentIndex, () => playAudio());
 }
 .icon-wrapper { margin-bottom: 20px; }
 .done-icon { font-size: 72px; color: #4a7060; }
+.result-card {
+  text-align: left;
+  margin: 20px 0;
+  padding: 20px;
+  border-radius: 12px;
+  background: linear-gradient(180deg, #faf3e0, #fffaf0);
+  border: 1px solid #e8d5a0;
+  box-shadow: 0 8px 24px rgba(100, 60, 10, 0.08);
+}
+.result-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  gap: 12px;
+  margin-bottom: 12px;
+}
+.result-kicker {
+  margin: 0 0 6px;
+  font-size: 12px;
+  color: #9a7040;
+  letter-spacing: 1px;
+}
+.result-header h3 {
+  margin: 0;
+  color: #5a2d00;
+  font-size: 20px;
+}
+.result-summary {
+  margin: 0 0 16px;
+  color: #4a3020;
+  line-height: 1.8;
+}
+.result-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 12px;
+  margin-bottom: 12px;
+}
+.result-block {
+  padding: 14px;
+  border-radius: 10px;
+  background: #fff;
+  border: 1px solid rgba(232, 213, 160, 0.9);
+  text-align: left;
+  margin-bottom: 12px;
+}
+.result-block h4 {
+  margin: 0 0 10px;
+  color: #5a2d00;
+  font-size: 15px;
+}
+.result-block ul {
+  margin: 0;
+  padding-left: 18px;
+  color: #4a3020;
+  line-height: 1.7;
+}
+.result-block li { margin: 6px 0; }
+.result-block.danger {
+  background: #fff7f4;
+  border-color: rgba(192, 57, 43, 0.22);
+}
+.score-rule {
+  margin: 0 0 8px;
+  color: #725130;
+  line-height: 1.6;
+}
 .next-step-box {
   background: linear-gradient(180deg, #faf3e0, #f5eacc);
   padding: 20px; border-radius: 10px;
@@ -417,9 +839,17 @@ watch(currentIndex, () => playAudio());
 .q-slide-leave-to   { opacity: 0; transform: translateX(-26px); }
 
 @media (max-width: 960px) {
+  .template-select-card { padding: 30px 18px; }
+  .template-grid { grid-template-columns: 1fr; }
+  .template-item-head { flex-direction: column; }
+  .template-actions { justify-content: stretch; }
+  .template-actions .el-button { flex: 1; }
   .quiz-card { padding: 34px 24px; }
   .question-text { font-size: 1.6rem; }
   .opt-indicator { width: 40px; height: 40px; margin-right: 12px; }
+  .finish-dialog { width: min(760px, calc(100% - 24px)); padding: 30px 18px; }
+  .result-grid { grid-template-columns: 1fr; }
+  .result-header { flex-direction: column; }
 }
 
 .reference-note {
