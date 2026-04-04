@@ -9,32 +9,80 @@
         <h2 class="template-title">先选择问诊人群 / 场景</h2>
         <p class="template-desc">原始 33 题保留读题音频；专项模板仅保留文字题目，适合不同人群的问诊路径。</p>
 
-        <div class="template-grid">
+        <div class="template-topline">
+          <span>当前可用 {{ templateCards.length }} 套模板</span>
+          <span>已选：{{ selectedTemplateCard?.title }}</span>
+        </div>
+
+        <div class="template-section">
+          <div class="template-section-head">
+            <h3>原始体质问卷</h3>
+            <p>适合完整采集 33 项体质指标，并保留读题音频。</p>
+          </div>
           <div
-            v-for="item in templateCards"
-            :key="item.code"
+            v-if="originalTemplateCard"
+            :key="originalTemplateCard.code"
             class="template-item"
-            :class="{ 'is-active': selectedTemplateCode === item.code }"
-            @click="selectTemplate(item.code)"
+            :class="{ 'is-active': selectedTemplateCode === originalTemplateCard.code }"
+            @click="selectTemplate(originalTemplateCard.code)"
           >
             <div class="template-item-head">
               <div>
-                <h3>{{ item.title }}</h3>
-                <p>{{ item.subtitle }}</p>
+                <h3>{{ originalTemplateCard.title }}</h3>
+                <p>{{ originalTemplateCard.subtitle }}</p>
               </div>
-              <el-tag effect="light" :type="item.audioEnabled ? 'success' : 'warning'">
-                {{ item.audioEnabled ? '含读题音频' : '仅文字问诊' }}
+              <el-tag effect="light" :type="originalTemplateCard.audioEnabled ? 'success' : 'warning'">
+                {{ originalTemplateCard.audioEnabled ? '含读题音频' : '仅文字问诊' }}
               </el-tag>
             </div>
             <div class="template-meta">
-              <span>{{ item.questionCount }} 题</span>
-              <span>{{ item.badge }}</span>
+              <span>{{ originalTemplateCard.questionCount }} 题</span>
+              <span>{{ originalTemplateCard.badge }}</span>
+              <span>{{ originalTemplateCard.durationText }}</span>
             </div>
           </div>
         </div>
 
+        <div class="template-section">
+          <div class="template-section-head">
+            <h3>专项问诊模板</h3>
+            <p>按场景定制问题，快速完成专项体质评估。</p>
+          </div>
+          <div class="template-grid">
+            <div
+              v-for="item in specialTemplateCards"
+              :key="item.code"
+              class="template-item"
+              :class="{ 'is-active': selectedTemplateCode === item.code }"
+              @click="selectTemplate(item.code)"
+            >
+              <div class="template-item-head">
+                <div>
+                  <h3>{{ item.title }}</h3>
+                  <p>{{ item.subtitle }}</p>
+                </div>
+                <el-tag effect="light" :type="item.audioEnabled ? 'success' : 'warning'">
+                  {{ item.audioEnabled ? '含读题音频' : '仅文字问诊' }}
+                </el-tag>
+              </div>
+              <div class="template-meta">
+                <span>{{ item.questionCount }} 题</span>
+                <span>{{ item.badge }}</span>
+                <span>{{ item.durationText }}</span>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <div class="selected-template-panel" v-if="selectedTemplateCard">
+          <p class="selected-title">即将开始：{{ selectedTemplateCard.title }}</p>
+          <p>{{ selectedTemplateCard.subtitle }}</p>
+        </div>
+
         <div class="template-actions">
-          <el-button type="primary" size="large" round @click="startQuestionnaire">开始问诊</el-button>
+          <el-button type="primary" size="large" round @click="startQuestionnaire">
+            开始{{ selectedTemplateCode === 'original' ? '原始' : '专项' }}问诊
+          </el-button>
           <el-button size="large" round plain @click="backToCenter">返回诊断中心</el-button>
         </div>
       </div>
@@ -164,27 +212,6 @@
             </div>
           </div>
 
-          <div class="result-block" v-if="resultAdvice.constitutionScores?.length">
-            <h4>体质量化结果</h4>
-            <p class="score-rule">{{ resultAdvice.scoringRule }}</p>
-            <ul>
-              <li v-for="item in resultAdvice.constitutionScores" :key="item.name">
-                {{ item.name }}：{{ item.score }}分（{{ item.level }}）
-              </li>
-            </ul>
-          </div>
-
-          <div class="result-block" v-if="resultAdvice.candidateConstitutions?.length">
-            <h4>候选体质参考</h4>
-            <ul>
-              <li v-for="item in resultAdvice.candidateConstitutions.slice(0, 3)" :key="item.name">
-                {{ item.name }}：{{ item.score }}分（{{ item.level }}）
-              </li>
-            </ul>
-            <p v-if="resultAdvice.thirdConstitution" class="score-rule">
-              第三参考：{{ resultAdvice.thirdConstitution.name }} {{ resultAdvice.thirdConstitution.score }}分
-            </p>
-          </div>
         </div>
 
         <div class="next-step-box">
@@ -205,6 +232,9 @@
           </el-collapse>
         </div>
         <div class="finish-actions">
+          <el-button size="large" round plain :loading="resetting" @click="redoQuestionnaire" class="final-btn">
+            重新答题
+          </el-button>
           <el-button type="primary" size="large" round @click="generateDiagnosisReport" class="final-btn">
             生成报告
           </el-button>
@@ -222,7 +252,7 @@ import { ref, computed, onMounted, watch } from 'vue';
 import { useRouter, useRoute } from 'vue-router'; // 【修复】必须引入 useRoute
 import { CircleCheckFilled } from '@element-plus/icons-vue';
 import { ElMessage } from 'element-plus'; // 【补充】确保 ElMessage 可用
-import { submitQuestionnaire } from '@/api/detect';
+import { submitQuestionnaire, resetQuestionnaireResult } from '@/api/detect';
 import { navigateToDiagnosisReport, getConstitutionAdvice } from '@/utils/reportUtils';
 import { algorithmReferences } from '@/constants/algorithmReferences';
 import { SPECIAL_QUESTIONNAIRE_TEMPLATES, buildSpecialQuestionnaireResult, getSpecialQuestionnaireDefaultOptions } from '@/constants/questionnaireTemplates';
@@ -296,6 +326,7 @@ const currentIndex = ref(0);
 const answers = ref([]);
 const isDone = ref(false);
 const submitting = ref(false);
+const resetting = ref(false);
 const wen_qReferences = ref(algorithmReferences.wen_questionnaire.references);
 const resultData = ref({
   kind: 'constitution',
@@ -345,6 +376,25 @@ const resultAdvice = computed(() => {
   }
   return getConstitutionAdvice(resultData.value.mainType || 'ph', resultData.value.scoreMap || {});
 });
+
+const buildSpecialSubmissionTemplateResult = () => {
+  const advice = resultAdvice.value || {};
+  if (resultData.value.templateCode === 'original') {
+    return null;
+  }
+
+  return {
+    title: advice.title || activeTemplate.value.title,
+    dominantConstitution: advice.badge || advice.title || activeTemplate.value.title,
+    scoreMap: advice.scoreMap || {},
+    constitutionScores: (advice.constitutionScores || []).map((item) => ({
+      key: item.key,
+      name: item.name,
+      score: item.score,
+      level: item.level,
+    })),
+  };
+};
 const resultTag = computed(() => {
   if (resultData.value.templateCode === 'original') {
     return resultData.value.mainType || activeTemplate.value.title;
@@ -366,7 +416,13 @@ const templateCards = computed(() =>
     questionCount: item.questionCount || (item.questions ? item.questions.length : 0),
     audioEnabled: !!item.audioEnabled,
     badge: item.badge || (item.audioEnabled ? '原始版' : '专项版'),
+    durationText: (item.questionCount || (item.questions ? item.questions.length : 0)) >= 30 ? '预计 6-8 分钟' : '预计 3-5 分钟',
   }))
+);
+const originalTemplateCard = computed(() => templateCards.value.find((item) => item.code === 'original') || null);
+const specialTemplateCards = computed(() => templateCards.value.filter((item) => item.code !== 'original'));
+const selectedTemplateCard = computed(() =>
+  templateCards.value.find((item) => item.code === selectedTemplateCode.value) || originalTemplateCard.value
 );
 
 const resetAnswers = (template = activeTemplate.value) => {
@@ -467,13 +523,15 @@ const handleFinish = async () => {
     // 3. 构造数据
     const templateCode = selectedTemplateCode.value || 'original';
     const template = activeTemplate.value;
-    const templateResult = templateCode === 'original'
+    const fullTemplateResult = templateCode === 'original'
       ? null
       : buildSpecialQuestionnaireResult(templateCode, answers.value);
+    const templateResult = templateCode === 'original'
+      ? null
+      : buildSpecialSubmissionTemplateResult();
 
     const postData = {
       answers: answers.value,
-      bmi: computedBMI.value,
       idCard: finalIdCard,
       patientId: finalPid,
       diagnosisId: route.query.caseId || localStorage.getItem('current_case_id'),
@@ -481,6 +539,10 @@ const handleFinish = async () => {
       templateTitle: template.title,
       templateResult,
     };
+
+    if (templateCode === 'original') {
+      postData.bmi = computedBMI.value;
+    }
 
     const res = await submitQuestionnaire(postData);
 
@@ -492,7 +554,9 @@ const handleFinish = async () => {
         scoreMap: payload.scores || payload.scoreMap || {},
         diagnosisId: payload.diagnosisId || null,
         templateCode,
-        templateResult: payload.templateResult || payload.scores?.templateResult || templateResult,
+        templateResult: templateCode === 'original'
+          ? (payload.templateResult || payload.scores?.templateResult || null)
+          : (fullTemplateResult || payload.templateResult || payload.scores?.templateResult || templateResult),
         templateTitle: template.title,
       };
       // 【关键修复】将完成状态与当前这个 finalPid 绑定，而不是笼统的 true/false
@@ -515,6 +579,50 @@ const handleFinish = async () => {
 
 const backToCenter = () => {
   router.push('/detect');
+};
+
+const redoQuestionnaire = async () => {
+  if (resetting.value) return;
+  resetting.value = true;
+
+  const routeId = route.query.id;
+  const storageId = localStorage.getItem('current_patient_id');
+  const finalPid = routeId || storageId;
+  const diagnosisId = resultData.value.diagnosisId || route.query.caseId || localStorage.getItem('current_case_id');
+
+  if (diagnosisId) {
+    try {
+      const res = await resetQuestionnaireResult({ diagnosisId, patientId: finalPid });
+      if (!(res?.data?.success || res?.data?.code === 200)) {
+        ElMessage.error(res?.data?.msg || '清空上次问诊结果失败，请重试');
+        resetting.value = false;
+        return;
+      }
+    } catch (error) {
+      ElMessage.error('清空上次问诊结果失败，请检查网络后重试');
+      resetting.value = false;
+      return;
+    }
+  }
+
+  stopAudio();
+  submitting.value = false;
+  isDone.value = false;
+  questionnaireStarted.value = false;
+  currentIndex.value = 0;
+  answers.value = [];
+  bmiHeight.value = 1.72;
+  bmiWeight.value = 65.0;
+  resultData.value = {
+    kind: selectedTemplateCode.value === 'original' ? 'constitution' : 'special',
+    mainType: '',
+    scoreMap: {},
+    diagnosisId: null,
+    templateCode: selectedTemplateCode.value,
+    templateResult: null,
+    templateTitle: activeTemplate.value.title,
+  };
+  resetting.value = false;
 };
 
 const generateDiagnosisReport = () => {
@@ -554,9 +662,17 @@ watch([currentIndex, questionnaireStarted, selectedTemplateCode], () => playAudi
 .wenjuan-wrapper::before, .wenjuan-wrapper::after {
   content: ""; position: absolute; top: 0; bottom: 0; width: 180px;
   pointer-events: none;
+  z-index: 0;
 }
 .wenjuan-wrapper::before { left: 0;  box-shadow: inset -30px 0 40px rgba(0,0,0,0.06); }
 .wenjuan-wrapper::after  { right: 0; box-shadow: inset  30px 0 40px rgba(0,0,0,0.06); }
+
+.template-select-panel,
+.main-content,
+.finish-dialog {
+  position: relative;
+  z-index: 1;
+}
 
 .template-select-panel {
   width: 100%;
@@ -586,6 +702,39 @@ watch([currentIndex, questionnaireStarted, selectedTemplateCode], () => playAudi
   margin: 0 0 24px;
   color: #7c5731;
   line-height: 1.8;
+}
+
+.template-topline {
+  display: flex;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 10px 14px;
+  border-radius: 10px;
+  background: rgba(255, 252, 244, 0.7);
+  border: 1px dashed rgba(150, 100, 45, 0.25);
+  color: #7a522e;
+  font-size: 0.95rem;
+  margin-bottom: 16px;
+}
+
+.template-section {
+  margin-bottom: 16px;
+}
+
+.template-section-head {
+  margin-bottom: 10px;
+}
+
+.template-section-head h3 {
+  margin: 0;
+  color: #5a2d00;
+  font-size: 1.08rem;
+}
+
+.template-section-head p {
+  margin: 4px 0 0;
+  color: #8b5f34;
+  font-size: 0.92rem;
 }
 
 .template-grid {
@@ -647,7 +796,27 @@ watch([currentIndex, questionnaireStarted, selectedTemplateCode], () => playAudi
   flex-wrap: wrap;
   gap: 14px;
   justify-content: center;
-  margin-top: 28px;
+  margin-top: 18px;
+}
+
+.selected-template-panel {
+  margin-top: 6px;
+  padding: 12px 14px;
+  border-radius: 10px;
+  border: 1px solid rgba(139, 61, 26, 0.18);
+  background: linear-gradient(180deg, #fff6e8 0%, #fffaf1 100%);
+  color: #6e4624;
+}
+
+.selected-template-panel .selected-title {
+  margin: 0 0 4px;
+  color: #5a2d00;
+  font-weight: 700;
+}
+
+.selected-template-panel p {
+  margin: 0;
+  line-height: 1.6;
 }
 
 /* 隐藏旧的装饰元素（保持模板兼容） */
@@ -840,6 +1009,7 @@ watch([currentIndex, questionnaireStarted, selectedTemplateCode], () => playAudi
 
 @media (max-width: 960px) {
   .template-select-card { padding: 30px 18px; }
+  .template-topline { flex-direction: column; }
   .template-grid { grid-template-columns: 1fr; }
   .template-item-head { flex-direction: column; }
   .template-actions { justify-content: stretch; }

@@ -1,12 +1,16 @@
 package com.tx.demo.controller;
 
 import com.tx.demo.entity.Answer;
+import com.tx.demo.entity.Diagnosis;
 import com.tx.demo.entity.Patient;
+import com.tx.demo.mapper.DiagnosisMapper;
 import com.tx.demo.mapper.PatientMapper;
 import com.tx.demo.service.QuestionService;
 import com.tx.demo.utils.Result;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.web.bind.annotation.*;
+
+import java.util.Map;
 
 @RestController
 @RequestMapping("/api/tcm")
@@ -17,6 +21,9 @@ public class QuestionController {
 
     @Autowired
     private PatientMapper patientMapper;
+
+    @Autowired
+    private DiagnosisMapper diagnosisMapper;
 
     @PostMapping("/submit")
     public Result submit(@RequestBody Answer request) {
@@ -62,5 +69,41 @@ public class QuestionController {
                 request.getTemplateTitle(),
                 request.getTemplateResult()
         );
+    }
+
+    @PostMapping("/reset-wen")
+    public Result resetWen(@RequestBody Map<String, Object> request) {
+        Long diagnosisId = parseLong(request.get("diagnosisId"));
+        Long patientId = parseLong(request.get("patientId"));
+
+        if (diagnosisId == null) {
+            return Result.error("缺少诊断会话ID，无法清空问诊结果");
+        }
+
+        Diagnosis diagnosis = diagnosisMapper.findById(diagnosisId);
+        if (diagnosis == null) {
+            return Result.error("诊断会话不存在");
+        }
+
+        if (patientId != null && diagnosis.getPatientId() != null && !patientId.equals(diagnosis.getPatientId())) {
+            return Result.error("诊断会话与患者不匹配");
+        }
+
+        diagnosis.setWenScores(null);
+        diagnosis.setWenConclusion(null);
+        diagnosisMapper.updateWen(diagnosis);
+        return Result.success("问诊结果已清空");
+    }
+
+    private Long parseLong(Object value) {
+        if (value == null) return null;
+        if (value instanceof Number) return ((Number) value).longValue();
+        String str = String.valueOf(value).trim();
+        if (str.isEmpty()) return null;
+        try {
+            return Long.parseLong(str);
+        } catch (NumberFormatException e) {
+            return null;
+        }
     }
 }

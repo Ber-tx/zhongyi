@@ -170,7 +170,7 @@
               </div>
               <p class="questionnaire-summary">{{ questionnaireAnalysis?.summary }}</p>
 
-              <el-row :gutter="16" class="questionnaire-panels">
+              <el-row v-if="questionnaireAnalysis?.diet?.length || questionnaireAnalysis?.avoid?.length" :gutter="16" class="questionnaire-panels">
                 <el-col :span="12" :xs="24">
                   <div class="questionnaire-panel">
                     <strong>饮食建议</strong>
@@ -189,34 +189,13 @@
                 </el-col>
               </el-row>
 
-              <div class="questionnaire-panel">
+              <div v-if="questionnaireAnalysis?.suggestions?.length" class="questionnaire-panel">
                 <strong>后续建议</strong>
                 <ul>
                   <li v-for="item in questionnaireAnalysis?.suggestions || []" :key="item">{{ item }}</li>
                 </ul>
               </div>
 
-              <div class="questionnaire-panel" v-if="questionnaireAnalysis?.constitutionScores?.length">
-                <strong>体质量化结果</strong>
-                <p class="questionnaire-score-rule">{{ questionnaireAnalysis?.scoringRule }}</p>
-                <ul>
-                  <li v-for="item in questionnaireAnalysis?.constitutionScores || []" :key="item.name">
-                    {{ item.name }}：{{ item.score }}分（{{ item.level }}）
-                  </li>
-                </ul>
-              </div>
-
-              <div class="questionnaire-panel" v-if="questionnaireAnalysis?.candidateConstitutions?.length">
-                <strong>候选体质参考</strong>
-                <ul>
-                  <li v-for="item in questionnaireAnalysis?.candidateConstitutions.slice(0, 3) || []" :key="item.name">
-                    {{ item.name }}：{{ item.score }}分（{{ item.level }}）
-                  </li>
-                </ul>
-                <p v-if="questionnaireAnalysis?.thirdConstitution" class="questionnaire-score-rule">
-                  第三参考：{{ questionnaireAnalysis.thirdConstitution.name }} {{ questionnaireAnalysis.thirdConstitution.score }}分
-                </p>
-              </div>
             </div>
             <div v-else>暂未进行症状问卷调查，请补充问诊数据。</div>
           </el-card>

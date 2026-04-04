@@ -14,3 +14,7 @@ export function submitQuestionnaire(data) {
   
   return axios.post('/api/tcm/submit', data);
 }
+
+export function resetQuestionnaireResult(data) {
+  return axios.post('/api/tcm/reset-wen', data);
+}

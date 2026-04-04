@@ -56,6 +56,9 @@ public interface AdminMapper {
             "d.wang_tongue_metrics as wangTongueMetrics, " +
             "d.wen_conclusion as wenConclusion, " +
             "d.wen_audio_conclusion as wenAudioConclusion, " +
+            "d.wen_audio_features as wenAudioFeatures, " +
+            "d.wen_audio_tags as wenAudioTags, " +
+            "d.wen_audio_url as wenAudioUrl, " +
             "d.qie_heart_rate as qieHeartRate, d.qie_spo2 as qieSpo2, " +
             "d.qie_tcm_suggestion as qieTcmSuggestion, " +
             "d.qie_valid_rate as qieValidRate, d.qie_sample_count as qieSampleCount, " +
@@ -75,6 +78,9 @@ public interface AdminMapper {
             "d.wang_tongue_metrics as wangTongueMetrics, " +
             "d.wen_conclusion as wenConclusion, " +
             "d.wen_audio_conclusion as wenAudioConclusion, " +
+            "d.wen_audio_features as wenAudioFeatures, " +
+            "d.wen_audio_tags as wenAudioTags, " +
+            "d.wen_audio_url as wenAudioUrl, " +
             "d.wen_audio_confidence as wenAudioConfidence, " +
             "d.qie_heart_rate as qieHeartRate, d.qie_spo2 as qieSpo2, " +
             "d.qie_tcm_suggestion as qieTcmSuggestion, " +

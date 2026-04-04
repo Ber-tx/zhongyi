@@ -52,6 +52,16 @@
         <el-table-column label="辨识时间" width="138">
           <template #default="{ row }">{{ fmt(row.createTime) }}</template>
         </el-table-column>
+        <el-table-column label="问诊摘要" min-width="170" show-overflow-tooltip>
+          <template #default="{ row }">
+            <span>{{ getWenSummary(row) }}</span>
+          </template>
+        </el-table-column>
+        <el-table-column label="闻诊摘要" min-width="150" show-overflow-tooltip>
+          <template #default="{ row }">
+            <span>{{ getWenAudioSummary(row) }}</span>
+          </template>
+        </el-table-column>
         <el-table-column label="操作" width="90" fixed="right">
           <template #default="{ row }">
             <el-button type="primary" size="small" link @click="openDetail(row)">
@@ -80,6 +90,8 @@
       title="辨识档案详情"
       direction="rtl"
       size="420px"
+      :modal="false"
+      :append-to-body="true"
     >
       <template v-if="selected">
         <div class="detail-block">
@@ -102,11 +114,31 @@
             <span>置信度</span>
             <b>{{ (selected.wenAudioConfidence * 100).toFixed(1) }}%</b>
           </div>
+          <div class="detail-row" v-if="selected.wenAudioTagsList?.length">
+            <span>声纹标签</span>
+            <b>{{ selected.wenAudioTagsList.join('、') }}</b>
+          </div>
+          <div class="detail-content" v-if="selected.wenAudioFeatureSummary">
+            {{ selected.wenAudioFeatureSummary }}
+          </div>
         </div>
 
         <div class="detail-block" v-if="selected.wenConclusion">
           <div class="detail-title">📋 问诊结论</div>
           <div class="detail-content">{{ selected.wenConclusion }}</div>
+          <div class="detail-row" v-if="selected.wenTemplateTitle">
+            <span>问诊模板</span><b>{{ selected.wenTemplateTitle }}</b>
+          </div>
+          <div class="detail-row" v-if="selected.wenDominantConstitution">
+            <span>主导体质</span><b>{{ selected.wenDominantConstitution }}</b>
+          </div>
+          <div class="detail-row" v-if="selected.wenAnswerCount">
+            <span>答题数量</span><b>{{ selected.wenAnswerCount }} 题</b>
+          </div>
+          <div class="detail-row" v-if="selected.wenTopScores?.length">
+            <span>体质得分</span><b>{{ selected.wenTopScores.join('，') }}</b>
+          </div>
+          <div class="detail-content" v-if="selected.wenCandidatesText">候选体质：{{ selected.wenCandidatesText }}</div>
         </div>
 
         <div class="detail-block" v-if="selected.qieHeartRate">
@@ -146,8 +178,81 @@ const drawerVisible = ref(false)
 const selected      = ref(null)
 
 const openDetail = (row) => {
-  selected.value = row
+  selected.value = buildDetailRecord(row)
   drawerVisible.value = true
+}
+
+const constitutionAlias = {
+  ph: '平和质', qx: '气虚质', yx: '阳虚质', yx0: '阴虚质', yx1: '阳虚质', yinXu: '阴虚质',
+  ts: '痰湿质', tanShi: '痰湿质', sr: '湿热质', shiRe: '湿热质', xy: '血瘀质', xueYu: '血瘀质',
+  qy: '气郁质', qiYu: '气郁质', tb: '特禀质', teBing: '特禀质', qiXu: '气虚质', yangXu: '阳虚质',
+}
+
+const safeJson = (raw, fallback = null) => {
+  if (!raw) return fallback
+  if (typeof raw === 'object') return raw
+  try { return JSON.parse(raw) } catch { return fallback }
+}
+
+const mapScoreKeyName = (key) => constitutionAlias[key] || key
+
+const pickTopScores = (scoreMap = {}, limit = 3) => {
+  return Object.entries(scoreMap || {})
+    .map(([key, score]) => ({ key, score: Number(score) || 0 }))
+    .sort((a, b) => b.score - a.score)
+    .slice(0, limit)
+    .map((item) => `${mapScoreKeyName(item.key)} ${item.score}分`)
+}
+
+const parseWenScores = (row) => {
+  const parsed = safeJson(row.wenScores, {}) || {}
+  const templateResult = parsed.templateResult || {}
+  const scoreMap = templateResult.scoreMap || parsed.scores || {}
+  const candidates = templateResult.candidateConstitutions || parsed.candidateConstitutions || []
+
+  return {
+    wenTemplateTitle: parsed.templateTitle || templateResult.templateTitle || templateResult.title || ('原始体质问卷'),
+    wenDominantConstitution: templateResult.dominantConstitution || parsed.mainConstitution || row.wenConclusion || '',
+    wenAnswerCount: templateResult.answerCount || (Array.isArray(parsed.answers) ? parsed.answers.length : 0),
+    wenTopScores: pickTopScores(scoreMap, 3),
+    wenCandidatesText: Array.isArray(candidates)
+      ? candidates.slice(0, 3).map((item) => item?.name).filter(Boolean).join('、')
+      : '',
+  }
+}
+
+const parseWenAudio = (row) => {
+  const tags = safeJson(row.wenAudioTags, [])
+  const feature = safeJson(row.wenAudioFeatures, null)
+  const featureSummary = feature && typeof feature === 'object'
+    ? Object.entries(feature).slice(0, 4).map(([k, v]) => `${k}:${typeof v === 'number' ? v.toFixed?.(2) ?? v : v}`).join('；')
+    : ''
+
+  return {
+    wenAudioTagsList: Array.isArray(tags) ? tags : [],
+    wenAudioFeatureSummary: featureSummary,
+  }
+}
+
+const buildDetailRecord = (row) => {
+  return {
+    ...row,
+    ...parseWenScores(row),
+    ...parseWenAudio(row),
+  }
+}
+
+const getWenSummary = (row) => {
+  if (!row.wenConclusion) return '暂无问诊结论'
+  const parsed = parseWenScores(row)
+  if (parsed.wenTopScores.length) return `${parsed.wenDominantConstitution || row.wenConclusion}（${parsed.wenTopScores[0]}）`
+  return parsed.wenDominantConstitution || row.wenConclusion
+}
+
+const getWenAudioSummary = (row) => {
+  if (!row.wenAudioConclusion) return '暂无闻诊结论'
+  const conf = row.wenAudioConfidence ? ` ${(Number(row.wenAudioConfidence) * 100).toFixed(0)}%` : ''
+  return `${row.wenAudioConclusion}${conf}`
 }
 
 const load = async (p = page.value) => {

@@ -288,6 +288,7 @@ function buildHypertensionResult(answers = []) {
       ],
       finalTypes.length === 2 ? '复合体质' : finalTypes[0].name,
     ),
+    scoreMap,
     scoringRule: '每体质固定3题、每题0/2/4/6分、单体质满分18分。判定规则：第一名与第二名差值>1为单一体质；差值<=1为复合体质；平和质按第2/9/17题反向计分，且满足门槛时兜底判定。',
     constitutionScores: constitutionScores.map((item) => ({
       name: item.name,
@@ -534,6 +535,7 @@ function buildDiabetesResult(answers = []) {
       ],
       isComposite ? '复合体质' : primary.name,
     ),
+    scoreMap,
     scoringRule: '每题0/2/4/6分；九种体质按各自关联3题累计，单体质满分18分。判定优先级：单一体质（第一名与第二名差值>1）→复合体质（差值<=1）→平和质兜底（反向计分且满足门槛）。',
     constitutionScores: constitutionScores
       .sort((a, b) => b.score - a.score)
@@ -584,8 +586,10 @@ function buildChildrenResult(answers = []) {
       dominant.suggestions,
       dominant.name,
     ),
+    scoreMap: Object.fromEntries(constitutionScores.map((item) => [item.key, item.score])),
     scoringRule: '每题0/2/4/6分；每种体质4题，总分24分。0-6分无明显偏颇，7-12分轻微偏颇，13-18分中度偏颇，19-24分重度偏颇。',
     constitutionScores: constitutionScores.map((item) => ({
+      key: item.key,
       name: item.name,
       score: item.score,
       level: item.level,
@@ -707,6 +711,7 @@ function buildFiveStateResult(answers = []) {
       ],
       dominant.name,
     ),
+    scoreMap: Object.fromEntries(scores.map((item) => [item.key, item.score])),
     scoringRule: '共20题，每题0/2/4/6分。五种人格各关联4题，单种人格满分24分。系统仅判定唯一主导人格；若最高分并列，则以阴阳平和人格兜底判定。',
     music: guidance.music,
     behavior: guidance.behavior,
