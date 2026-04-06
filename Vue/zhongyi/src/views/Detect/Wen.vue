@@ -115,7 +115,7 @@
         <!-- 加载状态 -->
         <div v-else class="loading-state">
           <div class="ai-spinner"></div>
-          <h3>AI 引擎分析中...</h3>
+          <h3>算法引擎分析中...</h3>
           <p>正在计算音频特征和体质倾向</p>
         </div>
       </div>

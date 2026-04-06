@@ -73,7 +73,7 @@ def build_algorithm_guidance(diagnoses: Dict[str, Any], focus_mode: str) -> str:
         guidance.append("- 切诊：重点使用 heartRate、spo2、validRate、sampleCount、qualityLevel、heartRateBand、spo2Band、tcmSuggestion，给出脉象/气血层面的推断。")
 
     if focus_mode != "balanced":
-        guidance.append(f"- 当前为侧重模式：{FOCUS_LABELS.get(focus_mode, FOCUS_LABELS['balanced'])}，该板块需给出最长、最细、最完整的复核分析。")
+        guidance.append(f"- 当前为侧重模式：{FOCUS_LABELS.get(focus_mode, FOCUS_LABELS['balanced'])}，该板块需给出、最细、最完整的复核分析。")
 
     guidance.append("")
     return "\n".join(guidance)
@@ -85,13 +85,13 @@ def build_output_requirements(focus_mode: str) -> str:
         section_2 = "2. 四诊常规综合：每个板块给核心结论与简要建议（每板块 2-4 句）。"
         section_3 = "3. 综合判断：给出体质/证候倾向与主要依据（简要列点）。"
         section_4 = "4. 调理建议：饮食、作息、运动（每项 1-2 条，避免冗长）。"
-        section_5 = "5. 数据缺口提示：仅列缺失项与补采建议（1-3 条）。"
+        section_5 = "5. 数据缺口提示：一次性列出所有缺失板块，并给出补充检查建议。"
     else:
-        focus_rule = "侧重板块约占 55% 篇幅，其余三个板块共约 45%（每个板块保留核心结论即可）。"
+        focus_rule = "侧重板块约占 70% 篇幅，其余三个板块共约 30%（每个板块保留核心结论即可）。"
         section_2 = "2. 侧重板块深度复核：包含关键数据摘录、算法结果解读、中医证候推理、风险点、调理建议。"
         section_3 = "3. 其余板块复核：每个板块给核心发现与简要建议。"
         section_4 = "4. 体质判断与证型结论：必须写明依据来自哪些板块和哪些字段。"
-        section_5 = "5. 个性化调理方案：饮食、作息、运动、穴位/经络、复诊周期。"
+        #section_5 = "5. 个性化调理方案：饮食、作息、运动、穴位/经络、复诊周期。"
 
     lines = [
         "## 输出要求",
@@ -174,9 +174,9 @@ def build_tcm_prompt(diagnosis_info: Dict[str, Any]) -> str:
     if custom_prompt and str(custom_prompt).strip():
         lines.extend([
             "",
-            "## 前端自定义提示词（高优先级）",
+            "## 前端自定义提示词（最高优先级）",
             str(custom_prompt).strip()[:3000],
-            "- 执行规则：在不违背事实数据的前提下，优先遵循该提示词的表达风格与关注点（建议占分析策略约40%权重）。",
+            "- 执行规则：在不违背事实数据的前提下，优先遵循该提示词的表达风格与关注点（建议占分析策略约60%权重）。",
             "",
         ])
     
