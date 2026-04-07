@@ -29,7 +29,12 @@
           :style="{ left: previewPos + 'px' }"
         >
           <div class="p-img-box">
-            <img :src="archiveList[hoveredIndex]?.img" alt="preview" />
+            <img
+              :src="getImageUrl(props.id || '1', archiveList[hoveredIndex]?.pageNum)"
+              alt="preview"
+              loading="lazy"
+              decoding="async"
+            />
             <div class="p-page-badge">P{{ hoveredIndex + 1 }}</div>
           </div>
           <div class="p-content">
@@ -46,6 +51,9 @@
             <img v-if="Math.abs(index - currentIndex) <= 3"
               :src="getImageUrl(props.id || '1', item.pageNum)"
               class="archive-img"
+              :loading="index === currentIndex ? 'eager' : 'lazy'"
+              :fetchpriority="index === currentIndex ? 'high' : 'auto'"
+              decoding="async"
             />
             <div v-else class="archive-img-placeholder"></div>
           </div>
@@ -88,7 +96,7 @@
 </template>
 
 <script setup>
-import { ref, reactive, computed, watch, onMounted } from 'vue'
+import { ref, reactive, computed, watch } from 'vue'
 import { useRouter, useRoute } from 'vue-router'
 
 // --- 接收 ID 识别板块 ---
@@ -421,6 +429,12 @@ const scrollContainer = ref(null)
 const scrubberRef = ref(null)
 const audioPlayer = ref(null)
 let hoverTimer = null
+let scrollRafId = 0
+let audioRequestToken = 0
+
+const PRELOAD_RADIUS = 3
+const UNLOAD_RADIUS = 10
+const IMAGE_EXTS = ['jpg', 'jpeg', 'png', 'JPG', 'JPEG', 'PNG']
 
 // --- 获取当前生效的配置 ---
 const currentConfig = computed(() => {
@@ -440,21 +454,94 @@ const _audioGlob = import.meta.glob(
 
 // 图片缓存
 const _imgCache = reactive({})
-const getImageUrl = (moduleId, pageNum) => {
-  const key = `../../assets/images/mainShow/imageReader/button_${moduleId}/${pageNum}.jpg`
-  if (!_imgCache[key]) {
-    _imgGlob[key]?.().then(url => { _imgCache[key] = url })
+const _imgPromiseCache = {}
+const _imgByteWarmupSet = new Set()
+
+const resolveImageKey = (moduleId, pageNum) => {
+  const base = `../../assets/images/mainShow/imageReader/button_${moduleId}/${pageNum}`
+  for (const ext of IMAGE_EXTS) {
+    const key = `${base}.${ext}`
+    if (_imgGlob[key]) return key
   }
+  return ''
+}
+
+const ensureImageLoaded = (moduleId, pageNum) => {
+  const key = resolveImageKey(moduleId, pageNum)
+  if (!key) return
+  if (_imgCache[key]) return
+  if (_imgPromiseCache[key]) return
+
+  _imgPromiseCache[key] = _imgGlob[key]().then(url => {
+    _imgCache[key] = url
+  }).finally(() => {
+    delete _imgPromiseCache[key]
+  })
+}
+
+const warmupImageBytes = (moduleId, pageNum) => {
+  const key = resolveImageKey(moduleId, pageNum)
+  if (!key) return
+
+  const tryWarmup = (url) => {
+    if (!url || _imgByteWarmupSet.has(url)) return
+    _imgByteWarmupSet.add(url)
+    const img = new Image()
+    img.decoding = 'async'
+    img.src = url
+  }
+
+  if (_imgCache[key]) {
+    tryWarmup(_imgCache[key])
+    return
+  }
+
+  ensureImageLoaded(moduleId, pageNum)
+  _imgPromiseCache[key]?.then(() => {
+    tryWarmup(_imgCache[key])
+  })
+}
+
+const getImageUrl = (moduleId, pageNum) => {
+  const key = resolveImageKey(moduleId, pageNum)
+  if (!key) return ''
+  ensureImageLoaded(moduleId, pageNum)
   return _imgCache[key] || ''
+}
+
+const syncImageWindow = () => {
+  const activeId = props.id || '1'
+  const total = archiveList.value.length
+  if (!total) return
+
+  const center = currentIndex.value + 1
+  const start = Math.max(1, center - PRELOAD_RADIUS)
+  const end = Math.min(total, center + PRELOAD_RADIUS)
+
+  for (let i = start; i <= end; i++) {
+    ensureImageLoaded(activeId, i)
+  }
+
+  Object.keys(_imgCache).forEach((key) => {
+    if (!key.includes(`button_${activeId}/`)) return
+    const match = key.match(/\/(\d+)\.[^/.]+$/)
+    if (!match) return
+    const pageNum = Number(match[1])
+    if (Math.abs(pageNum - center) > UNLOAD_RADIUS) {
+      delete _imgCache[key]
+      delete _imgPromiseCache[key]
+    }
+  })
 }
 
 // 音频加载
 const loadAndPlayAudio = async () => {
   if (isMuted.value || !audioPlayer.value) return
+  const token = ++audioRequestToken
   const activeId = props.id || '1'
   const key = `../../assets/audio/imageReader/button_${activeId}/${currentIndex.value + 1}.wav`
   const url = await _audioGlob[key]?.()
-  if (!url) return
+  if (!url || token !== audioRequestToken) return
   audioPlayer.value.pause()
   audioPlayer.value.src = url
   audioPlayer.value.load()
@@ -466,7 +553,6 @@ const loadAndPlayAudio = async () => {
 // --- 初始化板块 ---
 const initModule = () => {
   const cfg = currentConfig.value
-  const activeId = props.id || '1'
   const list = []
   for (let i = 1; i <= cfg.total; i++) {
     const rule = cfg.rules.find(([s, e]) => i >= s && i <= e)
@@ -484,12 +570,19 @@ const progress = computed(() => {
   return ((currentIndex.value + 1) / archiveList.value.length) * 100
 })
 
-// 监听翻页
+watch(() => props.id, () => {
+  initModule()
+  syncImageWindow()
+  warmupImageBytes(props.id || '1', 1)
+  warmupImageBytes(props.id || '1', 2)
+  if (!isMuted.value) loadAndPlayAudio()
+}, { immediate: true })
+
+// 监听翻页，触发资源窗口同步
 watch(currentIndex, () => {
+  syncImageWindow()
   if (!isMuted.value) loadAndPlayAudio()
 })
-
-onMounted(initModule)
 
 // --- 交互方法 ---
 const handleBack = () => router.back()
@@ -505,8 +598,14 @@ const toggleMute = () => {
 
 const handleScroll = () => {
   if (!scrollContainer.value) return
-  const { scrollLeft, clientWidth } = scrollContainer.value
-  currentIndex.value = Math.round(scrollLeft / clientWidth)
+  if (scrollRafId) return
+  scrollRafId = requestAnimationFrame(() => {
+    const { scrollLeft, clientWidth } = scrollContainer.value || {}
+    if (clientWidth) {
+      currentIndex.value = Math.round(scrollLeft / clientWidth)
+    }
+    scrollRafId = 0
+  })
 }
 
 const scrollToPage = (index) => {
