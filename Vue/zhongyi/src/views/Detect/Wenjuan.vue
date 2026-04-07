@@ -7,7 +7,7 @@
       <div class="template-select-card">
         <div class="tcm-seal">模板选择</div>
         <h2 class="template-title">先选择问诊人群 / 场景</h2>
-        <p class="template-desc">原始 33 题保留读题音频；专项模板仅保留文字题目，适合不同人群的问诊路径。</p>
+        <p class="template-desc">标准 33 题保留读题音频；专项模板仅保留文字题目，适合不同人群的问诊路径。</p>
 
         <div class="template-topline">
           <span>当前可用 {{ templateCards.length }} 套模板</span>
@@ -467,7 +467,7 @@ const playAudio = () => {
     return;
   }
   audio.pause();
-  audio.src = `/src/assets/audio/question/${currentIndex.value + 1}.wav`;
+  audio.src = `/src/assets/audio/question/${currentIndex.value + 1}.mp3`;
   audio.play().catch(() => {});
 };
 

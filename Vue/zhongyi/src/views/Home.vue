@@ -1,7 +1,7 @@
 ﻿<template>
   <div class="tcm-system">
     <audio ref="audioRef" loop>
-      <source src="../assets/audio/bgm/梁祝.wav" type="audio/mpeg" />
+      <source src="../assets/audio/bgm/梁祝.mp3" type="audio/mpeg" />
     </audio>
 
     <!-- ===== 页眉 ===== -->

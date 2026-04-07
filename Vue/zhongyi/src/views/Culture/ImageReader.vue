@@ -448,7 +448,7 @@ const _imgGlob = import.meta.glob(
   { query: '?url', import: 'default', eager: false }
 )
 const _audioGlob = import.meta.glob(
-  '../../assets/audio/imageReader/**/*.wav',
+  '../../assets/audio/imageReader/**/*.mp3',
   { query: '?url', import: 'default', eager: false }
 )
 
@@ -539,7 +539,7 @@ const loadAndPlayAudio = async () => {
   if (isMuted.value || !audioPlayer.value) return
   const token = ++audioRequestToken
   const activeId = props.id || '1'
-  const key = `../../assets/audio/imageReader/button_${activeId}/${currentIndex.value + 1}.wav`
+  const key = `../../assets/audio/imageReader/button_${activeId}/${currentIndex.value + 1}.mp3`
   const url = await _audioGlob[key]?.()
   if (!url || token !== audioRequestToken) return
   audioPlayer.value.pause()
