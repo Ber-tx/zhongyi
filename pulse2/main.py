@@ -1,7 +1,10 @@
 import asyncio
 import json
 import time
+import math
+import statistics
 import serial
+import numpy as np
 import serial.tools.list_ports
 from collections import deque
 from fastapi import FastAPI, WebSocket, WebSocketDisconnect
@@ -9,13 +12,18 @@ from fastapi.middleware.cors import CORSMiddleware
 from contextlib import asynccontextmanager
 
 from core.algorithm import PulseAlgorithm
-from models.schemas import PulseReport
 
 # ===== 全局状态管理 =====
 measurement_session = {
     "is_measuring": False,
     "hr_history": [],
     "spo2_history": [],
+    "quality_history": [],
+    "feature_history": [],
+    "raw_ir": [],
+    "raw_red": [],
+    "total_windows": 0,
+    "valid_windows": 0,
 }
 
 # 实例化算法
@@ -55,6 +63,181 @@ def auto_detect_serial_port():
 # 🔧 关键修复：用滑动窗口累积数据
 ir_window = deque(maxlen=100)
 red_window = deque(maxlen=100)
+
+
+def filter_outliers(data):
+    if len(data) < 4:
+        return data
+    sorted_data = sorted(data)
+    q1 = sorted_data[len(data) // 4]
+    q3 = sorted_data[3 * len(data) // 4]
+    iqr = q3 - q1
+    lower = q1 - 1.5 * iqr
+    upper = q3 + 1.5 * iqr
+    filtered = [x for x in data if lower <= x <= upper]
+    return filtered if len(filtered) >= 3 else data
+
+
+def _safe_mean(values):
+    return round(float(sum(values) / len(values)), 4) if values else 0.0
+
+
+def _safe_std(values):
+    if len(values) < 2:
+        return 0.0
+    return round(float(statistics.pstdev(values)), 4)
+
+
+def extract_waveform_features(ir_signal, fs=50):
+    """
+    从单窗口IR波形提取脉搏相关特征。
+    说明：仅用于增强脉象关联，不改变HR/SpO2主算法输出。
+    """
+    x = np.asarray(ir_signal, dtype=float)
+    if len(x) < 8:
+        return {
+            "peak_count": 0,
+            "interval_mean_ms": 0.0,
+            "interval_sdnn_ms": 0.0,
+            "interval_rmssd_ms": 0.0,
+            "rhythm_cv": 0.0,
+            "pulse_amp_mean": 0.0,
+            "pulse_amp_cv": 0.0,
+            "upstroke_time_ms": 0.0,
+            "crest_factor": 0.0,
+        }
+
+    # 简单去中心，保留形态
+    x = x - np.mean(x)
+    std = float(np.std(x))
+    if std <= 1e-9:
+        return {
+            "peak_count": 0,
+            "interval_mean_ms": 0.0,
+            "interval_sdnn_ms": 0.0,
+            "interval_rmssd_ms": 0.0,
+            "rhythm_cv": 0.0,
+            "pulse_amp_mean": 0.0,
+            "pulse_amp_cv": 0.0,
+            "upstroke_time_ms": 0.0,
+            "crest_factor": 0.0,
+        }
+
+    # 局部峰谷检测（不依赖外部峰值库）
+    threshold_peak = np.mean(x) + 0.3 * std
+    threshold_trough = np.mean(x) - 0.3 * std
+
+    peaks = []
+    troughs = []
+    for i in range(1, len(x) - 1):
+        if x[i - 1] < x[i] >= x[i + 1] and x[i] > threshold_peak:
+            peaks.append(i)
+        if x[i - 1] > x[i] <= x[i + 1] and x[i] < threshold_trough:
+            troughs.append(i)
+
+    intervals = []
+    if len(peaks) >= 2:
+        intervals = [((peaks[i] - peaks[i - 1]) / fs) for i in range(1, len(peaks))]
+
+    intervals_ms = [v * 1000.0 for v in intervals]
+    rr_diff = [intervals_ms[i] - intervals_ms[i - 1] for i in range(1, len(intervals_ms))]
+
+    amplitudes = []
+    upstroke_ms = []
+    for p in peaks:
+        prev_trough_candidates = [t for t in troughs if t < p]
+        if not prev_trough_candidates:
+            continue
+        t = prev_trough_candidates[-1]
+        amplitudes.append(float(x[p] - x[t]))
+        upstroke_ms.append(float((p - t) / fs * 1000.0))
+
+    interval_mean_ms = _safe_mean(intervals_ms)
+    interval_sdnn_ms = _safe_std(intervals_ms)
+    interval_rmssd_ms = round(math.sqrt(_safe_mean([d * d for d in rr_diff])), 4) if rr_diff else 0.0
+    rhythm_cv = round((interval_sdnn_ms / interval_mean_ms), 4) if interval_mean_ms > 0 else 0.0
+    pulse_amp_mean = _safe_mean(amplitudes)
+    pulse_amp_cv = round((_safe_std(amplitudes) / pulse_amp_mean), 4) if pulse_amp_mean > 0 else 0.0
+    upstroke_time_ms = _safe_mean(upstroke_ms)
+    crest_factor = round(float(np.max(np.abs(x)) / (np.sqrt(np.mean(x ** 2)) + 1e-9)), 4)
+
+    return {
+        "peak_count": int(len(peaks)),
+        "interval_mean_ms": interval_mean_ms,
+        "interval_sdnn_ms": interval_sdnn_ms,
+        "interval_rmssd_ms": interval_rmssd_ms,
+        "rhythm_cv": rhythm_cv,
+        "pulse_amp_mean": pulse_amp_mean,
+        "pulse_amp_cv": pulse_amp_cv,
+        "upstroke_time_ms": upstroke_time_ms,
+        "crest_factor": crest_factor,
+    }
+
+
+def summarize_feature_history(feature_history):
+    if not feature_history:
+        return {
+            "hrv_sdnn_ms": 0.0,
+            "hrv_rmssd_ms": 0.0,
+            "rhythm_cv": 0.0,
+            "pulse_strength_index": 0.0,
+            "pulse_amp_cv": 0.0,
+            "upstroke_time_ms": 0.0,
+            "perfusion_index": 0.0,
+            "signal_quality": 0.0,
+            "autocorr_ratio": 0.0,
+        }
+
+    def collect(key):
+        vals = [f.get(key, 0.0) for f in feature_history if f.get("is_valid")]
+        return vals if vals else [0.0]
+
+    return {
+        "hrv_sdnn_ms": round(_safe_mean(collect("interval_sdnn_ms")), 3),
+        "hrv_rmssd_ms": round(_safe_mean(collect("interval_rmssd_ms")), 3),
+        "rhythm_cv": round(_safe_mean(collect("rhythm_cv")), 4),
+        "pulse_strength_index": round(_safe_mean(collect("pulse_amp_mean")), 4),
+        "pulse_amp_cv": round(_safe_mean(collect("pulse_amp_cv")), 4),
+        "upstroke_time_ms": round(_safe_mean(collect("upstroke_time_ms")), 3),
+        "perfusion_index": round(_safe_mean(collect("perfusion_index")), 4),
+        "signal_quality": round(_safe_mean(collect("quality")), 4),
+        "autocorr_ratio": round(_safe_mean(collect("autocorr_ratio")), 4),
+    }
+
+
+def classify_pulse(avg_hr, feature_summary):
+    tags = []
+
+    if avg_hr > 90:
+        tags.append("数脉倾向")
+    elif avg_hr < 60:
+        tags.append("迟脉倾向")
+    else:
+        tags.append("缓脉倾向")
+
+    rhythm_cv = feature_summary.get("rhythm_cv", 0)
+    if rhythm_cv <= 0.06:
+        tags.append("节律较齐")
+    elif rhythm_cv <= 0.12:
+        tags.append("节律轻度不齐")
+    else:
+        tags.append("节律不齐倾向")
+
+    perfusion_index = feature_summary.get("perfusion_index", 0)
+    if perfusion_index < 0.8:
+        tags.append("脉势偏弱")
+    elif perfusion_index > 2.0:
+        tags.append("脉势偏有力")
+    else:
+        tags.append("脉势中等")
+
+    upstroke_ms = feature_summary.get("upstroke_time_ms", 0)
+    if 0 < upstroke_ms < 120:
+        tags.append("脉形偏紧促")
+    elif upstroke_ms > 220:
+        tags.append("脉形偏缓")
+
+    return tags
 
 
 async def serial_worker():
@@ -102,8 +285,32 @@ async def serial_worker():
                             # === 🔧 修复3：确保 quality 非负 ===
                             quality = max(0, res.get('quality', 0))
 
+                            # 提取脉搏波形特征（增强脉诊语义）
+                            waveform_features = extract_waveform_features(ir_array, fs=algo.FS)
+                            perfusion_index = 0.0
+                            if res.get("ir_mean", 0) > 0:
+                                perfusion_index = (res.get("ir_rms", 0) / res.get("ir_mean", 1e-9)) * 100.0
+
+                            feature_snapshot = {
+                                "ts": int(time.time() * 1000),
+                                "is_valid": bool(res.get("is_valid", False)),
+                                "quality": round(float(quality), 3),
+                                "autocorr_ratio": round(float(res.get("autocorr_ratio", 0.0)), 3),
+                                "pearson_corr": round(float(res.get("pearson_corr", 0.0)), 3),
+                                "perfusion_index": round(float(perfusion_index), 4),
+                                **waveform_features,
+                            }
+
+                            if measurement_session["is_measuring"]:
+                                measurement_session["total_windows"] += 1
+                                measurement_session["quality_history"].append(round(float(quality), 3))
+                                measurement_session["feature_history"].append(feature_snapshot)
+                                measurement_session["raw_ir"].extend(ir_list)
+                                measurement_session["raw_red"].extend(red_list)
+
                             # 如果正在测量且数据有效，记录历史
                             if measurement_session["is_measuring"] and res['is_valid']:
+                                measurement_session["valid_windows"] += 1
                                 measurement_session["hr_history"].append(res['hr'])
                                 measurement_session["spo2_history"].append(res['spo2'])
 
@@ -175,6 +382,12 @@ async def start_measurement():
     measurement_session["is_measuring"] = True
     measurement_session["hr_history"] = []
     measurement_session["spo2_history"] = []
+    measurement_session["quality_history"] = []
+    measurement_session["feature_history"] = []
+    measurement_session["raw_ir"] = []
+    measurement_session["raw_red"] = []
+    measurement_session["total_windows"] = 0
+    measurement_session["valid_windows"] = 0
 
     algo.reset()
 
@@ -189,6 +402,11 @@ async def stop_and_report(user_id: int):
 
     hr_list = measurement_session["hr_history"]
     spo2_list = measurement_session["spo2_history"]
+    total_windows = measurement_session["total_windows"]
+    valid_windows = measurement_session["valid_windows"]
+    feature_history = measurement_session["feature_history"]
+    raw_ir = measurement_session["raw_ir"]
+    raw_red = measurement_session["raw_red"]
 
     # 数据检查
     if len(hr_list) < 5:
@@ -200,21 +418,10 @@ async def stop_and_report(user_id: int):
             "avg_spo2": 0,
             "suggestion": "数据不足",
             "valid_rate": 0,
-            "sample_count": 0
+            "sample_count": 0,
+            "pulse_metrics": {},
+            "pulse_tags": [],
         }
-
-    # 去除异常值
-    def filter_outliers(data):
-        if len(data) < 4:
-            return data
-        sorted_data = sorted(data)
-        q1 = sorted_data[len(data) // 4]
-        q3 = sorted_data[3 * len(data) // 4]
-        iqr = q3 - q1
-        lower = q1 - 1.5 * iqr
-        upper = q3 + 1.5 * iqr
-        filtered = [x for x in data if lower <= x <= upper]
-        return filtered if len(filtered) >= 3 else data
 
     hr_clean = filter_outliers(hr_list)
     spo2_clean = filter_outliers(spo2_list)
@@ -224,10 +431,38 @@ async def stop_and_report(user_id: int):
     avg_spo2 = round(sum(spo2_clean) / len(spo2_clean), 1)
 
     # 有效率
-    valid_rate = round(len(hr_list) / max(len(hr_list), 1) * 100, 1)
+    valid_rate = round((valid_windows / max(total_windows, 1)) * 100, 1)
+
+    # 脉搏特征汇总
+    pulse_metrics = summarize_feature_history(feature_history)
+    pulse_tags = classify_pulse(avg_hr, pulse_metrics)
+
+    # key_metrics_json：切诊落库/喂给LLM的最小关键指标集。
+    # hrv_rmssd_ms=窗口间脉搏间期RMSSD(ms)，rhythm_cv=节律变异系数，perfusion_index=灌注指数，
+    # signal_quality=信号质量评分，pulse_tags=基于HR/节律/PI的脉象标签。
+    key_metrics = {
+        "hrv_rmssd_ms": pulse_metrics.get("hrv_rmssd_ms", 0.0),
+        "rhythm_cv": pulse_metrics.get("rhythm_cv", 0.0),
+        "perfusion_index": pulse_metrics.get("perfusion_index", 0.0),
+        "signal_quality": pulse_metrics.get("signal_quality", 0.0),
+        "pulse_tags": pulse_tags,
+    }
 
     # 生成中医建议
-    suggestion = generate_tcm_suggestion(avg_hr, avg_spo2)
+    suggestion = generate_tcm_suggestion(avg_hr, avg_spo2, pulse_metrics, pulse_tags)
+
+    # raw_data_json：前端详细模式直接转发给大模型的完整脉诊上下文。
+    # fs=采样率，buffer_size=单窗长度，raw_ir/raw_red=原始波形，window_features=每窗特征，
+    # summary_metrics=会话汇总指标，pulse_tags=最终脉象标签。
+    raw_data_json = {
+        "fs": algo.FS,
+        "buffer_size": algo.BUFFER_SIZE,
+        "raw_ir": raw_ir,
+        "raw_red": raw_red,
+        "window_features": feature_history,
+        "summary_metrics": pulse_metrics,
+        "pulse_tags": pulse_tags,
+    }
 
     print(f"🟡 测量完成 - HR: {avg_hr}, SPO2: {avg_spo2}")
 
@@ -239,13 +474,19 @@ async def stop_and_report(user_id: int):
         "suggestion": suggestion,
         "valid_rate": valid_rate,
         "sample_count": len(hr_clean),
-        "measured_at": int(time.time())
+        "measured_at": int(time.time()),
+        "pulse_metrics": pulse_metrics,
+        "pulse_tags": pulse_tags,
+        "key_metrics_json": json.dumps(key_metrics, ensure_ascii=False),
+        "raw_data_json": json.dumps(raw_data_json, ensure_ascii=False)
     }
 
 
-def generate_tcm_suggestion(hr, spo2):
+def generate_tcm_suggestion(hr, spo2, pulse_metrics=None, pulse_tags=None):
     """生成中医建议"""
     lines = []
+    pulse_metrics = pulse_metrics or {}
+    pulse_tags = pulse_tags or []
 
     if hr > 90:
         lines.append("【脉象】数脉（一息五至以上，脉来急促）")
@@ -262,6 +503,20 @@ def generate_tcm_suggestion(hr, spo2):
     if spo2 < 95:
         lines.append("【提示】血氧偏低，中医认为可能气虚血瘀。")
         lines.append("【调养】宜补气养血，可服黄芪、党参（需遵医嘱）。")
+
+    if pulse_tags:
+        lines.append("【脉搏特征】" + "、".join(pulse_tags))
+
+    hrv_rmssd = pulse_metrics.get("hrv_rmssd_ms", 0)
+    rhythm_cv = pulse_metrics.get("rhythm_cv", 0)
+    perfusion_index = pulse_metrics.get("perfusion_index", 0)
+
+    lines.append(
+        f"【量化摘要】RMSSD={hrv_rmssd}ms，节律CV={rhythm_cv}，灌注指数PI={perfusion_index}%。"
+    )
+
+    if rhythm_cv > 0.12:
+        lines.append("【提示】节律波动偏大，建议静息后复测，并结合临床心电评估。")
 
     return "\n".join(lines)
 

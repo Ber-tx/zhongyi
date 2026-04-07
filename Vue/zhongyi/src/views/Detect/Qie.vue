@@ -377,7 +377,9 @@ const stopAndAnalyze = async () => {
       suggestion: report.suggestion,
       valid_rate: report.valid_rate,
       sample_count: report.sample_count,
-      raw_wave: JSON.stringify(waveBuffer.value.slice(-300)) 
+      pulse_metrics: report.pulse_metrics || {},
+      pulse_tags: report.pulse_tags || [],
+      raw_wave: report.raw_data_json || JSON.stringify(waveBuffer.value.slice(-300))
     };
     
     ElMessage.success("分析完成，请查看报告");
@@ -401,6 +403,16 @@ async function persistQieToServer() {
     validRate: analysisResult.value.valid_rate,
     sampleCount: analysisResult.value.sample_count,
     tcmSuggestion: analysisResult.value.suggestion,
+    // qieKeyMetricsJson：切诊最小关键JSON，供Java落库和后续focus=qie的大模型复核使用。
+    // hrv_rmssd_ms=HRV时间域指标，rhythm_cv=节律稳定性，perfusion_index=灌注指数，
+    // signal_quality=采集质量评分，pulse_tags=脉象标签列表。
+    qieKeyMetricsJson: JSON.stringify({
+      hrv_rmssd_ms: analysisResult.value.pulse_metrics?.hrv_rmssd_ms || 0,
+      rhythm_cv: analysisResult.value.pulse_metrics?.rhythm_cv || 0,
+      perfusion_index: analysisResult.value.pulse_metrics?.perfusion_index || 0,
+      signal_quality: analysisResult.value.pulse_metrics?.signal_quality || 0,
+      pulse_tags: analysisResult.value.pulse_tags || []
+    }),
     rawData: analysisResult.value.raw_wave
   };
   const javaRes = await axios.post('http://localhost:8080/api/detect/qie/save', payload);

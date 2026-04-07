@@ -167,7 +167,15 @@ class PulseAlgorithm:
             "hr_valid": bool(hr_valid),
             "spo2_valid": bool(spo2_valid and correl >= self.min_pearson_correlation),
             "quality": round(float(max(0, correl)), 3),  # 🔧 唯一修改：max(0, correl)
-            "is_valid": bool(hr_valid and (correl >= self.min_pearson_correlation))
+            "is_valid": bool(hr_valid and (correl >= self.min_pearson_correlation)),
+            # 额外暴露中间指标，便于脉搏特征工程（不改变原有HR/SpO2结果）
+            "autocorr_ratio": round(float(ratio), 3),
+            "pearson_corr": round(float(correl), 3),
+            "xy_ratio": round(float(xy_ratio), 3) if xy_ratio else 0.0,
+            "ir_rms": round(float(ir_rms), 6),
+            "red_rms": round(float(red_rms), 6),
+            "ir_mean": round(float(ir_mean), 6),
+            "red_mean": round(float(red_mean), 6)
         }
 
     def reset(self):

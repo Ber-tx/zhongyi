@@ -32,6 +32,7 @@ public class Diagnosis {
     private Double qieValidRate;        // 信号有效率（0-100）
     private Integer qieSampleCount;     // 有效采样次数
     private String qieTcmSuggestion;    // 中医建议（Python 生成）
+    private String qieKeyMetricsJson;   // 关键脉诊指标JSON：hrv_rmssd_ms/rhythm_cv/perfusion_index/signal_quality/pulse_tags
 
     private LocalDateTime createTime;
 }

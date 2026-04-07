@@ -37,6 +37,10 @@ public class QieServiceImpl implements QieService {
                     ? (String) payload.get("tcmSuggestion")
                     : null;
 
+                String qieKeyMetricsJson = payload.containsKey("qieKeyMetricsJson")
+                    ? String.valueOf(payload.get("qieKeyMetricsJson"))
+                    : null;
+
             Long diagnosisId = null;
             if (payload.containsKey("diagnosisId") && payload.get("diagnosisId") != null) {
                 diagnosisId = Long.valueOf(payload.get("diagnosisId").toString());
@@ -70,6 +74,7 @@ public class QieServiceImpl implements QieService {
                 record.setQieValidRate(validRate);              // 🔧 新字段
                 record.setQieSampleCount(sampleCount);           // 🔧 新字段
                 record.setQieTcmSuggestion(tcmSuggestion);       // 🔧 新字段
+                record.setQieKeyMetricsJson(qieKeyMetricsJson);  // 关键指标JSON
 
                 int rows = diagnosisMapper.updateQie(record);
 
@@ -87,6 +92,7 @@ public class QieServiceImpl implements QieService {
                 newRecord.setQieValidRate(validRate);            // 🔧 新字段
                 newRecord.setQieSampleCount(sampleCount);         // 🔧 新字段
                 newRecord.setQieTcmSuggestion(tcmSuggestion);     // 🔧 新字段
+                newRecord.setQieKeyMetricsJson(qieKeyMetricsJson);// 关键指标JSON
                 newRecord.setCreateTime(LocalDateTime.now());
                 newRecord.setStatus(0);
 

@@ -70,7 +70,7 @@ def build_algorithm_guidance(diagnoses: Dict[str, Any], focus_mode: str) -> str:
     if "wen_questionnaire" in diagnoses:
         guidance.append("- 问诊：重点使用 conclusion、scores、constitutionProfile，解释高分体质簇与证候倾向关联。")
     if "qie" in diagnoses:
-        guidance.append("- 切诊：重点使用 heartRate、spo2、validRate、sampleCount、qualityLevel、heartRateBand、spo2Band、tcmSuggestion，给出脉象/气血层面的推断。")
+        guidance.append("- 切诊：重点使用 heartRate、spo2、validRate、sampleCount、qualityLevel、heartRateBand、spo2Band、tcmSuggestion；若存在 keyMetrics（hrv_rmssd_ms/rhythm_cv/perfusion_index/signal_quality/pulse_tags）需优先用于脉象细化推断。")
 
     if focus_mode != "balanced":
         guidance.append(f"- 当前为侧重模式：{FOCUS_LABELS.get(focus_mode, FOCUS_LABELS['balanced'])}，该板块需给出、最细、最完整的复核分析。")
@@ -91,7 +91,7 @@ def build_output_requirements(focus_mode: str) -> str:
         section_2 = "2. 侧重板块深度复核：包含关键数据摘录、算法结果解读、中医证候推理、风险点、调理建议。"
         section_3 = "3. 其余板块复核：每个板块给核心发现与简要建议。"
         section_4 = "4. 体质判断与证型结论：必须写明依据来自哪些板块和哪些字段。"
-        #section_5 = "5. 个性化调理方案：饮食、作息、运动、穴位/经络、复诊周期。"
+        section_5 = "5. 个性化调理方案：饮食、作息、运动、穴位/经络、复诊周期。"
 
     lines = [
         "## 输出要求",

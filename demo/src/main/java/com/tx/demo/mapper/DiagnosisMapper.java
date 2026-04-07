@@ -25,11 +25,11 @@ public interface DiagnosisMapper {
     @Insert("INSERT INTO diagnosis(patient_id, status, create_time, " +
             "wen_scores, wen_conclusion, wen_audio_conclusion, wen_audio_features, wen_audio_confidence, wen_audio_tags,wen_audio_url, " +
             "wang_result, wang_image_url, wang_tongue_metrics, " +
-            "qie_heart_rate, qie_spo2, qie_valid_rate, qie_sample_count, qie_tcm_suggestion) " +
+            "qie_heart_rate, qie_spo2, qie_valid_rate, qie_sample_count, qie_tcm_suggestion, qie_key_metrics_json) " +
             "VALUES(#{patientId}, 0, NOW(), " +
             "#{wenScores}, #{wenConclusion}, #{wenAudioConclusion}, #{wenAudioFeatures}, #{wenAudioConfidence}, #{wenAudioTags},#{wenAudioUrl}, " +
             "#{wangResult}, #{wangImageUrl}, #{wangTongueMetrics}, " +
-            "#{qieHeartRate}, #{qieSpo2}, #{qieValidRate}, #{qieSampleCount}, #{qieTcmSuggestion})")
+            "#{qieHeartRate}, #{qieSpo2}, #{qieValidRate}, #{qieSampleCount}, #{qieTcmSuggestion}, #{qieKeyMetricsJson})")
     @Options(useGeneratedKeys = true, keyProperty = "id")
     int insert(Diagnosis diagnosis);
 
@@ -65,7 +65,8 @@ public interface DiagnosisMapper {
             "qie_spo2 = #{qieSpo2}, " +
             "qie_valid_rate = #{qieValidRate}, " +
             "qie_sample_count = #{qieSampleCount}, " +
-            "qie_tcm_suggestion = #{qieTcmSuggestion} " +
+            "qie_tcm_suggestion = #{qieTcmSuggestion}, " +
+            "qie_key_metrics_json = #{qieKeyMetricsJson} " +
             "WHERE id = #{id}")
     int updateQie(Diagnosis diagnosis);
 }

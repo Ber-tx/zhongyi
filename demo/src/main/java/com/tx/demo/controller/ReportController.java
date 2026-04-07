@@ -538,6 +538,14 @@ public class ReportController {
             qie.put("qualityLevel", determineQieQualityLevel(diagnosis.getQieValidRate(), diagnosis.getQieSampleCount()));
             qie.put("heartRateBand", determineHeartRateBand(diagnosis.getQieHeartRate()));
             qie.put("spo2Band", determineSpo2Band(diagnosis.getQieSpo2()));
+            if ("qie".equalsIgnoreCase(String.valueOf(focusMode)) &&
+                    diagnosis.getQieKeyMetricsJson() != null &&
+                    !diagnosis.getQieKeyMetricsJson().trim().isEmpty()) {
+                Object keyMetrics = parseJsonOrRaw(diagnosis.getQieKeyMetricsJson());
+                if (keyMetrics != null) {
+                    qie.put("keyMetrics", keyMetrics);
+                }
+            }
             diagnoses.put("qie", qie);
         }
 
@@ -633,6 +641,10 @@ public class ReportController {
             qie.put("qualityLevel", determineQieQualityLevel(diagnosis.getQieValidRate(), diagnosis.getQieSampleCount()));
             qie.put("heartRateBand", determineHeartRateBand(diagnosis.getQieHeartRate()));
             qie.put("spo2Band", determineSpo2Band(diagnosis.getQieSpo2()));
+            Object keyMetrics = parseJsonOrRaw(diagnosis.getQieKeyMetricsJson());
+            if (keyMetrics != null) {
+                qie.put("keyMetrics", keyMetrics);
+            }
             info.put("qie", qie);
         }
 
@@ -855,6 +867,7 @@ public class ReportController {
         qie.put("heartRateBand", "心率分段标签（偏低/正常/偏高等）。");
         qie.put("spo2Band", "血氧分段标签（偏低/临界/正常）。");
         qie.put("tcmSuggestion", "切诊算法建议文本，可作为调理建议参考但需与其他板块交叉验证。");
+        qie.put("keyMetrics", "切诊关键指标JSON：hrv_rmssd_ms=RMSSD(ms)，rhythm_cv=节律变异系数，perfusion_index=灌注指数，signal_quality=信号质量评分，pulse_tags=脉象标签列表；仅在切诊侧重时重点参考。");
         glossary.put("qie", qie);
 
         return glossary;
@@ -887,7 +900,7 @@ public class ReportController {
         Map<String, Object> qie = new LinkedHashMap<>();
         qie.put("name", "脉搏采样统计评估");
         qie.put("inputs", "脉搏信号采样");
-        qie.put("outputs", "heartRate/spo2/validRate/sampleCount + band/quality");
+        qie.put("outputs", "heartRate/spo2/validRate/sampleCount + band/quality + keyMetrics");
         qie.put("interpretation", "qualityLevel 低时应降低切诊结论置信度，并给出复测建议。");
         notes.put("qie", qie);
 
