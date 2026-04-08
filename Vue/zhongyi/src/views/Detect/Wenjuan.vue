@@ -16,7 +16,7 @@
 
         <div class="template-section">
           <div class="template-section-head">
-            <h3>原始体质问卷</h3>
+            <h3>标准体质问卷</h3>
             <p>适合完整采集 33 项体质指标，并保留读题音频。</p>
           </div>
           <div
@@ -81,7 +81,7 @@
 
         <div class="template-actions">
           <el-button type="primary" size="large" round @click="startQuestionnaire">
-            开始{{ selectedTemplateCode === 'original' ? '原始' : '专项' }}问诊
+            开始{{ selectedTemplateCode === 'original' ? '标准' : '专项' }}问诊
           </el-button>
           <el-button size="large" round plain @click="backToCenter">返回诊断中心</el-button>
         </div>
@@ -236,10 +236,10 @@
             重新答题
           </el-button>
           <el-button type="primary" size="large" round @click="generateDiagnosisReport" class="final-btn">
-            生成报告
+            生成阶段性报告
           </el-button>
           <el-button type="success" size="large" round plain @click="backToCenter" class="final-btn">
-            返回诊断中心
+            确认并返回
           </el-button>
         </div>
       </div>
@@ -300,9 +300,9 @@ const ORIGINAL_QUESTIONS = [
 const QUESTIONNAIRE_TEMPLATE_MAP = {
   original: {
     code: 'original',
-    title: '原始体质问卷',
-    subtitle: '33 题原始版本，保留读题音频',
-    badge: '原始版',
+    title: '标准体质问卷',
+    subtitle: '33 题标准版本，保留读题音频',
+    badge: '标准版',
     audioEnabled: true,
     questions: ORIGINAL_QUESTIONS,
     questionCount: ORIGINAL_QUESTIONS.length,
@@ -335,7 +335,7 @@ const resultData = ref({
   diagnosisId: null,
   templateCode: 'original',
   templateResult: null,
-  templateTitle: '原始体质问卷',
+  templateTitle: '标准体质问卷',
 });
 
 // BMI 逻辑
@@ -415,7 +415,7 @@ const templateCards = computed(() =>
     subtitle: item.subtitle,
     questionCount: item.questionCount || (item.questions ? item.questions.length : 0),
     audioEnabled: !!item.audioEnabled,
-    badge: item.badge || (item.audioEnabled ? '原始版' : '专项版'),
+    badge: item.badge || (item.audioEnabled ? '标准版' : '专项版'),
     durationText: (item.questionCount || (item.questions ? item.questions.length : 0)) >= 30 ? '预计 6-8 分钟' : '预计 3-5 分钟',
   }))
 );

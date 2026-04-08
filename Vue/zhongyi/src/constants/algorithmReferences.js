@@ -14,13 +14,7 @@ export const algorithmReferences = {
         source: '阿里通义千问视觉语言模型',
         url: 'https://qwenlm.github.io/blog/qwen2-vl/'
       },
-      {
-        title: '舌诊数字化与中医舌象图像分析研究',
-        authors: '中医药图像分析研究团队',
-        year: 2022,
-        source: '中医药数字化研究',
-        url: ''
-      },
+      
       {
         title: 'OpenAI API-Compatible Vision Model Usage Guide',
         authors: '阿里云百炼 / DashScope',
@@ -35,18 +29,32 @@ export const algorithmReferences = {
     title: '闻诊 - 音频声学分析',
     references: [
       {
-        title: 'Vocal Acoustic Analysis (VAA) - 语音声学基础参数分析',
-        authors: 'Teixeira, J. et al.',
-        year: 2013,
-        source: 'Procedia Technology - ScienceDirect',
-        url: 'https://doi.org/10.1016/j.protcy.2013.12.003'
+        title: 'Sound as a bell: a deep learning approach for health status classification through speech acoustic biomarkers',
+        authors: 'Wang et al.',
+        year: 2024,
+        source: 'Chinese Medicine 19, 101（MFCC 主特征，Conv2D 验证集准确率 84.93%）',
+        url: 'https://doi.org/10.1186/s13020-024-00973-3'
       },
       {
-        title: 'PraatScripts - 开源语言学与语音信号处理工具库',
+        title: 'Vocal Acoustic Analysis - Jitter, Shimmer and HNR Parameters',
+        authors: 'Teixeira et al.',
+        year: 2013,
+        source: 'Procedia Technology 9, 1112-1122（经典声学病理诊断特征）',
+        url: 'https://doi.org/10.1016/j.protcy.2013.12.124'
+      },
+      {
+        title: 'PraatScripts',
         authors: 'Feinberg, D.',
         year: 2021,
-        source: 'GitHub - drfeinberg/PraatScripts',
+        source: 'GitHub（parselmouth 提取 Jitter/Shimmer/HNR 实现参考）',
         url: 'https://github.com/drfeinberg/PraatScripts'
+      },
+      {
+        title: 'Classification research of TCM pulse conditions based on multi-label voice analysis',
+        authors: 'Shen et al.',
+        year: 2024,
+        source: 'Journal of Traditional Chinese Medical Sciences 11(2), 172-179（多标签模型准确率 92.74%）',
+        url: 'https://doi.org/10.1016/j.jtcms.2024.03.008'
       }
     ]
   },

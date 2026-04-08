@@ -191,7 +191,7 @@
         <div class="footer-btns">
           <el-button round @click="resetAnalysis">重新分析</el-button>
           <el-button type="primary" round @click="generateDiagnosisReport">
-            生成报告
+            生成阶段性报告
           </el-button>
           <el-button
             type="success"

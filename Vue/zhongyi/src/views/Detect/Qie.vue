@@ -114,7 +114,7 @@
             >
               <el-icon class="mr-1"><DataAnalysis /></el-icon> 
               <span v-if="countdown > 0">稳定采集中: {{ countdown }}s (请保持平稳)</span>
-              <span v-else>结束采集并生成报告</span>
+              <span v-else>结束采集</span>
             </el-button>
 
             <div v-if="analysisResult && !isMeasuring" class="result-btns">
@@ -125,7 +125,7 @@
                 @click="saveToRecord"
                 class="flex-1"
               >
-                <el-icon class="mr-1"><Check /></el-icon> 确认入库
+                <el-icon class="mr-1"><Check /></el-icon> 确认并返回
               </el-button>
 
               <el-button
@@ -135,7 +135,7 @@
                 @click="saveToRecordAndGoReport"
                 class="flex-1"
               >
-                生成报告
+                生成阶段性报告
               </el-button>
               
               <el-button 
