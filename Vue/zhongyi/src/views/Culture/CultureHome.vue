@@ -1,4 +1,4 @@
-<template>
+﻿<template>
   <div class="tcm-ai-hub" :class="{ 'is-focus': activeModule !== null, 'fade-out': isLeaving }">
 
     <!-- 背景：宣纸暖黄 -->
@@ -14,6 +14,7 @@
       <div class="hero-content">
         <h1 class="hero-title">岐黄 · 智御</h1>
         <p class="hero-subtitle">万物波动，皆有定数。在这里，用算法触碰生命的律动。</p>
+        <p class="loading-tip">提示：首次进入模块时，首张内容加载可能较慢，后续会更快。</p>
       </div>
     </header>
 
@@ -147,16 +148,61 @@ import diag1  from '/src/assets/images/mainShow/1.jpg'
 const isLeaving    = ref(false)
 const router       = useRouter()
 const activeModule = ref(null)
+const TRANSITION_PREPARE_MS = 60
+const TRANSITION_ROUTE_MS = 180
+const IMAGE_EXTS = ['jpg', 'jpeg', 'png', 'JPG', 'JPEG', 'PNG']
+const _firstPageGlob = import.meta.glob(
+  [
+    '../../assets/images/mainShow/imageReader/button_*/1.jpg',
+    '../../assets/images/mainShow/imageReader/button_*/1.jpeg',
+    '../../assets/images/mainShow/imageReader/button_*/1.png',
+    '../../assets/images/mainShow/imageReader/button_*/1.JPG',
+    '../../assets/images/mainShow/imageReader/button_*/1.JPEG',
+    '../../assets/images/mainShow/imageReader/button_*/1.PNG'
+  ],
+  { query: '?url', import: 'default', eager: false }
+)
+const _firstPageWarmSet = new Set()
+
+const resolveFirstPageKey = (moduleId) => {
+  const base = `../../assets/images/mainShow/imageReader/button_${moduleId}/1`
+  for (const ext of IMAGE_EXTS) {
+    const key = `${base}.${ext}`
+    if (_firstPageGlob[key]) return key
+  }
+  return ''
+}
+
+const prewarmReaderFirstPage = (id) => {
+  if (id === 4 || id === 10) return
+  const moduleId = String(id)
+  const key = resolveFirstPageKey(moduleId)
+  if (!key || _firstPageWarmSet.has(key)) return
+  _firstPageWarmSet.add(key)
+
+  const loader = _firstPageGlob[key]
+  if (!loader) return
+  loader().then((url) => {
+    if (!url) return
+    const img = new Image()
+    img.decoding = 'async'
+    img.loading = 'eager'
+    img.fetchPriority = 'high'
+    img.src = url
+  }).catch(() => {})
+}
 
 const handleModuleClick = (id) => {
   activeModule.value = id
+  prewarmReaderFirstPage(id)
+  if (id !== 4 && id !== 10) import('./ImageReader.vue')
   setTimeout(() => {
     isLeaving.value = true
     setTimeout(() => {
       if (id === 1) router.push('/culture/preventive')
       else          router.push(`/culture/module/${id}`)
-    }, 800)
-  }, 400)
+    }, TRANSITION_ROUTE_MS)
+  }, TRANSITION_PREPARE_MS)
 }
 </script>
 
@@ -226,6 +272,11 @@ const handleModuleClick = (id) => {
   text-shadow: 0 1px 3px rgba(100,50,0,.1);
 }
 .hero-subtitle { color: var(--c-ink-lt); font-weight: 300; margin: 0; font-size: 14px; }
+.loading-tip {
+  margin-top: 10px;
+  color: #8a6a3f;
+  font-size: 12px;
+}
 
 /* ── Bento 容器 ── */
 .bento-container {

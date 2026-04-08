@@ -12,10 +12,12 @@ import org.springframework.core.io.FileSystemResource;
 import org.springframework.http.HttpEntity;
 import org.springframework.http.HttpHeaders;
 import org.springframework.http.MediaType;
+import org.springframework.util.StringUtils;
 import org.springframework.util.LinkedMultiValueMap;
 import org.springframework.util.MultiValueMap;
 import org.springframework.web.bind.annotation.*;
 import org.springframework.web.client.RestTemplate;
+import org.springframework.web.client.ResourceAccessException;
 import org.springframework.web.multipart.MultipartFile;
 
 import java.io.File;
@@ -164,6 +166,8 @@ public class WangController {
                 Map<String, Object> resultMap = new HashMap<>();
                 resultMap.put("main_result", mainResult);
                 resultMap.put("chart_img",chartImg );
+                resultMap.put("confidence", confidence);
+                resultMap.put("scores", scores);
 
                 if(json.containsKey("data_depth")){
                     resultMap.put("details", json.getJSONObject("data_depth"));
@@ -171,10 +175,31 @@ public class WangController {
 
                 return Result.success(resultMap);
             } else {
-                String msg = (json != null) ? json.getString("main_result") : "算法分析返回空值";
+                String msg = "算法分析返回空值";
+                if (json != null) {
+                    String rootMsg = json.getString("msg");
+                    if (StringUtils.hasText(rootMsg)) {
+                        msg = rootMsg;
+                    } else {
+                        JSONObject dataObj = json.getJSONObject("data");
+                        if (dataObj != null) {
+                            String dataMain = dataObj.getString("main_result");
+                            if (StringUtils.hasText(dataMain)) {
+                                msg = dataMain;
+                            }
+                        }
+                        String rootMain = json.getString("main_result");
+                        if (StringUtils.hasText(rootMain)) {
+                            msg = rootMain;
+                        }
+                    }
+                }
                 return Result.error("分析失败: " + msg);
             }
 
+        } catch (ResourceAccessException e) {
+            e.printStackTrace();
+            return Result.error("算法服务连接失败，请确认 Python 服务已启动 (" + pythonUrl + ")");
         } catch (Exception e) {
             e.printStackTrace();
             return Result.error("算法服务访问失败，请检查 Python 后端状态");

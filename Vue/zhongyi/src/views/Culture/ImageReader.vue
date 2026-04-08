@@ -48,7 +48,8 @@
       <div class="scroll-container" ref="scrollContainer" @scroll="handleScroll">
         <div v-for="(item, index) in archiveList" :key="index" class="scroll-item">
           <div class="image-wrapper">
-            <img v-if="Math.abs(index - currentIndex) <= 3"
+            <div v-if="index === 0 && !firstImageReady" class="first-image-loading">首图加载中...</div>
+            <img v-if="Math.abs(index - currentIndex) <= 3 && !(index === 0 && !firstImageReady)"
               :src="getImageUrl(props.id || '1', item.pageNum)"
               class="archive-img"
               :loading="index === currentIndex ? 'eager' : 'lazy'"
@@ -96,7 +97,7 @@
 </template>
 
 <script setup>
-import { ref, reactive, computed, watch } from 'vue'
+import { ref, computed, watch, onMounted, onBeforeUnmount, reactive } from 'vue'
 import { useRouter, useRoute } from 'vue-router'
 
 // --- 接收 ID 识别板块 ---
@@ -428,13 +429,14 @@ const previewPos = ref(0)
 const scrollContainer = ref(null)
 const scrubberRef = ref(null)
 const audioPlayer = ref(null)
+const firstImageReady = ref(false)
 let hoverTimer = null
 let scrollRafId = 0
 let audioRequestToken = 0
 
 const PRELOAD_RADIUS = 3
-const UNLOAD_RADIUS = 10
 const IMAGE_EXTS = ['jpg', 'jpeg', 'png', 'JPG', 'JPEG', 'PNG']
+let idlePreloadTaskId = null
 
 // --- 获取当前生效的配置 ---
 const currentConfig = computed(() => {
@@ -442,9 +444,16 @@ const currentConfig = computed(() => {
   return ARCHIVE_DATA[activeId] || ARCHIVE_DATA["1"]
 })
 
-// import.meta.glob 懒加载
+// 图片 URL 同步映射：避免首图渲染时再触发二次动态 import
 const _imgGlob = import.meta.glob(
-  '../../assets/images/mainShow/imageReader/**/*.jpg',
+  [
+    '../../assets/images/mainShow/imageReader/**/*.jpg',
+    '../../assets/images/mainShow/imageReader/**/*.jpeg',
+    '../../assets/images/mainShow/imageReader/**/*.png',
+    '../../assets/images/mainShow/imageReader/**/*.JPG',
+    '../../assets/images/mainShow/imageReader/**/*.JPEG',
+    '../../assets/images/mainShow/imageReader/**/*.PNG'
+  ],
   { query: '?url', import: 'default', eager: false }
 )
 const _audioGlob = import.meta.glob(
@@ -452,7 +461,6 @@ const _audioGlob = import.meta.glob(
   { query: '?url', import: 'default', eager: false }
 )
 
-// 图片缓存
 const _imgCache = reactive({})
 const _imgPromiseCache = {}
 const _imgByteWarmupSet = new Set()
@@ -488,7 +496,12 @@ const warmupImageBytes = (moduleId, pageNum) => {
     _imgByteWarmupSet.add(url)
     const img = new Image()
     img.decoding = 'async'
+    img.loading = 'eager'
+    img.fetchPriority = 'high'
     img.src = url
+    if (typeof img.decode === 'function') {
+      img.decode().catch(() => {})
+    }
   }
 
   if (_imgCache[key]) {
@@ -509,6 +522,24 @@ const getImageUrl = (moduleId, pageNum) => {
   return _imgCache[key] || ''
 }
 
+const ensureFirstImageReady = async (moduleId) => {
+  const key = resolveImageKey(moduleId, 1)
+  if (!key) {
+    firstImageReady.value = true
+    return
+  }
+  ensureImageLoaded(moduleId, 1)
+  if (_imgCache[key]) {
+    firstImageReady.value = true
+    return
+  }
+  try {
+    await _imgPromiseCache[key]
+  } finally {
+    firstImageReady.value = !!_imgCache[key]
+  }
+}
+
 const syncImageWindow = () => {
   const activeId = props.id || '1'
   const total = archiveList.value.length
@@ -519,19 +550,8 @@ const syncImageWindow = () => {
   const end = Math.min(total, center + PRELOAD_RADIUS)
 
   for (let i = start; i <= end; i++) {
-    ensureImageLoaded(activeId, i)
+    warmupImageBytes(activeId, i)
   }
-
-  Object.keys(_imgCache).forEach((key) => {
-    if (!key.includes(`button_${activeId}/`)) return
-    const match = key.match(/\/(\d+)\.[^/.]+$/)
-    if (!match) return
-    const pageNum = Number(match[1])
-    if (Math.abs(pageNum - center) > UNLOAD_RADIUS) {
-      delete _imgCache[key]
-      delete _imgPromiseCache[key]
-    }
-  })
 }
 
 // 音频加载
@@ -571,10 +591,13 @@ const progress = computed(() => {
 })
 
 watch(() => props.id, () => {
+  firstImageReady.value = false
   initModule()
   syncImageWindow()
+  ensureFirstImageReady(props.id || '1')
   warmupImageBytes(props.id || '1', 1)
   warmupImageBytes(props.id || '1', 2)
+  warmupImageBytes(props.id || '1', 3)
   if (!isMuted.value) loadAndPlayAudio()
 }, { immediate: true })
 
@@ -642,6 +665,32 @@ const handleScrubberLeave = () => {
 const handleScrubberClick = () => {
   if (hoveredIndex.value !== null) scrollToPage(hoveredIndex.value)
 }
+
+onMounted(() => {
+  const preloadTask = () => {
+    const activeId = props.id || '1'
+    warmupImageBytes(activeId, 1)
+    warmupImageBytes(activeId, 2)
+    warmupImageBytes(activeId, 3)
+    warmupImageBytes(activeId, 4)
+  }
+
+  if (typeof window.requestIdleCallback === 'function') {
+    idlePreloadTaskId = window.requestIdleCallback(preloadTask, { timeout: 800 })
+  } else {
+    idlePreloadTaskId = window.setTimeout(preloadTask, 0)
+  }
+})
+
+onBeforeUnmount(() => {
+  if (idlePreloadTaskId === null) return
+  if (typeof window.cancelIdleCallback === 'function') {
+    window.cancelIdleCallback(idlePreloadTaskId)
+  } else {
+    window.clearTimeout(idlePreloadTaskId)
+  }
+  idlePreloadTaskId = null
+})
 </script>
 
 <style scoped>
@@ -652,7 +701,7 @@ const handleScrubberClick = () => {
 }
 .paper-texture { 
   position: absolute; inset: 0; opacity: 0.08; pointer-events: none; 
-  background-image: url('https://www.transparenttextures.com/patterns/natural-paper.png'); 
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='300' height='300'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.75' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='300' height='300' filter='url(%23n)' opacity='0.05'/%3E%3C/svg%3E");
   z-index: 1; 
 }
 .floating-header {
@@ -714,6 +763,19 @@ const handleScrubberClick = () => {
 
 /* 将图片的高宽上限统一调小 10vh 以避免挤压底部 */
 .archive-img { max-height: 60vh; max-width: 90vw; border-radius: 4px; box-shadow: 0 15px 40px rgba(0,0,0,0.1); }
+.first-image-loading {
+  width: min(90vw, 700px);
+  height: min(60vh, 900px);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: #5f6f69;
+  background: linear-gradient(120deg, rgba(74,144,126,0.08), rgba(74,144,126,0.02));
+  border: 1px solid rgba(74,144,126,0.2);
+  border-radius: 4px;
+  letter-spacing: 0.05em;
+  font-size: 14px;
+}
 .archive-img-placeholder {
   width: min(90vw, 700px);
   height: min(60vh, 900px);

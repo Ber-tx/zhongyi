@@ -1,4 +1,4 @@
-from fastapi import APIRouter, UploadFile, File, HTTPException
+from fastapi import APIRouter, UploadFile, File
 from core.tongue_shizhen import TongueAnalyzer
 import logging
 
@@ -7,10 +7,7 @@ logger = logging.getLogger(__name__)
 
 # 初始化
 try:
-    analyzer = TongueAnalyzer(
-        model_path="./models/tongue_best.pt",
-        config_path="./configs/tongue_detection_types.json"
-    )
+    analyzer = TongueAnalyzer()
 except Exception as e:
     logger.error(f"模型加载失败: {str(e)}")
     analyzer = None

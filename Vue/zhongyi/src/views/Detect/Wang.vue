@@ -5,7 +5,7 @@
       <div class="orb orb-2"></div>
     </div>
 
-    <div class="content-box">
+    <div class="content-box" :class="{ 'result-fullscreen': isCompleted }">
       <div class="header">
         <el-button icon="ArrowLeft" circle @click="goBack" class="back-btn" />
         <h2 class="title">舌象采集分析</h2>
@@ -61,28 +61,62 @@
       </div>
 
       <div v-else class="result-module">
-        <div class="success-banner"><el-icon><CircleCheckFilled /></el-icon> 诊断完成</div>
-        <div class="conclusion">
-          <span class="label">初步辨证结论：</span>
-          <span class="value">{{ analysisResult.main_result }}</span>
-          
+        <div class="dashboard-header">
+          <div class="status-badge"><el-icon><CircleCheckFilled /></el-icon> 诊断分析完成</div>
+          <el-tag type="danger" effect="dark" round class="confidence-tag">
+            模型置信度 {{ confidencePercent }}%
+          </el-tag>
         </div>
-        <div class="charts">
-          <div class="img-card">
-            <p>采集样本</p>
-            <img :src="localImageUrl" class="preview-img" />
+
+        <!-- 核心区域：模型分析雷达图与各项分值（突出第一） -->
+        <div class="visual-dashboard">
+          <div class="dashboard-title">
+            <h3>核心模型量化指标</h3>
+            <span class="subtitle">AI 多维特征提取分析</span>
           </div>
-          <div class="img-card">
-            <p>辨证模型 (点击放大)</p>
+          
+          <div class="radar-box">
             <el-image 
               :src="analysisResult.chart_img" 
               :preview-src-list="[analysisResult.chart_img]"
               fit="contain"
-              class="preview-img radar-large"
+              class="radar-img"
               preview-teleported
               :hide-on-click-modal="true"
             />
           </div>
+
+          <div class="score-grid" v-if="scoreSummary.length">
+            <div class="score-item" v-for="item in scoreSummary" :key="item.name">
+              <div class="score-row">
+                <span class="k">{{ item.name }}</span>
+                <span class="v">{{ item.mean }}</span>
+              </div>
+              <el-progress :percentage="item.mean" :stroke-width="8" :show-text="false" color="#8b3d1a" />
+            </div>
+          </div>
+        </div>
+
+        <!-- 次要区域：结论和原始图像紧凑排版 -->
+        <div class="summary-card">
+          <div class="thumb-container">
+            <img :src="localImageUrl" class="thumb-img" />
+            <span class="thumb-label">采集原图</span>
+          </div>
+          <div class="conclusion-text">
+            <span class="label">初步辨证结论</span>
+            <p class="value">{{ analysisResult.main_result }}</p>
+          </div>
+        </div>
+
+        <div class="result-insight-card" v-if="resultInsights.length">
+          <div class="result-insight-head">
+            <h3>模型解读要点</h3>
+            <span>基于雷达图与结构化输出补充</span>
+          </div>
+          <ul class="result-insight-list">
+            <li v-for="(item, idx) in resultInsights" :key="idx">{{ item }}</li>
+          </ul>
         </div>
         
         <p class="ai-disclaimer">
@@ -119,7 +153,7 @@
 </template>
 
 <script setup>
-import { ref, onUnmounted, onMounted,h } from 'vue'
+import { ref, onUnmounted, onMounted, computed } from 'vue'
 import { useRouter, useRoute } from 'vue-router'
 import { Camera, ArrowLeft, CircleCheckFilled, Picture, VideoCamera } from '@element-plus/icons-vue'
 import { ElMessage, ElMessageBox } from 'element-plus';
@@ -138,6 +172,68 @@ const mediaStream = ref(null)
 const localImageUrl = ref('')
 const analysisResult = ref(null)
 const wangReferences = ref(algorithmReferences.wang.references)
+
+const scoreSummary = computed(() => {
+  const raw = analysisResult.value?.scores || {}
+  return Object.entries(raw)
+    .map(([name, value]) => {
+      const mean = typeof value === 'object' ? Number(value?.mean ?? 0) : Number(value ?? 0)
+      return {
+        name,
+        mean: Number.isFinite(mean) ? Math.max(0, Math.min(100, Math.round(mean))) : 0
+      }
+    })
+    .sort((a, b) => b.mean - a.mean)
+})
+
+const resultInsights = computed(() => {
+  const items = scoreSummary.value
+  if (!items.length) return []
+
+  const insights = []
+  const topItems = items.slice(0, 2).map((item) => `${item.name} ${item.mean} 分`)
+  const tail = items[items.length - 1]
+
+  if (topItems.length) {
+    insights.push(`模型重点关注：${topItems.join('、')}`)
+  }
+  if (tail) {
+    insights.push(`相对较低指标：${tail.name} ${tail.mean} 分`)
+  }
+
+  const details = analysisResult.value?.details
+  if (Array.isArray(details) && details.length) {
+    insights.push(...details.slice(0, 3).map((item) => String(item)))
+  } else if (details && typeof details === 'object') {
+    insights.push(...Object.entries(details).slice(0, 3).map(([key, value]) => {
+      if (Array.isArray(value)) return `${key}：${value.join('，')}`
+      if (value && typeof value === 'object') return `${key}：${JSON.stringify(value)}`
+      return `${key}：${String(value)}`
+    }))
+  }
+
+  insights.push(`模型置信度：${confidencePercent.value}%`)
+  return insights.filter(Boolean)
+})
+
+const confidencePercent = computed(() => {
+  const confidenceSource = Number(analysisResult.value?.confidence)
+  if (Number.isFinite(confidenceSource) && confidenceSource > 0) {
+    return Math.max(0, Math.min(100, Math.round(confidenceSource * 100)))
+  }
+
+  const altSource = Number(analysisResult.value?.confidencePercent ?? analysisResult.value?.confidence_percent)
+  if (Number.isFinite(altSource) && altSource > 0) {
+    return Math.max(0, Math.min(100, altSource <= 1 ? Math.round(altSource * 100) : Math.round(altSource)))
+  }
+
+  if (scoreSummary.value.length) {
+    const avg = scoreSummary.value.reduce((sum, item) => sum + item.mean, 0) / scoreSummary.value.length
+    return Math.max(0, Math.min(100, Math.round(avg)))
+  }
+
+  return 0
+})
 
 const patientInfo = ref({
   id: null,
@@ -272,11 +368,14 @@ const uploadImage = async (base64) => {
         ElMessage.success("分析成功！");
       }
     } else {
-      throw new Error(res.data.msg || "后端返回失败");
+      const backendMsg = (res?.data?.msg || '').toString().trim();
+      throw new Error(backendMsg || "后端返回失败");
     }
   } catch (err) {
     console.error("上传错误:", err);
-    ElMessage.error(err.message || "分析失败，请检查网络");
+    const apiMsg = err?.response?.data?.msg;
+    const finalMsg = (apiMsg || err?.message || "分析失败，请检查网络").toString().trim();
+    ElMessage.error(finalMsg || "分析失败，请检查网络");
   } finally {
     loading.value = false;
   }
@@ -326,7 +425,8 @@ onUnmounted(stopCamera);
 
 .content-box {
   position: relative; z-index: 10;
-  width: 92%; max-width: 560px;
+  width: 92%;
+  max-width: 560px;
   background: rgba(255, 252, 242, 0.92);
   backdrop-filter: blur(16px);
   border-radius: 12px;
@@ -334,6 +434,19 @@ onUnmounted(stopCamera);
   border: 1px solid #c8a96e;
   box-shadow: 0 20px 50px rgba(100,60,10,.14),
               inset 0 1px 0 rgba(255,248,220,.8);
+}
+
+.content-box.result-fullscreen {
+  width: 100vw;
+  height: 100vh;
+  max-width: none;
+  border-radius: 0;
+  padding: 28px 36px 22px;
+  overflow-y: auto;
+}
+
+.content-box.result-fullscreen::before {
+  border-radius: 0;
 }
 
 .content-box::before {
@@ -386,42 +499,110 @@ onUnmounted(stopCamera);
   content: ""; flex: 1; height: 1px; background: #e8d5a0; margin: 0 10px;
 }
 
-/* ========== ✅ 这里是改小图片的核心 ========== */
-.charts {
+/* ========== 辨证模型分析排版 ========== */
+.dashboard-header {
+  display: flex; justify-content: space-between; align-items: center;
+  margin-bottom: 20px; padding: 0 5px;
+}
+.status-badge {
+  display: flex; align-items: center; gap: 6px;
+  color: #c8a020; font-weight: bold; font-size: 14px;
+}
+.confidence-tag {
+  font-weight: bold; font-family: monospace;
+}
+.visual-dashboard {
+  background: rgba(255, 255, 255, 0.6);
+  border: 1px solid #e8d5a0; border-radius: 12px;
+  padding: 24px 18px; margin-bottom: 20px;
+  box-shadow: 0 8px 24px rgba(139, 61, 26, 0.05);
+}
+.dashboard-title h3 {
+  margin: 0; font-size: 1.1rem; color: #5a2d00;
+}
+.dashboard-title .subtitle {
+  font-size: 12px; color: #9a7040;
+}
+.radar-box {
+  margin: 26px 0 22px; display: flex; justify-content: center;
+}
+.radar-img {
+  width: 100% !important; max-height: 420px !important;
+  filter: drop-shadow(0 4px 12px rgba(100,60,10,.1));
+}
+.score-grid {
+  display: grid; grid-template-columns: 1fr 1fr; gap: 15px;
+}
+.score-item {
+  background: rgba(250, 243, 224, 0.5);
+  padding: 10px; border-radius: 8px; border: 1px dashed #e8d5a0;
+}
+.score-row {
+  display: flex; justify-content: space-between; align-items: center;
+  margin-bottom: 6px; font-size: 13px; font-weight: bold; color: #5a2d00;
+}
+.summary-card {
+  display: flex; gap: 15px; align-items: stretch;
+  background: rgba(255, 255, 255, 0.6);
+  border: 1px solid #e8d5a0; border-radius: 12px;
+  padding: 18px; margin-bottom: 20px;
+}
+.thumb-container {
+  display: flex; flex-direction: column; align-items: center; gap: 8px;
+  width: 108px; flex-shrink: 0;
+}
+.thumb-img {
+  width: 96px; height: 96px; object-fit: cover;
+  border-radius: 6px; border: 2px solid #e8d5a0;
+  box-shadow: 0 2px 8px rgba(0,0,0,0.1);
+}
+.thumb-label {
+  font-size: 12px; color: #8b3d1a; font-weight: bold;
+}
+.conclusion-text {
+  flex: 1; display: flex; flex-direction: column; justify-content: center;
+}
+.conclusion-text .label {
+  font-size: 13px; color: #9a7040; margin-bottom: 6px;
+}
+.conclusion-text .value {
+  margin: 0; font-size: 16px; color: #3d2b10; font-weight: 600; line-height: 1.65;
+}
+
+.result-insight-card {
+  background: rgba(255, 255, 255, 0.55);
+  border: 1px solid #e8d5a0;
+  border-radius: 12px;
+  padding: 16px 18px;
+  margin-bottom: 20px;
+}
+
+.result-insight-head {
   display: flex;
-  flex-direction: column;
-  gap: 16px;
-  margin-top: 15px;
-  align-items: center;
+  justify-content: space-between;
+  align-items: baseline;
+  gap: 12px;
+  margin-bottom: 10px;
 }
 
-.img-card {
-  width: 85%;
-  font-size: 14px;
+.result-insight-head h3 {
+  margin: 0;
+  font-size: 1rem;
   color: #5a2d00;
-  font-weight: bold;
-  text-align: center;
-  background: rgba(250,243,224,.7);
-  padding: 10px;
-  border-radius: 8px;
-  border: 1px solid #e8d5a0;
 }
 
-.preview-img {
-  width: 60% !important;
-  max-height: 200px !important;
-  object-fit: contain;
-  border-radius: 8px;
-  border: 1px solid #e8d5a0;
-  background: #fffdf5;
-  margin: 8px auto;
-  display: block;
-  box-shadow: 0 4px 12px rgba(100,60,10,.08);
+.result-insight-head span {
+  font-size: 12px;
+  color: #9a7040;
 }
 
-.radar-large {
-  width: 65% !important;
-  max-height: 220px !important;
+.result-insight-list {
+  margin: 0;
+  padding-left: 18px;
+  display: grid;
+  gap: 8px;
+  color: #4b2c12;
+  line-height: 1.6;
 }
 /* ========================================== */
 
@@ -491,5 +672,47 @@ onUnmounted(stopCamera);
 
 .ref-link:hover {
   color: #1890ff; text-decoration: underline;
+}
+
+@media (max-width: 768px) {
+  .content-box {
+    width: 96vw;
+    padding: 22px 16px;
+  }
+
+  .content-box.result-fullscreen {
+    width: 100vw;
+    height: 100vh;
+    padding: 18px 14px 16px;
+  }
+
+  .score-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .summary-card {
+    flex-direction: column;
+  }
+
+  .thumb-container {
+    width: auto;
+    flex-direction: row;
+    justify-content: flex-start;
+  }
+
+  .thumb-img {
+    width: 88px;
+    height: 88px;
+  }
+
+  .radar-img {
+    width: 100% !important;
+    max-height: 320px !important;
+  }
+
+  .footer-btns {
+    flex-direction: column;
+    gap: 12px;
+  }
 }
 </style>

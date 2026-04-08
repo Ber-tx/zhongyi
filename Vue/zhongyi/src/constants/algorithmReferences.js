@@ -8,18 +8,25 @@ export const algorithmReferences = {
     title: '望诊 - 舌象分析',
     references: [
       {
-        title: 'YOLOv8: Ultralytics 实时目标检测框架',
-        authors: 'Jocher, G. et al.',
-        year: 2023,
-        source: '开源 - Ultralytics',
-        url: 'https://github.com/ultralytics/ultralytics'
+        title: 'Qwen2-VL Technical Report',
+        authors: 'Qwen Team',
+        year: 2024,
+        source: '阿里通义千问视觉语言模型',
+        url: 'https://qwenlm.github.io/blog/qwen2-vl/'
       },
       {
-        title: '应用于医学图像识别（舌象、面诊等）的计算机视觉基础',
-        authors: 'IEEE Computer Vision and Pattern Recognition',
-        year: 2023,
-        source: '学术会议',
-        url: 'https://cvpr.thecvf.com/'
+        title: '舌诊数字化与中医舌象图像分析研究',
+        authors: '中医药图像分析研究团队',
+        year: 2022,
+        source: '中医药数字化研究',
+        url: ''
+      },
+      {
+        title: 'OpenAI API-Compatible Vision Model Usage Guide',
+        authors: '阿里云百炼 / DashScope',
+        year: 2024,
+        source: '视觉模型接入文档',
+        url: 'https://www.alibabacloud.com/help/zh/model-studio'
       }
     ]
   },
