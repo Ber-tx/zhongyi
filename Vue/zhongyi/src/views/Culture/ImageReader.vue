@@ -97,7 +97,7 @@
 </template>
 
 <script setup>
-import { ref, computed, watch, onMounted, onBeforeUnmount, reactive } from 'vue'
+import { ref, computed, watch, onMounted, onBeforeUnmount } from 'vue'
 import { useRouter, useRoute } from 'vue-router'
 
 // --- 接收 ID 识别板块 ---
@@ -432,10 +432,8 @@ const audioPlayer = ref(null)
 const firstImageReady = ref(false)
 let hoverTimer = null
 let scrollRafId = 0
-let audioRequestToken = 0
 
 const PRELOAD_RADIUS = 3
-const IMAGE_EXTS = ['jpg', 'jpeg', 'png', 'JPG', 'JPEG', 'PNG']
 let idlePreloadTaskId = null
 
 // --- 获取当前生效的配置 ---
@@ -444,100 +442,51 @@ const currentConfig = computed(() => {
   return ARCHIVE_DATA[activeId] || ARCHIVE_DATA["1"]
 })
 
-// 图片 URL 同步映射：避免首图渲染时再触发二次动态 import
-const _imgGlob = import.meta.glob(
-  [
-    '../../assets/images/mainShow/imageReader/**/*.jpg',
-    '../../assets/images/mainShow/imageReader/**/*.jpeg',
-    '../../assets/images/mainShow/imageReader/**/*.png',
-    '../../assets/images/mainShow/imageReader/**/*.JPG',
-    '../../assets/images/mainShow/imageReader/**/*.JPEG',
-    '../../assets/images/mainShow/imageReader/**/*.PNG'
-  ],
-  { query: '?url', import: 'default', eager: false }
-)
-const _audioGlob = import.meta.glob(
-  '../../assets/audio/imageReader/**/*.mp3',
-  { query: '?url', import: 'default', eager: false }
-)
-
-const _imgCache = reactive({})
-const _imgPromiseCache = {}
 const _imgByteWarmupSet = new Set()
 
-const resolveImageKey = (moduleId, pageNum) => {
-  const base = `../../assets/images/mainShow/imageReader/button_${moduleId}/${pageNum}`
-  for (const ext of IMAGE_EXTS) {
-    const key = `${base}.${ext}`
-    if (_imgGlob[key]) return key
-  }
-  return ''
-}
+const resolveImageUrl = (moduleId, pageNum) => `/src/assets/images/mainShow/imageReader/button_${moduleId}/${pageNum}.jpg`
+
+const resolveAudioUrl = (moduleId, pageNum) => `/src/assets/audio/imageReader/button_${moduleId}/${pageNum}.mp3`
 
 const ensureImageLoaded = (moduleId, pageNum) => {
-  const key = resolveImageKey(moduleId, pageNum)
-  if (!key) return
-  if (_imgCache[key]) return
-  if (_imgPromiseCache[key]) return
+  const url = resolveImageUrl(moduleId, pageNum)
+  if (!url || _imgByteWarmupSet.has(url)) return
+  _imgByteWarmupSet.add(url)
 
-  _imgPromiseCache[key] = _imgGlob[key]().then(url => {
-    _imgCache[key] = url
-  }).finally(() => {
-    delete _imgPromiseCache[key]
-  })
+  const img = new Image()
+  img.decoding = 'async'
+  img.loading = 'eager'
+  img.fetchPriority = 'high'
+  img.src = url
 }
 
 const warmupImageBytes = (moduleId, pageNum) => {
-  const key = resolveImageKey(moduleId, pageNum)
-  if (!key) return
-
-  const tryWarmup = (url) => {
-    if (!url || _imgByteWarmupSet.has(url)) return
-    _imgByteWarmupSet.add(url)
-    const img = new Image()
-    img.decoding = 'async'
-    img.loading = 'eager'
-    img.fetchPriority = 'high'
-    img.src = url
-    if (typeof img.decode === 'function') {
-      img.decode().catch(() => {})
-    }
-  }
-
-  if (_imgCache[key]) {
-    tryWarmup(_imgCache[key])
-    return
-  }
-
   ensureImageLoaded(moduleId, pageNum)
-  _imgPromiseCache[key]?.then(() => {
-    tryWarmup(_imgCache[key])
-  })
 }
 
 const getImageUrl = (moduleId, pageNum) => {
-  const key = resolveImageKey(moduleId, pageNum)
-  if (!key) return ''
-  ensureImageLoaded(moduleId, pageNum)
-  return _imgCache[key] || ''
+  return resolveImageUrl(moduleId, pageNum)
 }
 
 const ensureFirstImageReady = async (moduleId) => {
-  const key = resolveImageKey(moduleId, 1)
-  if (!key) {
+  const url = resolveImageUrl(moduleId, 1)
+  if (!url) {
     firstImageReady.value = true
     return
   }
-  ensureImageLoaded(moduleId, 1)
-  if (_imgCache[key]) {
+
+  firstImageReady.value = false
+  const img = new Image()
+  img.decoding = 'async'
+  img.loading = 'eager'
+  img.fetchPriority = 'high'
+  img.onload = () => {
     firstImageReady.value = true
-    return
   }
-  try {
-    await _imgPromiseCache[key]
-  } finally {
-    firstImageReady.value = !!_imgCache[key]
+  img.onerror = () => {
+    firstImageReady.value = true
   }
+  img.src = url
 }
 
 const syncImageWindow = () => {
@@ -557,11 +506,8 @@ const syncImageWindow = () => {
 // 音频加载
 const loadAndPlayAudio = async () => {
   if (isMuted.value || !audioPlayer.value) return
-  const token = ++audioRequestToken
   const activeId = props.id || '1'
-  const key = `../../assets/audio/imageReader/button_${activeId}/${currentIndex.value + 1}.mp3`
-  const url = await _audioGlob[key]?.()
-  if (!url || token !== audioRequestToken) return
+  const url = resolveAudioUrl(activeId, currentIndex.value + 1)
   audioPlayer.value.pause()
   audioPlayer.value.src = url
   audioPlayer.value.load()

@@ -150,46 +150,22 @@ const router       = useRouter()
 const activeModule = ref(null)
 const TRANSITION_PREPARE_MS = 60
 const TRANSITION_ROUTE_MS = 180
-const IMAGE_EXTS = ['jpg', 'jpeg', 'png', 'JPG', 'JPEG', 'PNG']
-const _firstPageGlob = import.meta.glob(
-  [
-    '../../assets/images/mainShow/imageReader/button_*/1.jpg',
-    '../../assets/images/mainShow/imageReader/button_*/1.jpeg',
-    '../../assets/images/mainShow/imageReader/button_*/1.png',
-    '../../assets/images/mainShow/imageReader/button_*/1.JPG',
-    '../../assets/images/mainShow/imageReader/button_*/1.JPEG',
-    '../../assets/images/mainShow/imageReader/button_*/1.PNG'
-  ],
-  { query: '?url', import: 'default', eager: false }
-)
 const _firstPageWarmSet = new Set()
 
-const resolveFirstPageKey = (moduleId) => {
-  const base = `../../assets/images/mainShow/imageReader/button_${moduleId}/1`
-  for (const ext of IMAGE_EXTS) {
-    const key = `${base}.${ext}`
-    if (_firstPageGlob[key]) return key
-  }
-  return ''
-}
+const buildFirstPageUrl = (moduleId) => `/src/assets/images/mainShow/imageReader/button_${moduleId}/1.jpg`
 
 const prewarmReaderFirstPage = (id) => {
   if (id === 4 || id === 10) return
   const moduleId = String(id)
-  const key = resolveFirstPageKey(moduleId)
-  if (!key || _firstPageWarmSet.has(key)) return
-  _firstPageWarmSet.add(key)
+  const url = buildFirstPageUrl(moduleId)
+  if (!url || _firstPageWarmSet.has(url)) return
+  _firstPageWarmSet.add(url)
 
-  const loader = _firstPageGlob[key]
-  if (!loader) return
-  loader().then((url) => {
-    if (!url) return
-    const img = new Image()
-    img.decoding = 'async'
-    img.loading = 'eager'
-    img.fetchPriority = 'high'
-    img.src = url
-  }).catch(() => {})
+  const img = new Image()
+  img.decoding = 'async'
+  img.loading = 'eager'
+  img.fetchPriority = 'high'
+  img.src = url
 }
 
 const handleModuleClick = (id) => {

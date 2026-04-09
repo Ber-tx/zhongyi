@@ -437,12 +437,16 @@ onUnmounted(stopCamera);
 }
 
 .content-box.result-fullscreen {
-  width: 100vw;
-  height: 100vh;
+  position: fixed;
+  inset: 0;
+  width: auto;
+  height: auto;
   max-width: none;
+  margin: 0;
   border-radius: 0;
   padding: 28px 36px 22px;
   overflow-y: auto;
+  box-sizing: border-box;
 }
 
 .content-box.result-fullscreen::before {

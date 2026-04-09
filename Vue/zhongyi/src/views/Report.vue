@@ -126,13 +126,24 @@
         <div class="diagnosis-item">
           <h3>望诊（舌象分析）</h3>
           <el-card>
-            <div v-if="reportData.diagnosis.wang && reportData.diagnosis.wang.imageUrl" class="diagnosis-image">
-              <img :src="resolveImageUrl(reportData.diagnosis.wang.imageUrl)" alt="舌象图片" style="max-width: 30%; height: auto; border-radius: 8px;" />
-              <p style="margin-top: 8px; margin-bottom: 0;"><strong>舌苔图</strong></p>
+            <div v-if="reportData.diagnosis.wang" class="diagnosis-wang-layout">
+              <div v-if="reportData.diagnosis.wang.imageUrl" class="diagnosis-image diagnosis-image-left">
+                <img :src="resolveImageUrl(reportData.diagnosis.wang.imageUrl)" alt="舌象图片" />
+                <p><strong>舌苔图</strong></p>
+              </div>
+              <div class="diagnosis-text-block">
+                <p class="diagnosis-result">
+                  {{ reportData.diagnosis.wang.result }}
+                </p>
+                <div v-if="showNeutralDetail && wangSupplementaryAnalysis.length" class="supplementary-analysis">
+                  <div class="supplementary-title">补充分析</div>
+                  <ul>
+                    <li v-for="item in wangSupplementaryAnalysis" :key="item">{{ item }}</li>
+                  </ul>
+                </div>
+              </div>
             </div>
-            <p class="diagnosis-result">
-              {{ reportData.diagnosis.wang ? reportData.diagnosis.wang.result : '暂未进行舌象检查，请补充望诊数据以获得更准确的诊断。' }}
-            </p>
+            <p v-else class="diagnosis-result">暂未进行舌象检查，请补充望诊数据以获得更准确的诊断。</p>
           </el-card>
         </div>
 
@@ -153,6 +164,12 @@
                 </div>
               </el-col>
             </el-row>
+            <div v-if="showNeutralDetail && wenAudioSupplementaryAnalysis.length" class="supplementary-analysis supplement-card">
+              <div class="supplementary-title">补充分析</div>
+              <ul>
+                <li v-for="item in wenAudioSupplementaryAnalysis" :key="item">{{ item }}</li>
+              </ul>
+            </div>
             <div v-else>暂未进行声音分析，请补充闻诊数据。</div>
           </el-card>
         </div>
@@ -169,6 +186,13 @@
                 <el-tag type="success" effect="light">{{ questionnaireAnalysis?.title || '问诊结果' }}</el-tag>
               </div>
               <p class="questionnaire-summary">{{ questionnaireAnalysis?.summary }}</p>
+
+              <div v-if="showNeutralDetail && questionnaireAnalysis?.detailNotes?.length" class="supplementary-analysis supplement-card">
+                <div class="supplementary-title">补充分析</div>
+                <ul>
+                  <li v-for="item in questionnaireAnalysis.detailNotes" :key="item">{{ item }}</li>
+                </ul>
+              </div>
 
               <el-row v-if="questionnaireAnalysis?.diet?.length || questionnaireAnalysis?.avoid?.length" :gutter="16" class="questionnaire-panels">
                 <el-col :span="12" :xs="24">
@@ -218,6 +242,12 @@
               <strong>中医建议：</strong>
               <p>{{ reportData.diagnosis.qie.tcmSuggestion }}</p>
             </div>
+            <div v-if="showNeutralDetail && qieSupplementaryAnalysis.length" class="supplementary-analysis supplement-card">
+              <div class="supplementary-title">补充分析</div>
+              <ul>
+                <li v-for="item in qieSupplementaryAnalysis" :key="item">{{ item }}</li>
+              </ul>
+            </div>
             <div v-else-if="!reportData.diagnosis.qie">暂未进行脉搏检测，请补充切诊数据。</div>
           </el-card>
         </div>
@@ -263,7 +293,7 @@ import { ElMessage } from "element-plus";
 import axios from "axios";
 import html2pdf from "html2pdf.js";
 import { marked } from "marked";
-import { getConstitutionAdvice } from '@/utils/reportUtils';
+import { getConstitutionAdvice, getConstitutionScoreRanking } from '@/utils/reportUtils';
 
 const router = useRouter();
 const route = useRoute();
@@ -291,6 +321,8 @@ const reportSettings = computed(() => {
   } catch { return {}; }
 });
 
+const showNeutralDetail = computed(() => !reportSettings.value?.llmFocusMode);
+
 const idCardPhotoSrc = computed(() => {
   const rawPhoto = idCardPhotoBase64.value;
   if (!rawPhoto) return "";
@@ -311,10 +343,65 @@ const questionnaireAnalysis = computed(() => {
   const diagnosis = reportData.value?.diagnosis?.wen_questionnaire;
   if (!diagnosis) return null;
   const scores = diagnosis.scores || {};
-  if (scores && typeof scores === 'object' && scores.templateResult) {
-    return scores.templateResult;
+  const baseResult = scores && typeof scores === 'object' && scores.templateResult
+    ? { ...scores.templateResult }
+    : getConstitutionAdvice(diagnosis.conclusion || '', scores || {});
+
+  if (showNeutralDetail.value) {
+    const ranking = getConstitutionScoreRanking(scores || {}, 3);
+    return {
+      ...baseResult,
+      detailNotes: [
+        ranking.length
+          ? `本次得分靠前的是：${ranking.map((item) => `${item.name}${item.score}分`).join('、')}，可作为后续调理重点。`
+          : '当前问卷结果已形成基础判断，可结合整体生活方式继续观察。',
+        '问卷分析适合与望诊、闻诊和切诊结果联动解读，不宜单独下结论。',
+        '若主诉症状持续存在，建议结合睡眠、饮食、情绪和运动习惯一起评估。',
+      ],
+    };
   }
-  return getConstitutionAdvice(diagnosis.conclusion || '', scores || {});
+  return baseResult;
+});
+
+const wangSupplementaryAnalysis = computed(() => {
+  const diagnosis = reportData.value?.diagnosis?.wang;
+  if (!diagnosis) return [];
+  const items = [];
+  const resultText = String(diagnosis.result || '');
+  items.push('舌象结果已提示当前舌体与舌苔特征，建议与饮食、睡眠、情绪状态一起观察。');
+  if (resultText.includes('脾虚湿盛')) {
+    items.push('这类表现通常和运化偏弱、湿邪偏重有关，日常可留意清淡饮食与作息规律。');
+  }
+  if (resultText.includes('轻度')) {
+    items.push('目前变化偏轻，重在早期干预和持续观察，避免继续累积疲劳与饮食失衡。');
+  }
+  items.push('如果后续还有闻诊、问诊或切诊结果，可进一步提高整体辨证的稳定性。');
+  return items;
+});
+
+const wenAudioSupplementaryAnalysis = computed(() => {
+  const diagnosis = reportData.value?.diagnosis?.wen_audio;
+  if (!diagnosis) return [];
+  const items = [];
+  const confidence = diagnosis.confidence ? `${(diagnosis.confidence * 100).toFixed(1)}%` : null;
+  items.push(confidence ? `当前闻诊置信度为 ${confidence}，可作为参考，但不建议单独定性。` : '当前闻诊结果可用于辅助判断，但仍需结合其他板块。');
+  if (Array.isArray(diagnosis.tags) && diagnosis.tags.length) {
+    items.push(`体质标签显示：${diagnosis.tags.join('、')}，说明声音特征与当前体质倾向存在一定关联。`);
+  }
+  items.push('若日常出现乏力、气短、咳嗽或情绪波动，建议结合具体症状继续观察。');
+  return items;
+});
+
+const qieSupplementaryAnalysis = computed(() => {
+  const diagnosis = reportData.value?.diagnosis?.qie;
+  if (!diagnosis) return [];
+  const items = [];
+  items.push(`当前心率 ${diagnosis.heartRate} bpm、血氧 ${diagnosis.spo2}%，可作为循环与呼吸状态的基础参考。`);
+  items.push(`信号有效率 ${diagnosis.validRate}%、采样数 ${diagnosis.sampleCount}，说明本次测量质量具备一定参考价值。`);
+  if (diagnosis.tcmSuggestion) {
+    items.push('脉搏分析已给出中医建议，可与舌象和问卷结果一起综合判断。');
+  }
+  return items;
 });
 
 
