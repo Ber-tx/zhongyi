@@ -142,9 +142,11 @@ export function getConstitutionScoreRanking(scoreMap = {}, limit = 3) {
 function getPromptSettings() {
   try {
     const settings = JSON.parse(localStorage.getItem('report_settings') || '{}');
+    const focusMode = settings.llmFocusMode || '';
+    const customPromptTemplate = settings.llmPromptTemplate || '';
     return {
-      customPromptTemplate: settings.llmPromptTemplate || undefined,
-      focusMode: settings.llmFocusMode || undefined,
+      customPromptTemplate: buildReportPromptTemplate(customPromptTemplate, focusMode) || undefined,
+      focusMode: focusMode || undefined,
     };
   } catch (e) {
     return {
@@ -220,6 +222,29 @@ export async function generateMultiBlockReport(completedTypes, patientId, idCard
     ElMessage.error("生成报告失败：" + error.message);
     return false;
   }
+}
+
+export function getReportFocusModeLabel(focusMode = '') {
+  const labelMap = {
+    wang: '望诊',
+    wen_audio: '闻诊',
+    wen_questionnaire: '问诊',
+    qie: '切诊',
+  };
+  return labelMap[String(focusMode || '').trim()] || '';
+}
+
+export function buildReportPromptTemplate(customPromptTemplate = '', focusMode = '') {
+  const focusLabel = getReportFocusModeLabel(focusMode);
+  const focusInstruction = focusLabel
+    ? `本次报告请将【${focusLabel}】作为重点板块，详细展开该板块的证候依据、特征表现、与其他板块的关联、风险提示和调护建议；其他板块保持简洁，避免重复前文已有的四诊初步诊断内容。`
+    : '本次报告不设置单一侧重，请直接给出更详细的 AI 分析建议；不要再单独输出“四诊常规综合”这类重复板块，因为前文已经包含四诊初步诊断。综合部分应只保留补充性的 AI 结论、重点风险和下一步建议，并尽量写得具体。';
+
+  const parts = [focusInstruction];
+  if (customPromptTemplate && String(customPromptTemplate).trim()) {
+    parts.push(String(customPromptTemplate).trim());
+  }
+  return parts.join('\n\n');
 }
 
 /**

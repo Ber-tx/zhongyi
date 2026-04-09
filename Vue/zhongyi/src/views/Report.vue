@@ -253,9 +253,10 @@
         </div>
       </section>
 
-      <!-- 综合诊断建议章节 -->
+      <!-- AI 综合分析章节 -->
       <section class="report-section synthesis">
-        <h2>综合诊断建议 <span v-if="isStreaming" class="streaming-badge">AI 思考中...</span></h2>
+        <h2>{{ synthesisTitle }} <span v-if="isStreaming" class="streaming-badge">AI 思考中...</span></h2>
+        <p class="synthesis-hint">{{ synthesisSubtitle }}</p>
         <el-card shadow="hover">
           <div class="synthesis-content" :class="{'is-typing': isStreaming}">
             <span v-html="reportData.synthesis ? markdownToHtml(reportData.synthesis) : '正在连接 AI 分析引擎...'"></span>
@@ -291,9 +292,13 @@ import { ref, computed, onMounted, onUnmounted } from "vue";
 import { useRouter, useRoute } from "vue-router";
 import { ElMessage } from "element-plus";
 import axios from "axios";
-import html2pdf from "html2pdf.js";
 import { marked } from "marked";
-import { getConstitutionAdvice, getConstitutionScoreRanking } from '@/utils/reportUtils';
+import {
+  buildReportPromptTemplate,
+  getConstitutionAdvice,
+  getConstitutionScoreRanking,
+  getReportFocusModeLabel
+} from '@/utils/reportUtils';
 
 const router = useRouter();
 const route = useRoute();
@@ -322,6 +327,15 @@ const reportSettings = computed(() => {
 });
 
 const showNeutralDetail = computed(() => !reportSettings.value?.llmFocusMode);
+const synthesisTitle = computed(() => {
+  const focusLabel = getReportFocusModeLabel(reportSettings.value?.llmFocusMode || '');
+  return focusLabel ? `AI 重点分析（${focusLabel}）` : 'AI 详细分析';
+});
+const synthesisSubtitle = computed(() => {
+  return showNeutralDetail.value
+    ? '不侧重模式下，只输出补充性的 AI 结论、风险提示和后续建议。'
+    : '本段将围绕所选侧重板块展开更详细分析。';
+});
 
 const idCardPhotoSrc = computed(() => {
   const rawPhoto = idCardPhotoBase64.value;
@@ -581,7 +595,10 @@ const generateReport = async (patientId, caseId = null) => {
   try {
     const idCard = localStorage.getItem("current_patient_idCard") || "";
     const completedTypes = getCompletedTypes();
-    const promptTemplate = reportSettings.value?.llmPromptTemplate || "";
+    const promptTemplate = buildReportPromptTemplate(
+      reportSettings.value?.llmPromptTemplate || "",
+      reportSettings.value?.llmFocusMode || ""
+    );
     const focusMode = reportSettings.value?.llmFocusMode || "";
 
     // 使用 AbortController 支持取消
@@ -695,61 +712,6 @@ const viewFullReport = () => {
   }, 100);
 };
 
-const exportPDF = async () => {
-  if (!reportRef.value) { ElMessage.error("报告数据加载失败"); return; }
-  isExporting.value = true;
-  const header = document.querySelector(".header");
-  if (header) header.style.display = "none";
-  const badge = document.querySelector(".completion-badge");
-  if (badge) badge.style.display = "none";
-  const footerActions = document.querySelector(".footer-actions");
-  if (footerActions) footerActions.style.display = "none";
-
-  const imgs = reportRef.value.querySelectorAll("img");
-  const originalSrcs = [];
-  await Promise.all([...imgs].map(async (img, i) => {
-    originalSrcs[i] = img.src;
-    if (!img.src || img.src.startsWith("data:")) return;
-    try {
-      const res = await fetch(img.src);
-      const blob = await res.blob();
-      await new Promise(resolve => {
-        const reader = new FileReader();
-        reader.onload = () => { img.src = reader.result; resolve(); };
-        reader.onerror = () => resolve();
-        reader.readAsDataURL(blob);
-      });
-    } catch {}
-  }));
-
-  const tags = reportRef.value.querySelectorAll(".el-tag");
-  tags.forEach(tag => {
-    tag.style.cssText += ";display:inline-block;padding:2px 9px;border-radius:4px;font-size:12px;line-height:1.8;background-color:#ecf5ff;color:#409eff;border:1px solid #d9ecff;margin:3px 4px 3px 0;white-space:nowrap;";
-  });
-
-  const opt = {
-    margin: 10,
-    filename: `诊断报告_${reportData.value.patientInfo.name}_${formatDate(reportData.value.createdAt)}.pdf`,
-    image: { type: "jpeg", quality: 0.98 },
-    html2canvas: { scale: 2, useCORS: true, allowTaint: false, logging: false },
-    jsPDF: { orientation: "portrait", unit: "mm", format: "a4" },
-  };
-
-  try {
-    await html2pdf().set(opt).from(reportRef.value).save();
-    ElMessage.success("PDF 导出成功");
-  } catch (e) {
-    ElMessage.error("PDF 导出失败：" + e.message);
-  } finally {
-    imgs.forEach((img, i) => { if (originalSrcs[i]) img.src = originalSrcs[i]; });
-    tags.forEach(tag => { tag.style.cssText = ""; });
-    if (header) header.style.display = "";
-    if (badge) badge.style.display = "";
-    if (footerActions) footerActions.style.display = "";
-    isExporting.value = false;
-  }
-};
-
 const resolveImageUrl = (url) => {
   if (!url) return "";
   if (url.startsWith("http") || url.startsWith("data:")) return url;
@@ -770,32 +732,59 @@ const formatDate = (timestamp) => {
 
 const goBack = () => router.push({ path: "/detect", query: { id: route.query.id } });
 const goHome = () => router.push({ path: "/" });
-const handlePrint = () => {
-  if (!reportRef.value) { ElMessage.error("报告内容未加载"); return; }
+const buildPrintableWindow = () => {
+  if (!reportRef.value) { ElMessage.error("报告内容未加载"); return null; }
 
-  // 提取当前页面所有 <style> 标签内容（含 scoped 编译后的样式）
   const styles = [...document.querySelectorAll("style")]
-    .map(s => s.innerHTML).join("\n");
+    .map((s) => s.innerHTML).join("\n");
 
-  // 打开空白窗口，URL 为 about:blank，浏览器不会打印 URL
-  const pw = window.open("", "_blank", "width=900,height=800");
-  pw.document.write(`<!DOCTYPE html>
+  const printable = window.open("", "_blank", "width=900,height=800");
+  if (!printable) {
+    ElMessage.error("浏览器阻止了打印窗口，请允许弹窗后重试");
+    return null;
+  }
+
+  printable.document.write(`<!DOCTYPE html>
 <html><head>
 <meta charset="utf-8">
 <title>诊断报告</title>
 <style>
   @page { margin: 15mm; }
-  body { margin: 0; padding: 20px; background: white;
-         font-family: "Noto Serif SC","Source Han Serif CN", Arial, sans-serif; }
+  body { margin: 0; padding: 20px; background: white; font-family: "Noto Serif SC","Source Han Serif CN", Arial, sans-serif; }
   img { max-width: 100%; }
   ${styles}
 </style>
 </head><body>
 ${reportRef.value.outerHTML}
 </body></html>`);
-  pw.document.close();
-  pw.focus();
-  setTimeout(() => { pw.print(); pw.close(); }, 600);
+  printable.document.close();
+  return printable;
+};
+
+const handlePrint = async () => {
+  const printable = buildPrintableWindow();
+  if (!printable) return;
+  printable.focus();
+  await new Promise((resolve) => setTimeout(resolve, 300));
+  printable.print();
+  printable.close();
+};
+
+const exportPDF = async () => {
+  isExporting.value = true;
+  try {
+    const printable = buildPrintableWindow();
+    if (!printable) return;
+    printable.focus();
+    await new Promise((resolve) => setTimeout(resolve, 300));
+    printable.print();
+    setTimeout(() => printable.close(), 500);
+    ElMessage.success("请在打印窗口中选择“另存为 PDF”完成导出");
+  } catch (e) {
+    ElMessage.error("PDF 导出失败：" + e.message);
+  } finally {
+    isExporting.value = false;
+  }
 };
 </script>
 
@@ -816,10 +805,61 @@ ${reportRef.value.outerHTML}
 .report-section h3 { color: #3d2b10; font-size: 16px; margin-top: 20px; margin-bottom: 15px; }
 .diagnosis-item { margin-bottom: 20px; }
 .diagnosis-image { text-align: center; margin-bottom: 15px; }
+.diagnosis-wang-layout {
+  display: flex;
+  align-items: flex-start;
+  gap: 20px;
+}
+.diagnosis-image-left {
+  flex: 0 0 240px;
+  margin-bottom: 0;
+}
+.diagnosis-image-left img {
+  width: 100%;
+  max-width: 240px;
+  height: auto;
+  border-radius: 12px;
+  box-shadow: 0 8px 20px rgba(90, 45, 0, 0.15);
+}
+.diagnosis-image-left p {
+  margin-top: 10px;
+  margin-bottom: 0;
+  text-align: center;
+  color: #5a2d00;
+}
+.diagnosis-text-block {
+  flex: 1;
+  min-width: 0;
+}
 .diagnosis-result { color: #4a3020; line-height: 1.8; margin: 0; }
 .tag { margin: 5px 5px 5px 0; }
 .unit { color: #999; font-size: 14px; margin-left: 5px; }
 .tcm-suggestion { margin-top: 15px; padding-top: 15px; border-top: 1px solid #eee; }
+.supplementary-analysis {
+  margin-top: 14px;
+  padding: 14px 16px;
+  border-radius: 10px;
+  background: #fff8ea;
+  border: 1px solid #ead3a0;
+}
+.supplementary-title {
+  font-size: 13px;
+  font-weight: 700;
+  color: #8b3d1a;
+  margin-bottom: 8px;
+}
+.supplementary-analysis ul {
+  margin: 0;
+  padding-left: 18px;
+  color: #4a3020;
+  line-height: 1.75;
+}
+.supplementary-analysis li {
+  margin: 6px 0;
+}
+.supplement-card {
+  background: linear-gradient(180deg, #fffaf0 0%, #fff6e8 100%);
+}
 .questionnaire-result { display: flex; flex-direction: column; gap: 14px; }
 .questionnaire-header {
   display: flex;
@@ -864,6 +904,7 @@ ${reportRef.value.outerHTML}
 }
 .questionnaire-panel li { margin: 6px 0; }
 .synthesis-content { line-height: 1.8; color: #333; font-size: 14px; }
+.synthesis-hint { margin: -10px 0 14px; color: #8b6030; font-size: 13px; }
 .synthesis-content :deep(h3) { color: #5a2d00; margin-top: 15px; margin-bottom: 10px; }
 .synthesis-content :deep(ul), .synthesis-content :deep(ol) { margin: 10px 0; padding-left: 20px; }
 .synthesis-content :deep(li) { margin: 5px 0; }

@@ -109,7 +109,7 @@
           <el-form-item label="侧重点">
             <el-select v-model="reportSettings.llmFocusMode"
               placeholder="选择报告侧重点">
-              <el-option label="不侧重（综合分析）" value="" />
+              <el-option label="不侧重（AI 详细分析）" value="" />
               <el-option label="望诊" value="wang" />
               <el-option label="闻诊" value="wen_audio" />
               <el-option label="问诊" value="wen_questionnaire" />

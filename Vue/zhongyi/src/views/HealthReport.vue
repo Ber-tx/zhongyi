@@ -703,22 +703,43 @@ const handlePrint = () => {
   window.print()
 }
 
+const buildPrintableWindow = () => {
+  if (!reportRef.value) return null
+
+  const styles = [...document.querySelectorAll('style')].map((s) => s.innerHTML).join('\n')
+  const printable = window.open('', '_blank', 'width=900,height=800')
+  if (!printable) {
+    ElMessage.error('浏览器阻止了打印窗口，请允许弹窗后重试')
+    return null
+  }
+
+  printable.document.write(`<!DOCTYPE html>
+<html><head>
+<meta charset="utf-8">
+<title>健康体检报告</title>
+<style>
+  @page { margin: 15mm; }
+  body { margin: 0; padding: 20px; background: white; font-family: Arial, sans-serif; }
+  img { max-width: 100%; }
+  ${styles}
+</style>
+</head><body>
+${reportRef.value.outerHTML}
+</body></html>`)
+  printable.document.close()
+  return printable
+}
+
 const exportPDF = async () => {
-  if (!reportRef.value) return
   isExporting.value = true
   try {
-    // 动态导入html2pdf
-    const { default: html2PDFLib } = await import('html2pdf.js')
-    const element = reportRef.value
-    const opt = {
-      margin: 10,
-      filename: `健康体检报告_${examData.value.patientName || 'unknown'}.pdf`,
-      image: { type: 'jpeg', quality: 0.98 },
-      html2canvas: { scale: 2 },
-      jsPDF: { orientation: 'portrait', unit: 'mm', format: 'a4' }
-    }
-    await html2PDFLib().set(opt).from(element).save()
-    ElMessage.success('PDF导出成功')
+    const printable = buildPrintableWindow()
+    if (!printable) return
+    printable.focus()
+    await new Promise(resolve => setTimeout(resolve, 300))
+    printable.print()
+    setTimeout(() => printable.close(), 500)
+    ElMessage.success('请在打印窗口中选择“另存为 PDF”完成导出')
   } catch (error) {
     ElMessage.error('导出PDF失败：' + error.message)
   } finally {
