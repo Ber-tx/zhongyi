@@ -18,6 +18,7 @@ from core.algorithm import PulseAlgorithm
 # =====================================================================
 measurement_session = {
     "is_measuring":    False,
+    "started_at":      None,
     "hr_history":      [],
     "spo2_history":    [],
     "quality_history": [],
@@ -61,6 +62,9 @@ WS_PUSH_INTERVAL       = 0.040   # 25Hz 推送节拍（秒）
 WS_BASE_POINTS_PER_PUSH = 2      # 基础每包点数 → 25 × 2 = 50 pts/s
 WS_MAX_BATCH_POINTS    = 6       # 积压时最多补发点数上限（不超过此值避免前端爆帧）
 SIGNAL_VALID_THRESHOLD = 0.45    # 低于此值认为手指未接触
+MIN_MEASURE_SECONDS    = 45      # 最小测量时长（秒）
+MIN_VALID_WINDOWS      = 20      # 最小有效算法窗口数
+MIN_VALID_RATE         = 60.0    # 最低有效窗口占比（%）
 
 
 def auto_detect_serial_port():
@@ -104,6 +108,17 @@ def _safe_std(v):
     return round(float(statistics.pstdev(v)), 4) if len(v) >= 2 else 0.0
 
 
+def _robust_center(v):
+    if not v:
+        return 0.0
+    if len(v) < 5:
+        return _safe_mean(v)
+    s = sorted(float(x) for x in v)
+    trim = max(1, int(len(s) * 0.1))
+    core = s[trim:len(s) - trim] if len(s) - 2 * trim >= 1 else s
+    return round(float(sum(core) / len(core)), 4)
+
+
 # ── 波形特征提取 ──────────────────────────────────────────────────────
 def extract_waveform_features(ir_signal, fs=50):
     x = np.asarray(ir_signal, dtype=float)
@@ -118,10 +133,20 @@ def extract_waveform_features(ir_signal, fs=50):
     thr_peak   = np.mean(x) + 0.3 * std
     thr_trough = np.mean(x) - 0.3 * std
 
+    # 使用最小峰间距抑制噪声双峰（50Hz 下约 350ms，不可能出现生理性双峰）
     peaks, troughs = [], []
+    min_peak_distance = max(1, int(0.35 * fs))
+    last_peak_idx = -min_peak_distance
+
     for i in range(1, len(x) - 1):
-        if x[i - 1] < x[i] >= x[i + 1] and x[i] > thr_peak:
-            peaks.append(i)
+        is_peak = x[i - 1] < x[i] >= x[i + 1] and x[i] > thr_peak
+        if is_peak:
+            if (i - last_peak_idx) >= min_peak_distance:
+                peaks.append(i)
+                last_peak_idx = i
+            elif peaks and x[i] > x[peaks[-1]]:
+                peaks[-1] = i
+                last_peak_idx = i
         if x[i - 1] > x[i] <= x[i + 1] and x[i] < thr_trough:
             troughs.append(i)
 
@@ -174,30 +199,115 @@ def summarize_feature_history(feature_history):
         ]}
 
     def collect(key):
-        vals = [f.get(key, 0.0) for f in feature_history if f.get("is_valid")]
+        vals = [
+            f.get(key, 0.0)
+            for f in feature_history
+            if f.get("is_valid")
+            and f.get("quality", 0.0) >= 0.80
+            and f.get("autocorr_ratio", 0.0) >= 0.50
+        ]
         return vals or [0.0]
 
     return {
-        "hrv_sdnn_ms":          round(_safe_mean(collect("interval_sdnn_ms")), 3),
-        "hrv_rmssd_ms":         round(_safe_mean(collect("interval_rmssd_ms")), 3),
-        "rhythm_cv":            round(_safe_mean(collect("rhythm_cv")), 4),
-        "pulse_strength_index": round(_safe_mean(collect("pulse_amp_mean")), 4),
-        "pulse_amp_cv":         round(_safe_mean(collect("pulse_amp_cv")), 4),
-        "upstroke_time_ms":     round(_safe_mean(collect("upstroke_time_ms")), 3),
-        "perfusion_index":      round(_safe_mean(collect("perfusion_index")), 4),
-        "signal_quality":       round(_safe_mean(collect("quality")), 4),
-        "autocorr_ratio":       round(_safe_mean(collect("autocorr_ratio")), 4),
+        "hrv_sdnn_ms":          round(_robust_center(collect("interval_sdnn_ms")), 3),
+        "hrv_rmssd_ms":         round(_robust_center(collect("interval_rmssd_ms")), 3),
+        "rhythm_cv":            round(_robust_center(collect("rhythm_cv")), 4),
+        "pulse_strength_index": round(_robust_center(collect("pulse_amp_mean")), 4),
+        "pulse_amp_cv":         round(_robust_center(collect("pulse_amp_cv")), 4),
+        "upstroke_time_ms":     round(_robust_center(collect("upstroke_time_ms")), 3),
+        "perfusion_index":      round(_robust_center(collect("perfusion_index")), 4),
+        "signal_quality":       round(_robust_center(collect("quality")), 4),
+        "autocorr_ratio":       round(_robust_center(collect("autocorr_ratio")), 4),
     }
 
 
-def classify_pulse(avg_hr, feature_summary):
-    tags = []
-    if avg_hr > 90:
-        tags.append("数脉倾向")
-    elif avg_hr < 60:
-        tags.append("迟脉倾向")
+def infer_pulse_pattern(avg_hr, feature_summary):
+    scores = {
+        "数脉倾向": 0.0,
+        "迟脉倾向": 0.0,
+        "缓脉倾向": 0.0,
+    }
+    evidence = []
+
+    rhythm_cv = float(feature_summary.get("rhythm_cv", 0.0))
+    rmssd = float(feature_summary.get("hrv_rmssd_ms", 0.0))
+    sdnn = float(feature_summary.get("hrv_sdnn_ms", 0.0))
+    pi = float(feature_summary.get("perfusion_index", 0.0))
+    upstroke = float(feature_summary.get("upstroke_time_ms", 0.0))
+    quality = float(feature_summary.get("signal_quality", 0.0))
+    autocorr = float(feature_summary.get("autocorr_ratio", 0.0))
+
+    # HR 仅作为一项证据，降低其权重，避免单指标主导结论
+    if avg_hr >= 95:
+        scores["数脉倾向"] += 1.4
+        evidence.append(f"心率偏快({avg_hr}bpm)")
+    elif avg_hr <= 55:
+        scores["迟脉倾向"] += 1.4
+        evidence.append(f"心率偏慢({avg_hr}bpm)")
     else:
-        tags.append("缓脉倾向")
+        scores["缓脉倾向"] += 1.2
+        evidence.append(f"心率中段({avg_hr}bpm)")
+
+    # 节律证据
+    if rhythm_cv > 0.12:
+        scores["数脉倾向"] += 0.9
+        evidence.append(f"节律波动偏大(CV={rhythm_cv})")
+    elif rhythm_cv <= 0.06:
+        scores["缓脉倾向"] += 0.8
+        evidence.append(f"节律较齐(CV={rhythm_cv})")
+    else:
+        scores["缓脉倾向"] += 0.4
+
+    # HRV 证据（仅在信号较好时计入）
+    if quality >= 0.85 and autocorr >= 0.55:
+        if rmssd >= 55 or sdnn >= 50:
+            scores["数脉倾向"] += 0.6
+            evidence.append(f"HRV偏高(RMSSD={rmssd}ms, SDNN={sdnn}ms)")
+        elif rmssd <= 20 and sdnn <= 20:
+            scores["缓脉倾向"] += 0.5
+            evidence.append(f"HRV偏低(RMSSD={rmssd}ms, SDNN={sdnn}ms)")
+
+    # 脉势与上升支证据
+    if pi < 0.8:
+        scores["迟脉倾向"] += 0.5
+        evidence.append(f"灌注偏弱(PI={pi})")
+    elif pi > 2.0:
+        scores["数脉倾向"] += 0.5
+        evidence.append(f"灌注偏强(PI={pi})")
+    else:
+        scores["缓脉倾向"] += 0.2
+
+    if 0 < upstroke < 120:
+        scores["数脉倾向"] += 0.5
+        evidence.append(f"上升支偏快({upstroke}ms)")
+    elif upstroke > 220:
+        scores["迟脉倾向"] += 0.5
+        evidence.append(f"上升支偏慢({upstroke}ms)")
+
+    ordered = sorted(scores.items(), key=lambda kv: kv[1], reverse=True)
+    primary_label, primary_score = ordered[0]
+    secondary_label, secondary_score = ordered[1]
+    score_gap = round(primary_score - secondary_score, 3)
+
+    return {
+        "scores": {k: round(v, 3) for k, v in scores.items()},
+        "primary": primary_label,
+        "secondary": secondary_label,
+        "score_gap": score_gap,
+        "evidence": evidence,
+    }
+
+
+def classify_pulse(avg_hr, feature_summary, confidence_level="medium"):
+    if confidence_level == "low":
+        return ["信号可信度偏低，当前仅供参考"]
+
+    fusion = infer_pulse_pattern(avg_hr, feature_summary)
+
+    tags = []
+    if fusion["score_gap"] < 0.35:
+        tags.append("脉象倾向不单一（需结合临床）")
+    tags.append(fusion["primary"])
 
     rhythm_cv = feature_summary.get("rhythm_cv", 0)
     if rhythm_cv <= 0.06:
@@ -220,6 +330,8 @@ def classify_pulse(avg_hr, feature_summary):
         tags.append("脉形偏紧促")
     elif upstroke > 220:
         tags.append("脉形偏缓")
+
+    tags.extend([f"证据:{ev}" for ev in fusion["evidence"][:3]])
 
     return tags
 
@@ -424,6 +536,7 @@ async def websocket_endpoint(websocket: WebSocket):
 async def start_measurement():
     measurement_session.update({
         "is_measuring":    True,
+        "started_at":      time.time(),
         "hr_history":      [],
         "spo2_history":    [],
         "quality_history": [],
@@ -446,9 +559,12 @@ async def stop_and_report(user_id: int):
     spo2_list      = measurement_session["spo2_history"]
     total_windows  = measurement_session["total_windows"]
     valid_windows  = measurement_session["valid_windows"]
+    started_at     = measurement_session.get("started_at")
     feature_history = measurement_session["feature_history"]
     raw_ir         = measurement_session["raw_ir"]
     raw_red        = measurement_session["raw_red"]
+    duration_sec   = int(time.time() - started_at) if started_at else 0
+    valid_rate     = round((valid_windows / max(total_windows, 1)) * 100, 1)
 
     if len(hr_list) < 5:
         return {
@@ -458,24 +574,61 @@ async def stop_and_report(user_id: int):
             "avg_hr": 0, "avg_spo2": 0,
             "suggestion": "数据不足",
             "valid_rate": 0, "sample_count": 0,
+            "duration_sec": duration_sec,
             "pulse_metrics": {}, "pulse_tags": [],
+        }
+
+    if duration_sec < MIN_MEASURE_SECONDS or valid_windows < MIN_VALID_WINDOWS or valid_rate < MIN_VALID_RATE:
+        return {
+            "code": 400,
+            "msg": (
+                "测量质量未达报告标准，请保持静止并持续测量后重试。"
+                f" 当前时长={duration_sec}s（要求≥{MIN_MEASURE_SECONDS}s），"
+                f" 有效窗口={valid_windows}（要求≥{MIN_VALID_WINDOWS}），"
+                f" 有效率={valid_rate}%（要求≥{MIN_VALID_RATE}%）。"
+            ),
+            "user_id": user_id,
+            "avg_hr": 0,
+            "avg_spo2": 0,
+            "suggestion": "测量质量不足",
+            "valid_rate": valid_rate,
+            "sample_count": len(hr_list),
+            "duration_sec": duration_sec,
+            "pulse_metrics": {},
+            "pulse_tags": [],
         }
 
     hr_clean   = filter_outliers(hr_list)
     spo2_clean = filter_outliers(spo2_list)
     avg_hr     = round(sum(hr_clean) / len(hr_clean), 1)
     avg_spo2   = round(sum(spo2_clean) / len(spo2_clean), 1)
-    valid_rate = round((valid_windows / max(total_windows, 1)) * 100, 1)
 
     pulse_metrics = summarize_feature_history(feature_history)
-    pulse_tags    = classify_pulse(avg_hr, pulse_metrics)
-    suggestion    = generate_tcm_suggestion(avg_hr, avg_spo2, pulse_metrics, pulse_tags)
+    confidence   = evaluate_measurement_confidence(valid_rate, len(hr_clean), duration_sec, pulse_metrics)
+    fusion_result = infer_pulse_pattern(avg_hr, pulse_metrics)
+    pulse_tags   = classify_pulse(avg_hr, pulse_metrics, confidence_level=confidence["level"])
+    suggestion    = generate_tcm_suggestion(
+        avg_hr,
+        avg_spo2,
+        pulse_metrics,
+        pulse_tags,
+        fusion_primary=fusion_result["primary"],
+        fusion_gap=fusion_result["score_gap"],
+        fusion_scores=fusion_result["scores"],
+    )
 
     key_metrics = {
         "hrv_rmssd_ms":    pulse_metrics.get("hrv_rmssd_ms", 0.0),
         "rhythm_cv":       pulse_metrics.get("rhythm_cv", 0.0),
         "perfusion_index": pulse_metrics.get("perfusion_index", 0.0),
         "signal_quality":  pulse_metrics.get("signal_quality", 0.0),
+        "fusion_primary": fusion_result["primary"],
+        "fusion_secondary": fusion_result["secondary"],
+        "fusion_score_gap": fusion_result["score_gap"],
+        "fusion_scores": fusion_result["scores"],
+        "confidence_score": confidence["score"],
+        "confidence_level": confidence["level"],
+        "confidence_reasons": confidence["reasons"],
         "pulse_tags":      pulse_tags,
     }
     raw_data_json = {
@@ -485,6 +638,8 @@ async def stop_and_report(user_id: int):
         "raw_red":         raw_red,
         "window_features": feature_history,
         "summary_metrics": pulse_metrics,
+        "fusion_result": fusion_result,
+        "measurement_confidence": confidence,
         "pulse_tags":      pulse_tags,
     }
 
@@ -498,6 +653,14 @@ async def stop_and_report(user_id: int):
         "suggestion":     suggestion,
         "valid_rate":     valid_rate,
         "sample_count":   len(hr_clean),
+        "duration_sec":   duration_sec,
+        "fusion_primary": fusion_result["primary"],
+        "fusion_secondary": fusion_result["secondary"],
+        "fusion_score_gap": fusion_result["score_gap"],
+        "fusion_scores": fusion_result["scores"],
+        "confidence_score": confidence["score"],
+        "confidence_level": confidence["level"],
+        "confidence_reasons": confidence["reasons"],
         "measured_at":    int(time.time()),
         "pulse_metrics":  pulse_metrics,
         "pulse_tags":     pulse_tags,
@@ -506,26 +669,42 @@ async def stop_and_report(user_id: int):
     }
 
 
-def generate_tcm_suggestion(hr, spo2, pulse_metrics=None, pulse_tags=None):
+def generate_tcm_suggestion(
+    hr,
+    spo2,
+    pulse_metrics=None,
+    pulse_tags=None,
+    fusion_primary=None,
+    fusion_gap=0.0,
+    fusion_scores=None,
+):
     lines = []
     pulse_metrics = pulse_metrics or {}
     pulse_tags    = pulse_tags    or []
+    fusion_scores = fusion_scores or {}
 
-    if hr > 90:
-        lines.append("【脉象】数脉（一息五至以上，脉来急促）")
-        lines.append("【主病】多主热证。实热脉有力，虚热脉无力。")
-        lines.append("【调养】宜清热降火，饮食清淡，可食绿豆汤、菊花茶。")
-    elif hr < 60:
-        lines.append("【脉象】迟脉（一息三至，脉来迟缓）")
-        lines.append("【主病】多主寒证。寒邪凝滞或阳气不足。")
-        lines.append("【调养】宜温阳散寒，可食生姜红糖水、羊肉汤。")
+    lines.append("【结论性质】本结果基于PPG自动分析，仅反映当前时段脉搏特征倾向，不等同于临床确诊。")
+    if fusion_primary:
+        lines.append(f"【融合判定】{fusion_primary}（多特征融合）")
+        lines.append(f"【区分度】主次得分差={fusion_gap}（越高表示判定越稳定）")
+        if fusion_scores:
+            lines.append(
+                f"【融合得分】数={fusion_scores.get('数脉倾向', 0)}，"
+                f"迟={fusion_scores.get('迟脉倾向', 0)}，"
+                f"缓={fusion_scores.get('缓脉倾向', 0)}"
+            )
+
+    if fusion_primary == "数脉倾向":
+        lines.append("【脉象倾向】数脉倾向（心率偏快）")
+        lines.append("【解释】常见于紧张、运动后、发热等状态，需结合当时场景判读。")
+    elif fusion_primary == "迟脉倾向":
+        lines.append("【脉象倾向】迟脉倾向（心率偏慢）")
+        lines.append("【解释】常见于静息、体能训练人群或个体差异，需结合基础心率判读。")
     else:
-        lines.append("【脉象】缓脉（一息四至，不快不慢，从容和缓）")
-        lines.append("【主病】平人脉象，气血调和。")
+        lines.append("【脉象倾向】缓脉范围（心率中等）")
 
     if spo2 < 95:
-        lines.append("【提示】血氧偏低，中医认为可能气虚血瘀。")
-        lines.append("【调养】宜补气养血，可服黄芪、党参（需遵医嘱）。")
+        lines.append("【提示】血氧偏低，建议先排除体动、手指温度低、佩戴不稳等测量因素后复测。")
 
     if pulse_tags:
         lines.append("【脉搏特征】" + "、".join(pulse_tags))
@@ -541,6 +720,42 @@ def generate_tcm_suggestion(hr, spo2, pulse_metrics=None, pulse_tags=None):
         lines.append("【提示】节律波动偏大，建议静息后复测，并结合临床心电评估。")
 
     return "\n".join(lines)
+
+
+def evaluate_measurement_confidence(valid_rate, sample_count, duration_sec, pulse_metrics):
+    score = 100
+    reasons = []
+
+    if duration_sec < MIN_MEASURE_SECONDS:
+        score -= 35
+        reasons.append(f"测量时长不足（{duration_sec}s<{MIN_MEASURE_SECONDS}s）")
+
+    if sample_count < MIN_VALID_WINDOWS:
+        score -= 30
+        reasons.append(f"有效样本窗口不足（{sample_count}<{MIN_VALID_WINDOWS}）")
+
+    if valid_rate < MIN_VALID_RATE:
+        score -= 30
+        reasons.append(f"有效窗口占比偏低（{valid_rate}%<{MIN_VALID_RATE}%）")
+
+    signal_quality = pulse_metrics.get("signal_quality", 0.0)
+    autocorr_ratio = pulse_metrics.get("autocorr_ratio", 0.0)
+    if signal_quality < 0.85:
+        score -= 10
+        reasons.append(f"信号相关性一般（quality={signal_quality}）")
+    if autocorr_ratio < 0.55:
+        score -= 10
+        reasons.append(f"周期性一般（autocorr={autocorr_ratio}）")
+
+    score = max(0, min(100, score))
+    if score >= 80:
+        level = "high"
+    elif score >= 60:
+        level = "medium"
+    else:
+        level = "low"
+
+    return {"score": score, "level": level, "reasons": reasons}
 
 
 if __name__ == "__main__":
