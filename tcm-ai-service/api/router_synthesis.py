@@ -122,6 +122,8 @@ def build_llm_context_section(diagnosis_info: Dict[str, Any]) -> str:
 
 
 def build_tcm_prompt(diagnosis_info: Dict[str, Any]) -> str:
+    # AI辅助生成：Gemini pro 3, 2026-03-10
+    # 这里把前端的 focusMode / customPromptTemplate 统一编排成提示词，保证前后端策略一致
     diagnoses = diagnosis_info.get("diagnoses", {}) or {}
     completed_count = len([k for k in diagnoses.keys() if k in CORE_DIAG_KEYS])
     focus_mode = normalize_focus_mode(diagnosis_info.get("focusMode"))
@@ -230,6 +232,8 @@ def call_deepseek_api(messages: list, system_prompt: str = None) -> str:
 
 def call_deepseek_api_stream(messages: list, system_prompt: str = None, fallback_text: str = None):
     try:
+        # AI辅助生成：Gemini pro 3, 2026-03-10
+        # 流式输出给前端报告页做边生成边渲染；失败时由上层回退到规则文本
         client = OpenAI(
             api_key=os.getenv("DEEPSEEK_API_KEY"),
             base_url=os.getenv("DEEPSEEK_BASE_URL"),

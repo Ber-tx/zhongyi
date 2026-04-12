@@ -195,6 +195,8 @@ const goTo = (type) => {
     ElMessage.info('该检测项目已完成，结果已锁定')
     return
   }
+  // AI辅助生成：GitHub Copilot Chat（GPT-5.3-Codex）, 2026-04-04
+  // 这里保留 caseId 与 idCard，便于后端把同一次诊断会话串联起来
   router.push({
     path:  `/detect/${type}`,
     query: { id: lockedPatientId.value, idCard: lockedIdCard.value, caseId: currentCaseId.value || undefined },
@@ -204,6 +206,8 @@ const goTo = (type) => {
 const generateReport = () => {
   const patientId = lockedPatientId.value || localStorage.getItem('current_patient_id')
   if (!patientId) { ElMessage.error('缺少病人ID，请重新登录'); return }
+  // AI辅助生成：GitHub Copilot Chat（GPT-5.3-Codex）, 2026-04-04
+  // 按当前完成状态组装 completedTypes，报告页和后端都以它作为阶段性报告依据
   const completedTypes = []
   if (wangFinished.value)    completedTypes.push('wang')
   if (wenFinished.value)     completedTypes.push('wen_audio')

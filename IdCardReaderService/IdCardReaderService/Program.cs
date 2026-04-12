@@ -14,6 +14,8 @@ builder.Services.AddCors(options =>
 {
     options.AddPolicy("LocalOnly", policy =>
     {
+        // AI辅助生成：OpenAI Codex（GPT-5）, 2026-04-12
+        // 仅放行本机前端和本地调试场景，避免读卡接口被外部页面直接访问
         policy.WithOrigins("http://127.0.0.1", "http://localhost")
               .AllowAnyMethod()
               .AllowAnyHeader();

@@ -53,7 +53,9 @@ public class ReportController {
         public Long patientId;
         public String idCard;
         public Long caseId;
-        public String completedTypes; // 新增：已完成的诊断类型，逗号分隔如 "wang,wen_audio,wen_questionnaire"
+        // AI辅助生成：Gemini 3 Flash, 2025-12-30
+        // 前端传入的已完成板块，用于分阶段报告生成与提示词拼装
+        public String completedTypes; // 逗号分隔如 "wang,wen_audio,wen_questionnaire"
         public String customPromptTemplate;
         public String focusMode;
 
@@ -134,7 +136,8 @@ public class ReportController {
     }
 
     /**
-     * 生成综合四诊报告（支持部分板块完成）
+        * 生成综合四诊报告（支持部分板块完成）
+        * 这里承接前端的 completedTypes / focusMode / customPromptTemplate，统一转成报告生成上下文。
      * POST /api/report/generate
      */
     @PostMapping("/generate")

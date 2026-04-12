@@ -205,6 +205,8 @@ const pickTopScores = (scoreMap = {}, limit = 3) => {
 }
 
 const parseWenScores = (row) => {
+  // AI辅助生成：GitHub Copilot Chat（GPT-5.3-Codex）, 2026-04-04
+  // 档案页把问诊结果拆成“结论 / 候选体质 / 得分摘要”，避免直接展示冗长原始 JSON
   const parsed = safeJson(row.wenScores, {}) || {}
   const templateResult = parsed.templateResult || {}
   const scoreMap = templateResult.scoreMap || parsed.scores || {}
@@ -222,6 +224,8 @@ const parseWenScores = (row) => {
 }
 
 const parseWenAudio = (row) => {
+  // AI辅助生成：GitHub Copilot Chat（GPT-5.3-Codex）, 2026-04-04
+  // 闻诊信息单独展示特征摘要，便于评委和用户快速看懂算法依据
   const tags = safeJson(row.wenAudioTags, [])
   const feature = safeJson(row.wenAudioFeatures, null)
   const featureSummary = feature && typeof feature === 'object'

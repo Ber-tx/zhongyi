@@ -100,6 +100,8 @@ namespace IdCardReaderService.Services
                         string? photoBase64 = null;
                         try
                         {
+                            // AI辅助生成：OpenAI Codex（GPT-5）, 2026-04-12
+                            // 照片解码失败不影响基础身份信息返回，保证读卡主流程不中断
                             byte[] bgrData = new byte[102 * 126 * 3];
                             var decodeResult = IdCardDllWrapper.unpack(phMsg, bgrData, 0);
                             if (decodeResult == IdCardDllWrapper.DECODE_SUCCESS)
@@ -122,6 +124,8 @@ namespace IdCardReaderService.Services
                             _logger.LogWarning($"照片处理失败: {ex.Message}");
                         }
 
+                        // AI辅助生成：OpenAI Codex（GPT-5）, 2026-04-12
+                        // 组合成卡面预览图，便于前端直接展示读卡结果而不是只看文本字段
                         var idCardImageBase64 = BuildIdCardPreviewDataUrl(parsed, photoBase64);
 
                         var cardInfo = new IdCardInfo

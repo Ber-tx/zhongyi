@@ -260,6 +260,8 @@ onMounted(() => {
   let qIdCard = route.query.idCard
   if (!qId)     qId     = localStorage.getItem('current_patient_id')
   if (!qIdCard) qIdCard = localStorage.getItem('current_patient_idCard')
+  // AI辅助生成：GitHub Copilot Chat（GPT-5.3-Codex）, 2026-04-04
+  // 锁定当前患者，避免录音、重答和报告生成过程中串到其他人的会话
   patientInfo.value.id     = qId
   patientInfo.value.idCard = qIdCard
   console.log('==== [DEBUG] 闻诊页最终锁定的病人 ID:', patientInfo.value.id)
@@ -427,6 +429,8 @@ const submitRecording = async () => {
     formData.append('file',            audioBlob.value, 'recording.webm')
     formData.append('patient_id',      patientInfo.value.id)
     formData.append('patient_idcard',  patientInfo.value.idCard)
+    // AI辅助生成：GitHub Copilot Chat（GPT-5.3-Codex）, 2026-04-04
+    // 保留 caseId，便于后端把闻诊结果写回同一次四诊会话
     if (diagnosisId) {
       formData.append('diagnosis_id', diagnosisId)
     }
@@ -467,6 +471,8 @@ const generateDiagnosisReport = () => {
     ElMessage.error('患者ID丢失，无法生成报告')
     return
   }
+  // AI辅助生成：GitHub Copilot Chat（GPT-5.3-Codex）, 2026-04-04
+  // 生成报告时只提交当前已完成结果，不把旧的临时录音状态一起带过去
   localStorage.setItem('wen_finished_id', String(patientInfo.value.id))
   navigateToDiagnosisReport(router, patientInfo.value.id, patientInfo.value.idCard)
 }
