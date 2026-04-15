@@ -120,20 +120,32 @@ export function getConstitutionScoreRanking(scoreMap = {}, limit = 3) {
   const nameMap = {
     ph: '平和质',
     qx: '气虚质',
+    qiXu: '气虚质',
     yx1: '阳虚质',
+    yangXu: '阳虚质',
     yx0: '阴虚质',
+    yinXu: '阴虚质',
     ts: '痰湿质',
+    tanShi: '痰湿质',
     sr: '湿热质',
+    shiRe: '湿热质',
     xy: '血瘀质',
+    xueYu: '血瘀质',
     qy: '气郁质',
+    qiYu: '气郁质',
     tb: '特禀质',
+    teBing: '特禀质',
   };
 
   return Object.entries(scoreMap || {})
+    .filter(([, score]) => {
+      const num = Number(score);
+      return Number.isFinite(num);
+    })
     .map(([code, score]) => ({
       code,
       name: nameMap[code] || code,
-      score: Number(score) || 0,
+      score: Number(score),
     }))
     .sort((a, b) => b.score - a.score)
     .slice(0, limit);
@@ -238,7 +250,7 @@ export function buildReportPromptTemplate(customPromptTemplate = '', focusMode =
   const focusLabel = getReportFocusModeLabel(focusMode);
   const focusInstruction = focusLabel
     ? `本次报告请将【${focusLabel}】作为重点板块，详细展开该板块的证候依据、特征表现、与其他板块的关联、风险提示和调护建议；其他板块保持简洁，避免重复前文已有的四诊初步诊断内容。`
-    : '本次报告不设置单一侧重，请直接给出更详细的 AI 分析建议；不要再单独输出“四诊常规综合”这类重复板块，因为前文已经包含四诊初步诊断。综合部分应只保留补充性的 AI 结论、重点风险和下一步建议，并尽量写得具体。';
+    : '本次报告不设置单一侧重，请给出更充分的综合分析内容：先做跨板块证据整合，再给体质/证候判断依据，最后给分层调理建议。不要再单独输出“四诊常规综合”这类重复板块；也不要出现“数据缺失提醒/缺少某某板块”这类提示。综合分析建议写成 4-6 段，每段围绕不同主题展开，内容要具体。';
 
   const parts = [focusInstruction];
   if (customPromptTemplate && String(customPromptTemplate).trim()) {

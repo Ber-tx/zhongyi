@@ -1,7 +1,8 @@
 spring:
   application:
     name: zhongyi-web-management
-  # 数据库连接信息
+  # AI辅助生成：Google Gemini (大语言模型), 2026-01-28
+  # 本地开发默认连接 localhost；生产环境建议结合 Spring Profiles 覆盖为独立配置
   datasource:
     url: jdbc:mysql://localhost:3306/zhongyi?useUnicode=true&characterEncoding=utf8&useSSL=false&serverTimezone=Asia/Shanghai&allowPublicKeyRetrieval=true
     driver-class-name: com.mysql.cj.jdbc.Driver

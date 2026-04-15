@@ -807,17 +807,21 @@ public class ReportController {
             return null;
         }
 
-        JSONObject scores = (JSONObject) parsed;
+        JSONObject scores = extractQuestionnaireScoreMap((JSONObject) parsed);
+        if (scores == null || scores.isEmpty()) {
+            return null;
+        }
         List<Map<String, Object>> ranking = new ArrayList<>();
         for (String key : scores.keySet()) {
             Object value = scores.get(key);
-            if (!(value instanceof Number)) {
+            Double numericScore = parseNumericScore(value);
+            if (numericScore == null) {
                 continue;
             }
             Map<String, Object> row = new LinkedHashMap<>();
             row.put("code", key);
             row.put("name", constitutionCodeToName(key));
-            row.put("score", ((Number) value).doubleValue());
+            row.put("score", numericScore);
             ranking.add(row);
         }
 
@@ -829,6 +833,43 @@ public class ReportController {
         Map<String, Object> profile = new LinkedHashMap<>();
         profile.put("topConstitutions", ranking);
         return profile;
+    }
+
+    private JSONObject extractQuestionnaireScoreMap(JSONObject payload) {
+        if (payload == null) {
+            return null;
+        }
+        Object templateResult = payload.get("templateResult");
+        if (templateResult instanceof JSONObject) {
+            JSONObject templateJson = (JSONObject) templateResult;
+            Object scoreMap = templateJson.get("scoreMap");
+            if (scoreMap instanceof JSONObject) {
+                return (JSONObject) scoreMap;
+            }
+            Object nestedScores = templateJson.get("scores");
+            if (nestedScores instanceof JSONObject) {
+                return (JSONObject) nestedScores;
+            }
+        }
+        Object innerScores = payload.get("scores");
+        if (innerScores instanceof JSONObject) {
+            return (JSONObject) innerScores;
+        }
+        return payload;
+    }
+
+    private Double parseNumericScore(Object value) {
+        if (value == null) {
+            return null;
+        }
+        if (value instanceof Number) {
+            return ((Number) value).doubleValue();
+        }
+        try {
+            return Double.parseDouble(String.valueOf(value));
+        } catch (Exception ignored) {
+            return null;
+        }
     }
 
     private Map<String, Object> buildLlmContext() {
@@ -927,20 +968,28 @@ public class ReportController {
             case "ph":
                 return "平和质";
             case "qx":
+            case "qixu":
                 return "气虚质";
             case "xy":
+            case "xueyu":
                 return "血瘀质";
             case "yx0":
+            case "yinxu":
                 return "阴虚质";
             case "yx1":
+            case "yangxu":
                 return "阳虚质";
             case "ts":
+            case "tanshi":
                 return "痰湿质";
             case "sr":
+            case "shire":
                 return "湿热质";
             case "qy":
+            case "qiyu":
                 return "气郁质";
             case "tb":
+            case "tebing":
                 return "特禀质";
             default:
                 return code;

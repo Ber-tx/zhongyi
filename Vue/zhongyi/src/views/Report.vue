@@ -60,7 +60,7 @@
           </p>
         </div>
         <!-- 实时预览区域：当后端开始返回流式内容时，在等待界面显示逐字输出 -->
-        <div v-if="isStreaming || (reportData && reportData.synthesis)" class="live-preview">
+        <div v-if="streamRequested || isStreaming || (reportData && reportData.synthesis)" class="live-preview">
           <el-card shadow="hover" class="live-card">
             <div class="live-header">
               <div class="live-title">实时生成预览</div>
@@ -83,7 +83,7 @@
                 </div>
               </div>
 
-              <div class="live-synthesis" v-html="reportData && reportData.synthesis ? markdownToHtml(reportData.synthesis) : '等待 AI 输出...'"></div>
+              <div class="live-synthesis" v-html="reportData && reportData.synthesis ? markdownToHtml(reportData.synthesis) : (streamRequested ? '正在等待 AI 首段输出...' : '等待 AI 输出...')"></div>
             </div>
           </el-card>
         </div>
@@ -135,7 +135,7 @@
                 <p class="diagnosis-result">
                   {{ reportData.diagnosis.wang.result }}
                 </p>
-                <div v-if="showNeutralDetail && wangSupplementaryAnalysis.length" class="supplementary-analysis">
+                <div v-if="showWangSupplementary && wangSupplementaryAnalysis.length" class="supplementary-analysis">
                   <div class="supplementary-title">补充分析</div>
                   <ul>
                     <li v-for="item in wangSupplementaryAnalysis" :key="item">{{ item }}</li>
@@ -308,6 +308,7 @@ const isLoading = ref(false);
 const isExporting = ref(false);
 const isStreaming = ref(false);
 const streamFinished = ref(false);
+const streamRequested = ref(false);
 const controllerRef = ref(null);
 const currentPatientId = ref(null);
 const currentCaseId = ref(null);
@@ -326,14 +327,23 @@ const reportSettings = computed(() => {
   } catch { return {}; }
 });
 
-const showNeutralDetail = computed(() => !reportSettings.value?.llmFocusMode);
+const normalizedFocusMode = computed(() => {
+  const raw = String(reportSettings.value?.llmFocusMode || '').trim().toLowerCase();
+  if (!raw || ['none', 'no_focus', 'no-focus', 'nofocus', '不侧重', '综合', '综合分析', 'balanced'].includes(raw)) {
+    return 'balanced';
+  }
+  return raw;
+});
+
+const showNeutralDetail = computed(() => normalizedFocusMode.value === 'balanced');
+const showWangSupplementary = computed(() => showNeutralDetail.value || normalizedFocusMode.value === 'wang');
 const synthesisTitle = computed(() => {
   const focusLabel = getReportFocusModeLabel(reportSettings.value?.llmFocusMode || '');
   return focusLabel ? `AI 重点分析（${focusLabel}）` : 'AI 详细分析';
 });
 const synthesisSubtitle = computed(() => {
   return showNeutralDetail.value
-    ? '不侧重模式下，只输出补充性的 AI 结论、风险提示和后续建议。'
+    ? '不侧重模式下，将进行更充分的跨板块综合分析与分层建议。'
     : '本段将围绕所选侧重板块展开更详细分析。';
 });
 
@@ -353,16 +363,36 @@ const idCardFullImageSrc = computed(() => {
 
 const idCardDisplaySrc = computed(() => idCardFullImageSrc.value || idCardPhotoSrc.value);
 
+const normalizeQuestionnaireScoreMap = (rawScores) => {
+  if (!rawScores || typeof rawScores !== 'object') return {};
+
+  // 优先读取模板结构里的 scoreMap（专项问卷）
+  if (rawScores.templateResult?.scoreMap && typeof rawScores.templateResult.scoreMap === 'object') {
+    return rawScores.templateResult.scoreMap;
+  }
+  // 兼容 templateResult 下可能嵌套 scores 的情况
+  if (rawScores.templateResult?.scores && typeof rawScores.templateResult.scores === 'object') {
+    return rawScores.templateResult.scores;
+  }
+  // 原始问卷：后端常见结构 { scores, candidateConstitutions, mainConstitution }
+  if (rawScores.scores && typeof rawScores.scores === 'object') {
+    return rawScores.scores;
+  }
+  // 若本身就是分值映射，直接使用
+  return rawScores;
+};
+
 const questionnaireAnalysis = computed(() => {
   const diagnosis = reportData.value?.diagnosis?.wen_questionnaire;
   if (!diagnosis) return null;
   const scores = diagnosis.scores || {};
+  const rankingScoreMap = normalizeQuestionnaireScoreMap(scores);
   const baseResult = scores && typeof scores === 'object' && scores.templateResult
     ? { ...scores.templateResult }
-    : getConstitutionAdvice(diagnosis.conclusion || '', scores || {});
+    : getConstitutionAdvice(diagnosis.conclusion || '', rankingScoreMap);
 
   if (showNeutralDetail.value) {
-    const ranking = getConstitutionScoreRanking(scores || {}, 3);
+    const ranking = getConstitutionScoreRanking(rankingScoreMap || {}, 3);
     return {
       ...baseResult,
       detailNotes: [
@@ -371,6 +401,7 @@ const questionnaireAnalysis = computed(() => {
           : '当前问卷结果已形成基础判断，可结合整体生活方式继续观察。',
         '问卷分析适合与望诊、闻诊和切诊结果联动解读，不宜单独下结论。',
         '若主诉症状持续存在，建议结合睡眠、饮食、情绪和运动习惯一起评估。',
+        '可按 1-2 周为周期复盘症状变化，结合复测结果动态调整调理重点。',
       ],
     };
   }
@@ -590,6 +621,7 @@ const generateReport = async (patientId, caseId = null) => {
   isLoading.value = true;
   isStreaming.value = false;
   streamFinished.value = false;
+  streamRequested.value = true;
   startLoadingAnimation();
 
   try {
@@ -622,6 +654,14 @@ const generateReport = async (patientId, caseId = null) => {
     if (!response.ok) throw new Error("网络响应异常");
 
     if (!response.body) throw new Error("浏览器不支持流式响应");
+
+    // 即使后端 Meta 首包延迟，也先初始化可见预览容器，避免等待期空白。
+    if (!reportData.value) {
+      reportData.value = {
+        synthesis: ""
+      };
+    }
+    isStreaming.value = true;
 
     const reader = response.body.getReader();
     const decoder = new TextDecoder("utf-8");
@@ -664,8 +704,15 @@ const generateReport = async (patientId, caseId = null) => {
             else if (parsed.content && reportData.value) {
               reportData.value.synthesis += parsed.content;
             }
+            // 兼容某些网关/后端直接返回纯文本 data: xxx 的情况
+            else if (typeof parsed === 'string' && reportData.value) {
+              reportData.value.synthesis += parsed;
+            }
           } catch (e) {
-            // 解析出错忽略（比如数据块截断），等待下一波
+            // 非 JSON 数据按纯文本兜底拼接，避免预览空白。
+            if (dataStr && dataStr !== '[DONE]' && reportData.value) {
+              reportData.value.synthesis += dataStr;
+            }
           }
         }
       }
@@ -681,6 +728,7 @@ const generateReport = async (patientId, caseId = null) => {
       isLoading.value = false;
     }
     isStreaming.value = false;
+    streamRequested.value = false;
     ElMessage.success("报告生成完成");
 
   } catch (error) {
@@ -688,6 +736,7 @@ const generateReport = async (patientId, caseId = null) => {
     ElMessage.error("生成报告失败：" + error.message);
     isLoading.value = false;
     isStreaming.value = false;
+    streamRequested.value = false;
   }
 };
 
@@ -697,6 +746,7 @@ const cancelStream = () => {
   } catch (e) {}
   isStreaming.value = false;
   streamFinished.value = false;
+  streamRequested.value = false;
   stopLoadingAnimation();
   isLoading.value = false;
   ElMessage.info('已取消生成');
