@@ -590,6 +590,42 @@ onMounted(async () => {
 
 const getCompletedTypes = () => localStorage.getItem("_temp_completedTypes") || "";
 
+const buildReportRequestPayload = (patientId, caseId = null) => {
+  const idCard = localStorage.getItem("current_patient_idCard") || "";
+  const completedTypes = getCompletedTypes();
+  const promptTemplate = buildReportPromptTemplate(
+    reportSettings.value?.llmPromptTemplate || "",
+    reportSettings.value?.llmFocusMode || ""
+  );
+  const focusMode = reportSettings.value?.llmFocusMode || "";
+
+  return {
+    patientId: Number(patientId),
+    caseId: caseId || undefined,
+    idCard,
+    customPromptTemplate: promptTemplate || undefined,
+    focusMode: focusMode || undefined,
+    ...(completedTypes ? { completedTypes } : {})
+  };
+};
+
+const fallbackToNonStreamReport = async (requestPayload, streamErrorMessage = "") => {
+  const response = await axios.post("/api/report/generate", requestPayload);
+  if (response.data.code !== 200 && !response.data.success) {
+    throw new Error(response.data.msg || "普通生成失败");
+  }
+
+  if (!response.data.data) {
+    throw new Error("普通生成返回为空");
+  }
+
+  reportData.value = response.data.data;
+  calculateCompletion();
+  stopLoadingAnimation();
+  const suffix = streamErrorMessage ? `（原因：${streamErrorMessage}）` : "";
+  ElMessage.warning(`流式生成失败，已自动切换普通生成${suffix}`);
+};
+
 const fetchReportData = async (patientId, caseId = null) => {
   isLoading.value = true;
   startLoadingAnimation();
@@ -623,16 +659,9 @@ const generateReport = async (patientId, caseId = null) => {
   streamFinished.value = false;
   streamRequested.value = true;
   startLoadingAnimation();
+  const requestPayload = buildReportRequestPayload(patientId, caseId);
 
   try {
-    const idCard = localStorage.getItem("current_patient_idCard") || "";
-    const completedTypes = getCompletedTypes();
-    const promptTemplate = buildReportPromptTemplate(
-      reportSettings.value?.llmPromptTemplate || "",
-      reportSettings.value?.llmFocusMode || ""
-    );
-    const focusMode = reportSettings.value?.llmFocusMode || "";
-
     // 使用 AbortController 支持取消
     const controller = new AbortController();
     controllerRef.value = controller;
@@ -640,14 +669,7 @@ const generateReport = async (patientId, caseId = null) => {
     const response = await fetch("/api/report/generate/stream", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({
-        patientId: Number(patientId),
-        caseId: caseId || undefined,
-        idCard,
-        customPromptTemplate: promptTemplate || undefined,
-        focusMode: focusMode || undefined,
-        ...(completedTypes ? { completedTypes } : {})
-      }),
+      body: JSON.stringify(requestPayload),
       signal: controller.signal
     });
 
@@ -690,6 +712,9 @@ const generateReport = async (patientId, caseId = null) => {
 
           try {
             const parsed = JSON.parse(dataStr);
+            if (parsed && typeof parsed === "object" && parsed.error) {
+              throw new Error(parsed.error);
+            }
             // 收到 Meta 基础数据，立刻关闭动画，渲染报告框架
             if (parsed.meta) {
               hasReceivedMeta = true;
@@ -732,12 +757,27 @@ const generateReport = async (patientId, caseId = null) => {
     ElMessage.success("报告生成完成");
 
   } catch (error) {
-    stopLoadingAnimation();
-    ElMessage.error("生成报告失败：" + error.message);
-    isLoading.value = false;
-    isStreaming.value = false;
-    streamRequested.value = false;
+    // 用户主动取消时，不触发降级与报错。
+    if (error?.name === "AbortError") {
+      return;
+    }
+
+    try {
+      await fallbackToNonStreamReport(requestPayload, error.message || "");
+      ElMessage.success("报告生成完成");
+    } catch (fallbackError) {
+      stopLoadingAnimation();
+      ElMessage.error("生成报告失败：" + (fallbackError.message || fallbackError));
+    } finally {
+      isLoading.value = false;
+      isStreaming.value = false;
+      streamRequested.value = false;
+      controllerRef.value = null;
+    }
+    return;
   }
+
+  controllerRef.value = null;
 };
 
 const cancelStream = () => {
