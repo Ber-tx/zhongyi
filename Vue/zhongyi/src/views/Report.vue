@@ -83,7 +83,7 @@
                 </div>
               </div>
 
-              <div class="live-synthesis" v-html="reportData && reportData.synthesis ? markdownToHtml(reportData.synthesis) : (streamRequested ? '正在等待 AI 首段输出...' : '等待 AI 输出...')"></div>
+              <div class="live-synthesis" v-html="reportData && reportData.synthesis ? markdownToHtml(reportData.synthesis) : (streamRequested ? (reportData ? 'AI 已连接，正在生成内容...' : '正在等待 AI 首段输出...') : '等待 AI 输出...')"></div>
             </div>
           </el-card>
         </div>

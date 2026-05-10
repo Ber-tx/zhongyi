@@ -9,6 +9,7 @@ client = OpenAI(
     base_url=os.getenv("DEEPSEEK_BASE_URL")
 )
 
+
 response = client.chat.completions.create(
     model="deepseek-chat",
     messages=[

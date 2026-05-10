@@ -240,7 +240,7 @@ public class ReportController {
 
     @PostMapping(value = "/generate/stream", produces = MediaType.TEXT_EVENT_STREAM_VALUE)
     public SseEmitter generateReportStream(@RequestBody ReportRequest request) {
-        SseEmitter emitter = new SseEmitter(180000L);
+        SseEmitter emitter = new SseEmitter(300000L);
 
         Executors.newSingleThreadExecutor().execute(() -> {
             try {
@@ -289,8 +289,8 @@ public class ReportController {
                 conn.setRequestProperty("Content-Type", "application/json");
                 conn.setRequestProperty("Accept", "text/event-stream");
                 conn.setDoOutput(true);
-                conn.setConnectTimeout(10000);
-                conn.setReadTimeout(170000);
+                conn.setConnectTimeout(15000);
+                conn.setReadTimeout(300000);
 
                 try (OutputStream os = conn.getOutputStream()) {
                     byte[] input = JSON.toJSONString(diagnosisInfo).getBytes(StandardCharsets.UTF_8);

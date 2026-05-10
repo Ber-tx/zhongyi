@@ -31,7 +31,7 @@ public class QuestionController {
 
         Long realId = null;
 
-        // 第一步：先看前端有没有传 patientId (这是最快的)
+        // 第一步：先看前端有没有传 patientId 
         if (request.getPatientId() != null) {
             realId = request.getPatientId();
         }
@@ -43,7 +43,7 @@ public class QuestionController {
             }
         }
 
-        // 最终检查：如果两样都没拿到，说明真没录入
+        // 最终检查：都没拿到，没录入
         if (realId == null) {
             return Result.error("无法关联病人！请检查是否已录入信息或身份证号是否传递。");
         }
@@ -52,7 +52,7 @@ public class QuestionController {
                 ? "original"
                 : request.getTemplateCode().trim();
 
-        // 校验问卷完整性：原始版本仍要求 33 题，专项模板允许按各自题数提交
+        // 校验问卷完整性：原始版本要求 33 题，专项模板允许按各自题数提交
         if (request.getAnswers() == null || request.getAnswers().isEmpty()) {
             return Result.error("问卷数据不完整，请重新检查！");
         }

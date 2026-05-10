@@ -42,6 +42,9 @@ DEFAULT_SYSTEM_PROMPT = """你是资深中医四诊合参医生，擅长将算�
 仅当用户明确指定侧重板块时，才进行详细复核并展开证据链分析。
 输出必须为中文 Markdown。"""
 
+LLM_MODEL = "glm-4.5-air"
+LLM_MAX_TOKENS = int(os.getenv("GLM_REPORT_MAX_TOKENS", "4096"))
+
 
 def normalize_focus_mode(raw_focus: Optional[str]) -> str:
     if not raw_focus:
@@ -85,7 +88,7 @@ def build_output_requirements(focus_mode: str) -> str:
         section_2 = "2. 四诊综合解读：每个已完成板块给核心结论、关键依据与风险提示（每板块 3-5 句）。"
         section_3 = "3. 跨板块证据整合：说明各板块互相支持或冲突的点，并给出取舍理由。"
         section_4 = "4. 体质/证候判断：写清主要结论、次要倾向与结论置信度来源。"
-        section_5 = "5. 分层调理建议：按近期（1-2周）/中期（1-3月）给出饮食、作息、运动与复评建议。"
+        section_5 = "5. 分层调理建议：给出饮食、作息、运动与复评建议。"
     else:
         focus_rule = "侧重板块约占 80% 篇幅，其余板块总计约 20%（每个非侧重板块仅保留核心结论与1条建议，控制在 1-2 句）。"
         section_2 = "2. 侧重板块深度复核：包含关键数据摘录、算法结果解读、中医证候推理、风险点、调理建议。"
@@ -102,7 +105,7 @@ def build_output_requirements(focus_mode: str) -> str:
         section_4,
         section_5,
         "- 完整性要求：不得出现空标题或空条目（例如“禁忌：”后无内容）。",
-        "- 调理建议最少包含：饮食>=4条、作息>=3条、运动>=2条、穴位/经络>=2条、禁忌>=3条。",
+        "- 调理建议最少包含：饮食>=3条、作息>=2条、运动>=2条、穴位/经络>=2条、禁忌>=2条。",
         "",
     ]
     return "\n".join(lines)
@@ -217,8 +220,8 @@ def build_tcm_prompt(diagnosis_info: Dict[str, Any]) -> str:
 
 def call_deepseek_api(messages: list, system_prompt: str = None) -> str:
     client = OpenAI(
-        api_key=os.getenv("DEEPSEEK_API_KEY"),
-        base_url=os.getenv("DEEPSEEK_BASE_URL"),
+        api_key=os.getenv("GLM_API_KEY"),
+        base_url=os.getenv("GLM_BASE_URL"),
     )
 
     final_messages = list(messages)
@@ -226,9 +229,9 @@ def call_deepseek_api(messages: list, system_prompt: str = None) -> str:
         final_messages.insert(0, {"role": "system", "content": system_prompt})
 
     response = client.chat.completions.create(
-        model="deepseek-chat",
+        model=LLM_MODEL,
         messages=final_messages,
-        max_tokens=2600,
+        max_tokens=LLM_MAX_TOKENS,
         temperature=0.3,
     )
     return response.choices[0].message.content
@@ -239,8 +242,8 @@ def call_deepseek_api_stream(messages: list, system_prompt: str = None, fallback
         # AI辅助生成：Gemini pro 3, 2026-03-10
         # 流式输出给前端报告页做边生成边渲染；失败时由上层回退到规则文本
         client = OpenAI(
-            api_key=os.getenv("DEEPSEEK_API_KEY"),
-            base_url=os.getenv("DEEPSEEK_BASE_URL"),
+            api_key=os.getenv("GLM_API_KEY"),
+            base_url=os.getenv("GLM_BASE_URL"),
         )
 
         final_messages = list(messages)
@@ -248,9 +251,9 @@ def call_deepseek_api_stream(messages: list, system_prompt: str = None, fallback
             final_messages.insert(0, {"role": "system", "content": system_prompt})
 
         response = client.chat.completions.create(
-            model="deepseek-chat",
+            model=LLM_MODEL,
             messages=final_messages,
-            max_tokens=2600,
+            max_tokens=LLM_MAX_TOKENS,
             temperature=0.3,
             stream=True,
         )
@@ -262,16 +265,14 @@ def call_deepseek_api_stream(messages: list, system_prompt: str = None, fallback
                 if delta is not None:
                     content = getattr(delta, "content", None)
             if content:
-                for ch in content:
-                    data = json.dumps({"content": ch}, ensure_ascii=False)
-                    yield f"data: {data}\n\n"
+                data = json.dumps({"content": content}, ensure_ascii=False)
+                yield f"data: {data}\n\n"
         yield "data: [DONE]\n\n"
     except Exception as e:
         print(f"[ERROR] 流式输出异常: {str(e)}")
         text = fallback_text if fallback_text else "AI 分析中断，已切换到备选诊断建议。"
-        for ch in text:
-            data = json.dumps({"content": ch}, ensure_ascii=False)
-            yield f"data: {data}\n\n"
+        data = json.dumps({"content": text}, ensure_ascii=False)
+        yield f"data: {data}\n\n"
         yield "data: [DONE]\n\n"
 
 

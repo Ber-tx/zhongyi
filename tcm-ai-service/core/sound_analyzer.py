@@ -328,23 +328,7 @@ class SoundAnalyzer:
 
     # AI辅助生成：ChatGPT（GPT-5.3）, 2026-03-20
     def _diagnose_constitution(self, features: dict) -> dict:
-        """
-                规则阈值并非直接照搬论文原值，而是按项目录音环境、展示稳定性和可解释性做了简化。
-
-        基于多维特征的体质判断规则。
-
-        诊断依据设计来源：
-          - Wang et al. 2024 [1]：MFCC低阶系数(1-4阶)反映声道整体形状与共振，
-            与体质相关性最强。
-          - Shen et al. 2024 [4]：F0均值高→阳气上升；F0稳定性差→气滞。
-          - Teixeira et al. 2013 [2]：
-              Jitter > 1.0% 为异常（气虚、气滞）；
-              Shimmer > 3.0% 提示湿阻；
-              HNR < 7 dB 提示病理性气虚。
-
-        注意：当前仍为规则系统，准确率天花板约70-75%。
-        要进一步提升请参考 [1] 用标注数据训练 Conv2D / LSTM 模型。
-        """
+        """多特征加权判定：先做稳健归一化，再计算各体质证据分。"""
         diagnosis = {
             'constitution': '',
             'main_finding': '',
@@ -353,179 +337,146 @@ class SoundAnalyzer:
             'details': []
         }
 
-        # ------ 读取特征 ------ #
-        mfcc1 = features.get('mfcc_mean_1', 0.0)    # MFCC第1系数：总体能量
-        mfcc2 = features.get('mfcc_mean_2', 0.0)    # 第2系数：低频/高频平衡
-        mfcc3 = features.get('mfcc_mean_3', 0.0)    # 第3系数：频谱细节
-        mfcc_var = np.mean([features.get(f'mfcc_std_{i}', 0) for i in range(1, 6)])
+        def clamp01(v):
+            return float(np.clip(v, 0.0, 1.0))
 
-        f0_mean  = features.get('f0_mean', 0.0)
-        f0_std   = features.get('f0_std',  0.0)
+        def norm(v, lo, hi):
+            if hi <= lo:
+                return 0.0
+            return clamp01((float(v) - lo) / (hi - lo))
 
-        jitter   = features.get('jitter',  0.0)
-        shimmer  = features.get('shimmer', 0.0)
-        hnr      = features.get('hnr',     0.0)
-        rms      = features.get('rms_energy', 0.0)
-        crest    = features.get('crest_factor', 1.0)
+        mfcc1 = float(features.get('mfcc_mean_1', 0.0))
+        mfcc2 = float(features.get('mfcc_mean_2', 0.0))
+        mfcc_var = float(np.mean([features.get(f'mfcc_std_{i}', 0.0) for i in range(1, 6)]))
+        f0_mean = float(features.get('f0_mean', 0.0))
+        f0_std = float(features.get('f0_std', 0.0))
+        voiced_ratio = float(features.get('voiced_ratio', 0.0))
+        jitter = float(features.get('jitter', 0.0))
+        shimmer = float(features.get('shimmer', 0.0))
+        hnr = float(features.get('hnr', 0.0))
+        rms = float(features.get('rms_energy', 0.0))
+        duration = float(features.get('duration', 0.0))
 
-        # 降级模式（librosa不可用时用频带比）
-        using_fallback = (mfcc1 == 0.0 and features.get('low_freq_ratio') is not None)
+        using_fallback = (abs(mfcc1) < 1e-9 and features.get('low_freq_ratio') is not None)
+
+        # 1) 特征质量分（用于置信度）
+        q_duration = norm(duration, 1.5, 8.0)
+        q_energy = norm(rms, 0.02, 0.12)
+        q_voiced = norm(voiced_ratio, 0.25, 0.85)
+        q_hnr = norm(hnr, 5.0, 20.0) if hnr > 0 else 0.0
+        quality = 0.35 * q_duration + 0.30 * q_energy + 0.20 * q_voiced + 0.15 * q_hnr
         if using_fallback:
-            low_freq  = features.get('low_freq_ratio', 0)
-            high_freq = features.get('high_freq_ratio', 0)
-
-        # ------ 主体质判断 ------ #
-        score_pinghe  = 0.0  # 平和质
-        score_qixu    = 0.0  # 气虚质
-        score_yinxu   = 0.0  # 阴虚质
-        score_yangxu  = 0.0  # 阳虚质
-        score_qizhi   = 0.0  # 气滞血瘀
-
-        if not using_fallback:
-            # ---- MFCC-based 规则（来源 [1]） ----
-            # mfcc1 负值大 → 整体能量低 → 气虚
-            if mfcc1 < -200:
-                score_qixu   += 0.3
-            # mfcc2 负 → 低频能量多 → 阴虚（声音沉闷）
-            if mfcc2 < -20:
-                score_yinxu  += 0.25
-            elif mfcc2 > 20:
-                score_yangxu += 0.25
-            # mfcc 方差大 → 声音不均匀 → 气滞
-            if mfcc_var > 30:
-                score_qizhi  += 0.2
-            # 均衡 → 平和
-            if abs(mfcc2) < 15 and mfcc_var < 20:
-                score_pinghe += 0.4
-        else:
-            # 降级规则
-            if low_freq > 0.45:
-                score_yinxu  += 0.3
-            elif high_freq > 0.40:
-                score_yangxu += 0.3
-            else:
-                score_pinghe += 0.35
-
-        # ---- F0-based 规则（来源 [4]） ----
-        if f0_mean > 0:
-            if f0_mean > 220:          # 高音调 → 阳亢
-                score_yangxu  -= 0.1
-                score_yinxu   += 0.15
-            elif f0_mean < 100:        # 低音调 → 阳虚/气虚
-                score_yangxu  += 0.2
-                score_qixu    += 0.1
-            # 音调不稳定 → 气滞
-            if f0_std > 30:
-                score_qizhi   += 0.2
-            elif f0_std < 10:
-                score_pinghe  += 0.1
-
-        # ---- Jitter/Shimmer/HNR（来源 [2][3]） ----
-        if jitter > 0.01:              # >1%: 声带振动不规则 → 气虚/气滞
-            score_qixu   += 0.2
-            score_qizhi  += 0.15
-        elif jitter < 0.005:           # <0.5%: 声带稳定 → 平和
-            score_pinghe += 0.15
-
-        if shimmer > 0.03:             # >3%: 振幅波动大 → 湿热/气滞
-            score_qizhi  += 0.15
-        if hnr > 0:
-            if hnr < 7:                # <7dB: 谐波差，严重气虚
-                score_qixu  += 0.25
-            elif hnr > 20:             # >20dB: 声音纯净 → 平和
-                score_pinghe += 0.2
-
-        # ---- 音量/能量规则 ----
-        if rms < 0.03:
-            score_qixu   += 0.1        # 声音极弱 → 气虚
-        elif rms > 0.4:
-            score_yangxu += 0.1
-
-        # ------ 决策 ------ #
-        scores = {
-            '平和质': score_pinghe,
-            '气虚质': score_qixu,
-            '阴虚质': score_yinxu,
-            '阳虚质': score_yangxu,
-            '气滞血瘀': score_qizhi,
-        }
-        constitution = max(scores, key=scores.get)
-        top_score    = scores[constitution]
-
-        # ------ 置信度计算（基于分数差异 + 质量校准） ------ #
-        sorted_scores = sorted(scores.values(), reverse=True)
-        margin = sorted_scores[0] - sorted_scores[1]  # 第一名与第二名的差距
-        # 提升基础置信度，避免规则系统在中等信号下普遍偏低
-        base_confidence = 0.55 + min(0.35, margin * 1.25)
-
-        # 数据质量惩罚：保留趋势但降低惩罚强度
-        if rms < 0.03:
-            base_confidence -= 0.06   # 音量太小，降低置信度
-        if features.get('duration', 0) < 1.5:
-            base_confidence -= 0.04   # 时长过短
-        if using_fallback:
-            base_confidence -= 0.06   # 降级模式
+            quality *= 0.85
         if jitter == 0.0 and shimmer == 0.0:
-            base_confidence -= 0.03   # 缺少Praat特征
+            quality *= 0.9
 
-        # 高质量录音小幅加分
-        if features.get('duration', 0) >= 3.0 and rms >= 0.05 and not using_fallback:
-            base_confidence += 0.04
+        # 2) 体质证据分（0~1）
+        # 平和：能量稳定、音调稳定、噪声低
+        s_pinghe = (
+            0.30 * norm(hnr, 12.0, 24.0) +
+            0.20 * (1.0 - norm(jitter, 0.004, 0.018)) +
+            0.20 * (1.0 - norm(shimmer, 0.02, 0.08)) +
+            0.15 * (1.0 - norm(abs(mfcc2), 12.0, 45.0)) +
+            0.15 * (1.0 - norm(f0_std, 20.0, 90.0))
+        )
 
-        confidence = float(np.clip(base_confidence, 0.45, 0.95))
+        # 气虚：低能量、微扰高、谐噪比低
+        s_qixu = (
+            0.30 * (1.0 - norm(rms, 0.03, 0.10)) +
+            0.25 * norm(jitter, 0.006, 0.022) +
+            0.20 * norm(shimmer, 0.03, 0.10) +
+            0.15 * (1.0 - norm(hnr, 8.0, 20.0)) +
+            0.10 * (1.0 - norm(voiced_ratio, 0.35, 0.85))
+        )
 
-        # ------ 填写标签与说明 ------ #
+        # 阴虚：偏高音、波动偏大、频谱偏尖
+        s_yinxu = (
+            0.30 * norm(f0_mean, 170.0, 290.0) +
+            0.25 * norm(f0_std, 18.0, 80.0) +
+            0.20 * norm(mfcc2, 5.0, 45.0) +
+            0.15 * norm(mfcc_var, 18.0, 55.0) +
+            0.10 * norm(shimmer, 0.02, 0.08)
+        )
+
+        # 阳虚：低音低能、声势偏弱
+        s_yangxu = (
+            0.35 * (1.0 - norm(f0_mean, 95.0, 170.0)) +
+            0.25 * (1.0 - norm(rms, 0.03, 0.10)) +
+            0.20 * (1.0 - norm(voiced_ratio, 0.35, 0.85)) +
+            0.20 * (1.0 - norm(hnr, 8.0, 20.0))
+        )
+
+        # 气滞血瘀：音调不稳、节律起伏、微扰增高
+        s_qizhi = (
+            0.30 * norm(f0_std, 20.0, 90.0) +
+            0.25 * norm(mfcc_var, 20.0, 60.0) +
+            0.20 * norm(jitter, 0.006, 0.022) +
+            0.15 * norm(shimmer, 0.03, 0.10) +
+            0.10 * norm(abs(mfcc2), 12.0, 45.0)
+        )
+
+        if using_fallback:
+            low_freq = float(features.get('low_freq_ratio', 0.0))
+            high_freq = float(features.get('high_freq_ratio', 0.0))
+            s_yinxu += 0.18 * norm(low_freq, 0.30, 0.60)
+            s_yangxu += 0.18 * norm(high_freq, 0.30, 0.60)
+            s_pinghe += 0.08 * (1.0 - norm(abs(low_freq - high_freq), 0.05, 0.30))
+
+        scores = {
+            '平和质': round(clamp01(s_pinghe), 4),
+            '气虚质': round(clamp01(s_qixu), 4),
+            '阴虚质': round(clamp01(s_yinxu), 4),
+            '阳虚质': round(clamp01(s_yangxu), 4),
+            '气滞血瘀': round(clamp01(s_qizhi), 4),
+        }
+
+        ordered = sorted(scores.items(), key=lambda kv: kv[1], reverse=True)
+        constitution = ordered[0][0]
+        top_score = ordered[0][1]
+        second_score = ordered[1][1]
+        margin = max(0.0, top_score - second_score)
+
+        # 3) 置信度：分数分离度 + 数据质量
+        confidence = 0.45 + 0.30 * quality + 0.30 * margin
+        if margin < 0.08:
+            confidence -= 0.08
+        confidence = float(np.clip(confidence, 0.35, 0.95))
+
         diagnosis['constitution'] = constitution
-        diagnosis['confidence']   = confidence
+        diagnosis['confidence'] = confidence
 
         const_tags = {
-            '平和质':  ['气血充足', '呼吸均匀', '体质平衡'],
-            '气虚质':  ['气力不足', '声音偏弱', '声带振动不规则'],
-            '阴虚质':  ['阴液不足', '低频共振偏强', '声调沉缓'],
-            '阳虚质':  ['阳气不足', '声音低沉', '体温偏低倾向'],
+            '平和质': ['气血充足', '呼吸均匀', '体质平衡'],
+            '气虚质': ['气力不足', '声音偏弱', '声带振动不规则'],
+            '阴虚质': ['阴液不足', '声调偏高', '音色偏燥'],
+            '阳虚质': ['阳气不足', '声音低沉', '气息偏弱'],
             '气滞血瘀': ['气机不畅', '音调波动', '声音不连贯'],
         }
         diagnosis['tags'] = const_tags.get(constitution, [])
 
-        const_details = {
-            '平和质': [
-                'MFCC特征分布均衡，声道共振稳定',
-                '基频稳定（F0稳定性良好），呼吸节律均匀',
-                'HNR较高，谐波丰富，提示气血充盈',
-                '建议保持规律作息与适量运动',
-            ],
-            '气虚质': [
-                'MFCC第1系数偏低，整体声能不足',
-                f'Jitter偏高（{jitter:.3f}），声带振动不够规律，提示气虚',
-                f'HNR={hnr:.1f}dB，谐波成分较低，气息支撑不足',
-                '建议补益元气，可选黄芪、党参类调理，增强运动耐力',
-            ],
-            '阴虚质': [
-                'MFCC低阶系数（声道低频共振）偏强，声音偏沉',
-                '基频均值偏低，呼吸较为沉缓',
-                '建议滋阴润燥，多饮水，少食辛辣',
-            ],
-            '阳虚质': [
-                'MFCC高阶系数偏强，声音偏高亢',
-                '基频均值偏低（阳气升发不足），声音低沉',
-                '建议温阳健脾，可选桂圆、生姜类食物，适度增加有氧运动',
-            ],
-            '气滞血瘀': [
-                f'F0标准差={f0_std:.1f}Hz，音调波动较大，反映气机不畅',
-                f'Shimmer={shimmer:.3f}，振幅不稳定，提示气血流通欠佳',
-                '建议疏肝理气，可进行太极、八段锦等舒缓运动',
-            ],
+        details = [
+            f"综合证据分: 平和={scores['平和质']}, 气虚={scores['气虚质']}, 阴虚={scores['阴虚质']}, 阳虚={scores['阳虚质']}, 气滞血瘀={scores['气滞血瘀']}",
+            f"主次分离度={margin:.3f}，录音质量={quality:.3f}",
+            f"关键特征: F0={f0_mean:.1f}Hz, F0波动={f0_std:.1f}, Jitter={jitter:.4f}, Shimmer={shimmer:.4f}, HNR={hnr:.1f}dB",
+        ]
+
+        advice_map = {
+            '平和质': '建议保持规律作息与适度运动。',
+            '气虚质': '建议先改善睡眠与体能，结合补气调理。',
+            '阴虚质': '建议滋阴润燥，减少熬夜与辛辣刺激。',
+            '阳虚质': '建议温阳健脾，规律有氧运动并注意保暖。',
+            '气滞血瘀': '建议疏肝理气，采用舒缓运动改善节律。',
         }
-        diagnosis['details'] = const_details.get(constitution, [])
+        details.append(advice_map.get(constitution, '建议结合四诊信息综合判断。'))
 
-        # 辅助提示
-        if rms < 0.03:
-            diagnosis['details'].append('⚠ 录音音量偏小，建议靠近麦克风重新录制以提高准确性')
-        if features.get('duration', 0) < 1.5:
-            diagnosis['details'].append('⚠ 录音时长较短，建议录制15秒以上（均匀呼吸）')
+        if duration < 1.5:
+            details.append('录音时长偏短，建议录制3-10秒稳定语音。')
+        if rms < 0.02:
+            details.append('录音音量偏低，建议贴近麦克风并降低环境噪声。')
         if using_fallback:
-            diagnosis['details'].append('⚠ 当前为降级分析模式（未安装librosa），准确性有所下降')
+            details.append('当前处于降级特征模式（无librosa），建议安装完整依赖后再测。')
 
+        diagnosis['details'] = details
         return diagnosis
 
     # ------------------------------------------------------------------ #
