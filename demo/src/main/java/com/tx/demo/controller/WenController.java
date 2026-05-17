@@ -8,6 +8,7 @@ import com.tx.demo.mapper.DiagnosisMapper;
 import com.tx.demo.mapper.PatientMapper;
 import com.tx.demo.utils.Result;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.core.io.FileSystemResource;
 import org.springframework.http.HttpEntity;
 import org.springframework.http.HttpHeaders;
@@ -22,6 +23,7 @@ import java.io.File;
 import java.io.IOException;
 import java.math.BigDecimal;
 import java.math.RoundingMode;
+import java.nio.file.Path;
 import java.util.LinkedHashMap;
 import java.util.Map;
 import java.time.LocalDateTime;
@@ -37,8 +39,11 @@ public class WenController {
     @Autowired
     private DiagnosisMapper diagnosisMapper;
 
-    // 音频存储路径（与望诊分开目录，便于管理）
-    private static final String UPLOAD_PATH = "E:/项目/zhongyi_uploads/audio/";
+    @Value("${app.paths.upload-root:./zhongyi_uploads}")
+    private String uploadRoot;
+
+    @Value("${app.services.python-base-url:http://localhost:5000}")
+    private String pythonBaseUrl;
 
     // =====================================================================
     // 分析 + 入库（一步完成，与 WangController 结构完全一致）
@@ -71,7 +76,7 @@ public class WenController {
         }
 
         // ---- 2. 保存音频文件到本地（与望诊保存图片逻辑一致）----
-        File tempDir = new File(UPLOAD_PATH);
+        File tempDir = resolveUploadDirectory("audio");
         if (!tempDir.exists()) tempDir.mkdirs();
 
         String originalFilename = file.getOriginalFilename();
@@ -79,7 +84,7 @@ public class WenController {
                 ? originalFilename.substring(originalFilename.lastIndexOf("."))
                 : ".webm";
         String fileName = UUID.randomUUID().toString() + suffix;
-        File destFile = new File(UPLOAD_PATH + fileName);
+        File destFile = new File(tempDir, fileName);
 
         try {
             file.transferTo(destFile);
@@ -90,7 +95,7 @@ public class WenController {
 
         // ---- 3. 调用 Python 闻诊分析服务 ----
         RestTemplate restTemplate = new RestTemplate();
-        String pythonUrl = "http://localhost:5000/wen/analyze";
+        String pythonUrl = pythonBaseUrl + "/wen/analyze";
 
         HttpHeaders headers = new HttpHeaders();
         headers.setContentType(MediaType.MULTIPART_FORM_DATA);
@@ -233,5 +238,10 @@ public class WenController {
         }
         BigDecimal rounded = BigDecimal.valueOf(value).setScale(scale, RoundingMode.HALF_UP);
         target.put(key, rounded.doubleValue());
+    }
+
+    private File resolveUploadDirectory(String subFolder) {
+        Path uploadPath = Path.of(uploadRoot, subFolder);
+        return uploadPath.toFile();
     }
 }

@@ -1,5 +1,6 @@
 import numpy as np
 from scipy.stats import pearsonr
+from scipy import signal
 
 
 class PulseAlgorithm:
@@ -18,8 +19,30 @@ class PulseAlgorithm:
         self.min_autocorrelation_ratio = 0.5
         self.min_pearson_correlation = 0.8
 
-        # ===== 状态变量 (替代原代码中的 global) =====
+        # ===== 状态变量 (替代 global) =====
         self.last_peak_interval = self.LOWEST_PERIOD
+        self._bandpass_sos = signal.butter(
+            3,
+            [0.7 / (self.FS / 2.0), 3.5 / (self.FS / 2.0)],
+            btype="bandpass",
+            output="sos",
+        )
+
+    def _bandpass(self, x):
+        """PPG 生理频段滤波：0.7~3.5Hz 对应约 42~210bpm。"""
+        if len(x) < 10:
+            return np.asarray(x, dtype=float)
+        return signal.sosfiltfilt(self._bandpass_sos, np.asarray(x, dtype=float))
+
+    def _autocorr_ratio(self, x, lag):
+        if len(x) <= lag or lag <= 0:
+            return 0.0
+        x = np.asarray(x, dtype=float)
+        e0 = np.sum(x * x)
+        if e0 <= 1e-9:
+            return 0.0
+        e1 = np.sum(x[:-lag] * x[lag:])
+        return float(max(0.0, e1 / e0))
 
     def rf_autocorrelation(self, ac_signal, lag):
         """ 辅助：自相关计算 """
@@ -94,81 +117,136 @@ class PulseAlgorithm:
     def process(self, ir_buffer, red_buffer):
         """
         对应原 rf_calculate_hr_spo2 函数
-        ⚠️ 核心算法逻辑完全保持不变，只修复返回值
+        在保持接口不变前提下，改为更稳健的 HR/SpO2 计算流程：
+        1) 带通滤波抑制漂移与高频噪声
+        2) 时域峰值+频域主频双通道融合心率
+        3) 基于质量门控的 ratio-of-ratios 血氧估计
         """
-        ir = np.array(ir_buffer, dtype=float)
-        red = np.array(red_buffer, dtype=float)
+        ir = np.asarray(ir_buffer, dtype=float)
+        red = np.asarray(red_buffer, dtype=float)
 
-        # 1. 计算DC均值并去除DC
-        ir_mean = np.mean(ir)
-        red_mean = np.mean(red)
+        if len(ir) != len(red) or len(ir) < max(32, int(1.5 * self.FS)):
+            return {
+                "hr": 0.0,
+                "spo2": 0.0,
+                "hr_valid": False,
+                "spo2_valid": False,
+                "quality": 0.0,
+                "is_valid": False,
+                "autocorr_ratio": 0.0,
+                "pearson_corr": 0.0,
+                "xy_ratio": 0.0,
+                "ir_rms": 0.0,
+                "red_rms": 0.0,
+                "ir_mean": 0.0,
+                "red_mean": 0.0,
+            }
+
+        # 1) DC 与 AC 分离
+        ir_mean = float(np.mean(ir))
+        red_mean = float(np.mean(red))
         ir_ac = ir - ir_mean
         red_ac = red - red_mean
 
-        # 2. 线性去趋势（baseline leveling）
-        beta_ir = np.sum(self.x_indices * ir_ac) / self.sum_X2
-        beta_red = np.sum(self.x_indices * red_ac) / self.sum_X2
-        ir_ac -= beta_ir * self.x_indices
-        red_ac -= beta_red * self.x_indices
+        # 2) 去趋势 + 生理频段带通
+        ir_detrend = signal.detrend(ir_ac, type="linear")
+        red_detrend = signal.detrend(red_ac, type="linear")
+        ir_bp = self._bandpass(ir_detrend)
+        red_bp = self._bandpass(red_detrend)
 
-        # 3. 计算AC RMS 和 平方和
-        ir_sumsq = np.sum(ir_ac ** 2)
-        red_sumsq = np.sum(red_ac ** 2)
-        ir_rms = np.sqrt(ir_sumsq / self.BUFFER_SIZE)
-        red_rms = np.sqrt(red_sumsq / self.BUFFER_SIZE)
-
-        # 4. Pearson相关系数
-        if ir_sumsq == 0 or red_sumsq == 0:
+        # 3) 计算 AC RMS、相关性
+        ir_rms = float(np.sqrt(np.mean(ir_bp ** 2)))
+        red_rms = float(np.sqrt(np.mean(red_bp ** 2)))
+        if ir_rms <= 1e-9 or red_rms <= 1e-9:
             correl = 0.0
         else:
-            correl = pearsonr(ir_ac, red_ac)[0]
+            correl = float(pearsonr(ir_bp, red_bp)[0])
+            if np.isnan(correl):
+                correl = 0.0
 
-        # 5. 自相关周期性检测
-        ratio = 0.0
-        if correl >= self.min_pearson_correlation:
-            aut_lag0 = ir_sumsq / self.BUFFER_SIZE
+        # 4) 时域心率：峰间距
+        min_distance = max(1, int(self.FS * 60.0 / 180.0))
+        prom = max(1e-9, 0.45 * float(np.std(ir_bp)))
+        peaks, _ = signal.find_peaks(ir_bp, distance=min_distance, prominence=prom)
 
-            # 初始化搜索
-            if self.last_peak_interval == self.LOWEST_PERIOD:
-                self.initialize_periodicity_search(ir_ac, aut_lag0)
+        hr_time = 0.0
+        hr_time_valid = False
+        if len(peaks) >= 3:
+            rr = np.diff(peaks).astype(float)
+            rr = rr[(rr >= self.LOWEST_PERIOD) & (rr <= self.HIGHEST_PERIOD)]
+            if len(rr) >= 2:
+                period = float(np.median(rr))
+                if period > 0:
+                    hr_time = self.FS60 / period
+                    hr_time_valid = 40.0 <= hr_time <= 180.0
 
-            # 正常搜索
-            if self.last_peak_interval != 0:
-                ratio_list = [ratio]  # 传递列表以实现引用修改
-                self.signal_periodicity(ir_ac, aut_lag0, ratio_list)
-                ratio = ratio_list[0]
+        # 5) 频域心率：主频峰
+        f, pxx = signal.welch(ir_bp, fs=self.FS, nperseg=min(len(ir_bp), 128))
+        band = (f >= 40.0 / 60.0) & (f <= 180.0 / 60.0)
+        hr_freq = 0.0
+        hr_freq_valid = False
+        if np.any(band):
+            fb = f[band]
+            pb = pxx[band]
+            if len(pb) > 0 and np.max(pb) > 0:
+                dom_f = float(fb[int(np.argmax(pb))])
+                hr_freq = dom_f * 60.0
+                hr_freq_valid = 40.0 <= hr_freq <= 180.0
 
-        # 6. 心率计算
-        hr = None
+        # 6) 融合心率
+        hr = 0.0
         hr_valid = False
-        if self.last_peak_interval != 0 and self.LOWEST_PERIOD <= self.last_peak_interval <= self.HIGHEST_PERIOD:
-            hr = self.FS60 / self.last_peak_interval
-            hr_valid = True
-        else:
-            self.last_peak_interval = self.LOWEST_PERIOD  # 重置
+        if hr_time_valid and hr_freq_valid:
+            delta = abs(hr_time - hr_freq)
+            if delta <= 8.0:
+                hr = 0.65 * hr_time + 0.35 * hr_freq
+                hr_valid = True
+            else:
+                # 双通道冲突时，优先时域（对 PPG 更直观）
+                hr = hr_time
+                hr_valid = correl >= 0.60
+        elif hr_time_valid:
+            hr = hr_time
+            hr_valid = correl >= 0.60
+        elif hr_freq_valid:
+            hr = hr_freq
+            hr_valid = correl >= 0.70
 
-        # 7. SpO2计算
-        spo2 = None
+        # 7) 周期性指标（供上层做质量过滤）
+        ratio = 0.0
+        if hr_valid and hr > 0:
+            lag = int(round(self.FS60 / hr))
+            ratio = self._autocorr_ratio(ir_bp, lag)
+
+        # 8) 血氧估计：ratio-of-ratios + 严格质量门控
+        spo2 = 0.0
         spo2_valid = False
         xy_ratio = 0.0
+        if hr_valid and ir_mean > 1e-6 and red_mean > 1e-6 and ir_rms > 1e-9 and red_rms > 1e-9:
+            ir_ac_dc = ir_rms / (ir_mean + 1e-12)
+            red_ac_dc = red_rms / (red_mean + 1e-12)
+            xy_ratio = red_ac_dc / (ir_ac_dc + 1e-12)
 
-        if hr_valid and ir_rms > 0 and red_rms > 0:
-            xy_ratio = (red_rms * ir_mean) / (ir_rms * red_mean)
-            if 0.02 < xy_ratio < 1.84:
-                spo2 = (-45.060 * xy_ratio + 30.354) * xy_ratio + 94.845
-                spo2 = np.clip(spo2, 0, 100)
+            # 常见经验式：SpO2 = 110 - 25R，更稳健，便于后期标定
+            spo2_est = 110.0 - 25.0 * xy_ratio
+            spo2_est = float(np.clip(spo2_est, 70.0, 100.0))
+
+            # 质量门控：相关性、周期性、R值合理范围
+            if correl >= 0.60 and ratio >= 0.35 and 0.2 <= xy_ratio <= 1.4:
+                spo2 = spo2_est
                 spo2_valid = True
 
+        quality = float(np.clip(0.75 * max(0.0, correl) + 0.25 * np.clip(ratio, 0.0, 1.0), 0.0, 1.0))
+        is_valid = bool(hr_valid and quality >= 0.45)
+
         # 返回结果字典
-        # 🔧 唯一的修改：quality 确保非负（Pearson 相关系数可能为负）
         return {
-            "hr": round(float(hr), 1) if hr else 0.0,
-            "spo2": round(float(spo2), 1) if spo2 else 0.0,
+            "hr": round(float(hr), 1) if hr_valid else 0.0,
+            "spo2": round(float(spo2), 1) if spo2_valid else 0.0,
             "hr_valid": bool(hr_valid),
-            "spo2_valid": bool(spo2_valid and correl >= self.min_pearson_correlation),
-            "quality": round(float(max(0, correl)), 3),  # 🔧 唯一修改：max(0, correl)
-            "is_valid": bool(hr_valid and (correl >= self.min_pearson_correlation)),
-            # 额外暴露中间指标，便于脉搏特征工程（不改变原有HR/SpO2结果）
+            "spo2_valid": bool(spo2_valid),
+            "quality": round(float(quality), 3),
+            "is_valid": is_valid,
             "autocorr_ratio": round(float(ratio), 3),
             "pearson_corr": round(float(correl), 3),
             "xy_ratio": round(float(xy_ratio), 3) if xy_ratio else 0.0,

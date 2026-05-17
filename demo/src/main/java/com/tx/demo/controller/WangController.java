@@ -8,6 +8,7 @@ import com.tx.demo.mapper.DiagnosisMapper;
 import com.tx.demo.mapper.PatientMapper;
 import com.tx.demo.utils.Result;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.core.io.FileSystemResource;
 import org.springframework.http.HttpEntity;
 import org.springframework.http.HttpHeaders;
@@ -22,6 +23,7 @@ import org.springframework.web.multipart.MultipartFile;
 
 import java.io.File;
 import java.io.IOException;
+import java.nio.file.Path;
 import java.time.LocalDateTime; // 必须使用这个，匹配你的实体类
 import java.util.HashMap;
 import java.util.Map;
@@ -37,8 +39,11 @@ public class WangController {
     @Autowired
     private DiagnosisMapper diagnosisMapper;
 
-    // 定义临时存储路径
-    private static final String UPLOAD_PATH = "E:/项目/zhongyi_uploads/tcm_temp/";
+    @Value("${app.paths.upload-root:./zhongyi_uploads}")
+    private String uploadRoot;
+
+    @Value("${app.services.python-base-url:http://localhost:5000}")
+    private String pythonBaseUrl;
 
     @PostMapping("/wang")
     public Result handleWang(
@@ -71,13 +76,13 @@ public class WangController {
         }
 
         // 2. 将上传的文件保存到本地临时目录
-        File tempDir = new File(UPLOAD_PATH);
+        File tempDir = resolveUploadDirectory("tcm_temp");
         if (!tempDir.exists()) tempDir.mkdirs();
 
         String originalFilename = file.getOriginalFilename();
         String suffix = originalFilename.substring(originalFilename.lastIndexOf("."));
         String fileName = UUID.randomUUID().toString() + suffix;
-        File destFile = new File(UPLOAD_PATH + fileName);
+        File destFile = new File(tempDir, fileName);
 
         try {
             file.transferTo(destFile);
@@ -87,7 +92,7 @@ public class WangController {
 
         // 3. 通过 HTTP 调用 Python Flask 接口
         RestTemplate restTemplate = new RestTemplate();
-        String pythonUrl = "http://localhost:5000/tongue/detect";
+        String pythonUrl = pythonBaseUrl + "/tongue/detect";
 
         // 设置请求头
         HttpHeaders headers = new HttpHeaders();
@@ -204,5 +209,10 @@ public class WangController {
             e.printStackTrace();
             return Result.error("算法服务访问失败，请检查 Python 后端状态");
         }
+    }
+
+    private File resolveUploadDirectory(String subFolder) {
+        Path uploadPath = Path.of(uploadRoot, subFolder);
+        return uploadPath.toFile();
     }
 }

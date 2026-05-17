@@ -1,0 +1,81 @@
+services:
+  mysql:
+    image: mysql:8.0
+    container_name: zhongyi-mysql
+    restart: unless-stopped
+    environment:
+      MYSQL_ROOT_PASSWORD: ${MYSQL_ROOT_PASSWORD:-change-me}
+      MYSQL_DATABASE: ${MYSQL_DATABASE:-zhongyi}
+      MYSQL_ROOT_HOST: "%"
+    command:
+      - --default-authentication-plugin=mysql_native_password
+      - --character-set-server=utf8mb4
+      - --collation-server=utf8mb4_unicode_ci
+    volumes:
+      - mysql-data:/var/lib/mysql
+      - ./mysql/init:/docker-entrypoint-initdb.d:ro
+    healthcheck:
+      test: ["CMD", "mysqladmin", "ping", "-h", "localhost", "-uroot", "-p${MYSQL_ROOT_PASSWORD:-change-me}"]
+      interval: 10s
+      timeout: 5s
+      retries: 15
+      start_period: 30s
+
+  tcm-ai:
+    build:
+      context: ./tcm-ai-service
+      dockerfile: Dockerfile
+    container_name: zhongyi-tcm-ai
+    restart: unless-stopped
+    environment:
+      GLM_API_KEY: ${GLM_API_KEY:-}
+      GLM_BASE_URL: ${GLM_BASE_URL:-https://open.bigmodel.cn/api/paas/v4}
+      GLM_REPORT_MAX_TOKENS: ${GLM_REPORT_MAX_TOKENS:-4096}
+      QWEN_API_KEY: ${QWEN_API_KEY:-}
+      QWEN_BASE_URL: ${QWEN_BASE_URL:-https://dashscope.aliyuncs.com/compatible-mode/v1}
+      QWEN_VISION_MODEL: ${QWEN_VISION_MODEL:-qwen3-vl-plus}
+      DEEPSEEK_API_KEY: ${DEEPSEEK_API_KEY:-}
+      DEEPSEEK_BASE_URL: ${DEEPSEEK_BASE_URL:-https://api.deepseek.com}
+
+  backend:
+    build:
+      context: ./demo
+      dockerfile: Dockerfile
+    container_name: zhongyi-backend
+    restart: unless-stopped
+    depends_on:
+      mysql:
+        condition: service_healthy
+      tcm-ai:
+        condition: service_started
+    environment:
+      DB_URL: jdbc:mysql://mysql:3306/${MYSQL_DATABASE:-zhongyi}?useUnicode=true&characterEncoding=utf8&useSSL=false&serverTimezone=Asia/Shanghai&allowPublicKeyRetrieval=true
+      DB_USERNAME: root
+      DB_PASSWORD: ${MYSQL_ROOT_PASSWORD:-change-me}
+      JWT_SECRET: ${JWT_SECRET:-change-this-jwt-secret}
+      JWT_EXPIRATION: ${JWT_EXPIRATION:-28800000}
+      APP_SOFTWARE_MODE: "true"
+      APP_PYTHON_BASE_URL: http://tcm-ai:5000
+      APP_IDCARD_BASE_URL: http://idcard-reader:9009/api/idcard
+      APP_UPLOAD_ROOT: /data/uploads
+    volumes:
+      - uploads-data:/data/uploads
+
+  frontend:
+    build:
+      context: ./Vue/zhongyi
+      dockerfile: Dockerfile
+      args:
+        VITE_SOFTWARE_MODE: "true"
+        VITE_ENABLE_IDCARD: "false"
+        VITE_ENABLE_PULSE: "false"
+    container_name: zhongyi-frontend
+    restart: unless-stopped
+    depends_on:
+      - backend
+    ports:
+      - "${WEB_PORT:-80}:80"
+
+volumes:
+  mysql-data:
+  uploads-data:

@@ -10,13 +10,13 @@
       <div class="mode-tab" :class="{ active: inputMode === 'manual' }" @click="inputMode = 'manual'">
         ✏️ 手动填写
       </div>
-      <div class="mode-tab" :class="{ active: inputMode === 'scan' }" @click="inputMode = 'scan'">
+      <div v-if="enableIdCard" class="mode-tab" :class="{ active: inputMode === 'scan' }" @click="inputMode = 'scan'">
         💳 身份证感应
       </div>
     </div>
 
     <!-- 身份证感应区 -->
-    <div v-if="inputMode === 'scan'" class="scan-zone">
+    <div v-if="enableIdCard && inputMode === 'scan'" class="scan-zone">
       <div class="scan-card" :class="{ scanning: isScanning, done: scanDone }">
         <img v-if="idCardDisplaySrc" :src="idCardDisplaySrc" alt="身份证图像" class="scan-card-image" />
         <div v-else>
@@ -222,14 +222,17 @@ import { useRouter } from 'vue-router'
 import { ElMessage } from 'element-plus'
 import { loginAndSave } from '@/api/auth'
 import axios from 'axios'
+import { ENABLE_IDCARD } from '@/config/runtime'
 
 const router = useRouter()
 
 // ===== 录入模式 =====
+const enableIdCard = ENABLE_IDCARD
 const inputMode = ref('manual')
 const isScanning = ref(false)
 const scanDone = ref(false)
-const scanStatus = ref('请将二代居民身份证平放在读卡区域，感应距离约 2~5 cm')
+const defaultScanHint = '请将二代居民身份证平放在读卡区域，感应距离约 2~5 cm'
+const scanStatus = ref(defaultScanHint)
 const idCardPhotoBase64 = ref('')
 const idCardFullImageBase64 = ref('')
 
@@ -248,6 +251,10 @@ const idCardFullImageSrc = computed(() => {
 const idCardDisplaySrc = computed(() => idCardFullImageSrc.value || idCardPhotoSrc.value)
 
 const startScan = async () => {
+  if (!enableIdCard) {
+    ElMessage.info('软件模式下已关闭身份证感应')
+    return
+  }
   isScanning.value = true
   scanStatus.value = '正在读取身份证信息...'
   
@@ -315,7 +322,7 @@ const resetForm = () => {
   idCardPhotoBase64.value = ''
   idCardFullImageBase64.value = ''
   localStorage.removeItem('current_idcard_photo_base64')
-  scanStatus.value = '请将二代居民身份证平放在读卡区域，感应距离约 2~5 cm'
+  scanStatus.value = defaultScanHint
 }
 
 const occupations = ['农民', '工人', '职员', '教师', '医务人员', '个体经营', '学生', '退休', '无业', '其他']

@@ -8,7 +8,7 @@
         <el-button class="back-btn" @click="router.push('/')">← 返回主页</el-button>
         <div class="header-center">
           <p class="header-sub">AI-POWERED TCM</p>
-          <h1 class="header-title">四诊合参 <span class="dot">·</span> 智慧诊断</h1>
+          <h1 class="header-title">{{ diagnosisTitle }} <span class="dot">·</span> 智慧诊断</h1>
           <p class="header-desc">融合传统医学智慧与现代人工智能技术</p>
         </div>
         <div class="patient-info" v-if="lockedPatientId">
@@ -57,11 +57,11 @@
         <!-- 左侧：已完成标签 -->
         <div class="completed-area">
           <div class="progress-label">
-            四诊完成进度
-            <span class="count-badge">{{ completedCount }} / 4</span>
+            诊断完成进度
+            <span class="count-badge">{{ completedCount }} / {{ totalDiagnosisCount }}</span>
           </div>
           <div class="progress-track">
-            <div class="progress-fill" :style="{ width: (completedCount * 25) + '%' }"></div>
+            <div class="progress-fill" :style="{ width: progressWidth + '%' }"></div>
           </div>
           <div class="completed-tags" v-if="completedCount > 0">
             <el-tag v-if="wangFinished"    size="small" class="ctag">✓ 望诊</el-tag>
@@ -75,10 +75,10 @@
         <!-- 右侧：生成报告 -->
         <div class="report-area" v-if="completedCount > 0">
           <el-button class="btn-report" @click="generateReport" :loading="isGenerating">
-            {{ completedCount === 4 ? '生成四诊合参报告' : `生成报告（已完成 ${completedCount} 项）` }} →
+            {{ completedCount === totalDiagnosisCount ? '生成综合诊断报告' : `生成报告（已完成 ${completedCount} 项）` }} →
           </el-button>
-          <p class="report-hint" v-if="completedCount < 4">
-            完成全部四诊可获得更精准的综合诊断
+          <p class="report-hint" v-if="completedCount < totalDiagnosisCount">
+            完成全部板块可获得更精准的综合诊断
           </p>
         </div>
       </div>
@@ -92,6 +92,7 @@ import { Right, CircleCheckFilled } from '@element-plus/icons-vue'
 import { ref, computed, onMounted, onActivated, watch } from 'vue'
 import { ElMessage } from 'element-plus'
 import axios from 'axios'
+import { ENABLE_PULSE, FRONTEND_DIAG_KEYS, SOFTWARE_MODE } from '@/config/runtime'
 
 const router = useRouter()
 const route  = useRoute()
@@ -105,17 +106,23 @@ const wenjuanFinished = ref(false)
 const qieFinished     = ref(false)
 const isGenerating    = ref(false)
 const currentCaseId   = ref(null)
+const totalDiagnosisCount = FRONTEND_DIAG_KEYS.length
+const diagnosisTitle = SOFTWARE_MODE ? '三诊合参（软件模式）' : '四诊合参'
 
 const statusMap = computed(() => ({
   wang:    wangFinished.value,
   wen:     wenFinished.value,
   wenjuan: wenjuanFinished.value,
-  qie:     qieFinished.value,
+  qie:     ENABLE_PULSE ? qieFinished.value : false,
 }))
 
 const completedCount = computed(() =>
-  [wangFinished, wenFinished, wenjuanFinished, qieFinished].filter(v => v.value).length
+  FRONTEND_DIAG_KEYS.reduce((sum, key) => sum + (statusMap.value[key] ? 1 : 0), 0)
 )
+const progressWidth = computed(() => {
+  if (!totalDiagnosisCount) return 0
+  return Math.round((completedCount.value / totalDiagnosisCount) * 100)
+})
 
 const diagItems = [
   {
@@ -142,7 +149,7 @@ const diagItems = [
     action: '连接设备 →',
     color: 'linear-gradient(135deg, #b54a3a 0%, #8b2a1e 100%)',
   },
-]
+].filter((item) => ENABLE_PULSE || item.key !== 'qie')
 
 const refreshStatuses = () => {
   const currentId = lockedPatientId.value || localStorage.getItem('current_patient_id')
@@ -155,7 +162,7 @@ const refreshStatuses = () => {
   wangFinished.value    = localStorage.getItem('wang_finished_id')    === id
   wenFinished.value     = localStorage.getItem('wen_finished_id')     === id
   wenjuanFinished.value = localStorage.getItem('wenjuan_finished_id') === id
-  qieFinished.value     = localStorage.getItem('qie_finished_id')     === id
+  qieFinished.value     = ENABLE_PULSE && localStorage.getItem('qie_finished_id') === id
   const caseId = localStorage.getItem('current_case_id')
   currentCaseId.value = caseId ? Number(caseId) : null
 }
@@ -191,6 +198,10 @@ const ensureDiagnosisSession = async () => {
 }
 
 const goTo = (type) => {
+  if (type === 'qie' && !ENABLE_PULSE) {
+    ElMessage.info('软件模式下已关闭切诊')
+    return
+  }
   if (statusMap.value[type]) {
     ElMessage.info('该检测项目已完成，结果已锁定')
     return
@@ -212,7 +223,7 @@ const generateReport = () => {
   if (wangFinished.value)    completedTypes.push('wang')
   if (wenFinished.value)     completedTypes.push('wen_audio')
   if (wenjuanFinished.value) completedTypes.push('wen_questionnaire')
-  if (qieFinished.value)     completedTypes.push('qie')
+  if (ENABLE_PULSE && qieFinished.value) completedTypes.push('qie')
   router.push({
     path: '/report',
     query: {

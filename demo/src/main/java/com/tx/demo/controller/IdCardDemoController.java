@@ -3,6 +3,7 @@ package com.tx.demo.controller;
 import com.tx.demo.utils.Result;
 import com.tx.demo.vo.IdCardInfoVO;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.web.bind.annotation.*;
 import org.springframework.web.client.RestTemplate;
 import org.slf4j.Logger;
@@ -22,7 +23,12 @@ import java.util.Map;
 public class IdCardDemoController {
 
     private static final Logger logger = LoggerFactory.getLogger(IdCardDemoController.class);
-    private static final String READER_SERVICE_URL = "http://127.0.0.1:9009/api/idcard";
+
+    @Value("${app.software-mode:false}")
+    private boolean softwareMode;
+
+    @Value("${app.services.idcard-base-url:http://127.0.0.1:9009/api/idcard}")
+    private String readerServiceUrl;
 
     @Autowired
     private RestTemplate restTemplate;
@@ -35,10 +41,13 @@ public class IdCardDemoController {
     @GetMapping("/read")
     public Result readIdCard() {
         logger.info("收到读卡请求");
+        if (softwareMode) {
+            return Result.error("软件模式下已关闭身份证读卡功能");
+        }
         
         try {
             // 调用本地 x86 读卡服务
-            String url = READER_SERVICE_URL + "/read";
+            String url = readerServiceUrl + "/read";
             Map<String, Object> response = restTemplate.getForObject(url, Map.class);
 
             if (response != null && (Boolean) response.getOrDefault("success", false)) {
@@ -59,7 +68,7 @@ public class IdCardDemoController {
             
             // 检查读卡服务是否可用
             if (e.getMessage().contains("Connection refused")) {
-                return Result.error("读卡服务不可用，请检查 x86 读卡服务是否已启动 (127.0.0.1:9009)");
+                return Result.error("读卡服务不可用，请检查读卡服务是否已启动 (" + readerServiceUrl + ")");
             }
             
             return Result.error("读卡异常: " + e.getMessage());
@@ -72,8 +81,11 @@ public class IdCardDemoController {
      */
     @GetMapping("/status")
     public Result checkReaderStatus() {
+        if (softwareMode) {
+            return Result.error("软件模式下已关闭身份证读卡功能");
+        }
         try {
-            String url = READER_SERVICE_URL + "/status";
+            String url = readerServiceUrl + "/status";
             Map<String, Object> response = restTemplate.getForObject(url, Map.class);
 
             if (response != null && (Boolean) response.getOrDefault("success", false)) {
@@ -94,8 +106,14 @@ public class IdCardDemoController {
      */
     @GetMapping("/health")
     public Result healthCheck() {
+        if (softwareMode) {
+            Map<String, Object> result = new HashMap<>();
+            result.put("mainService", "运行正常");
+            result.put("readerService", "软件模式已禁用");
+            return Result.success(result);
+        }
         try {
-            String url = READER_SERVICE_URL + "/health";
+            String url = readerServiceUrl + "/health";
             Map<String, Object> response = restTemplate.getForObject(url, Map.class);
             
             Map<String, Object> result = new HashMap<>();
@@ -117,8 +135,11 @@ public class IdCardDemoController {
      */
     @PostMapping("/release")
     public Result releaseReader() {
+        if (softwareMode) {
+            return Result.error("软件模式下已关闭身份证读卡功能");
+        }
         try {
-            String url = READER_SERVICE_URL + "/release";
+            String url = readerServiceUrl + "/release";
             Map<String, Object> response = restTemplate.postForObject(url, null, Map.class);
 
             if (response != null && (Boolean) response.getOrDefault("success", false)) {

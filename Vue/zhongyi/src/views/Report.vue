@@ -8,7 +8,7 @@
         <span v-if="completionPercentage < 100" class="badge incomplete">
           {{ completionPercentage }}% 完成度
         </span>
-        <span v-else class="badge complete">✓ 四诊完整</span>
+        <span v-else class="badge complete">✓ {{ completeBadgeText }}</span>
       </div>
       <div class="header-buttons">
         <el-button type="primary" @click="exportPDF" :loading="isExporting" icon="Download">
@@ -37,8 +37,8 @@
             <div class="taiji-core"><span>诊</span></div>
             <div class="taiji-orbit"><div class="orbit-dot"></div></div>
           </div>
-          <h2 class="loading-title">四诊合参 · 智慧分析中</h2>
-          <p class="loading-sub">正在融合望闻问切数据，调用 AI 引擎生成综合诊断建议</p>
+          <h2 class="loading-title">{{ loadingTitle }}</h2>
+          <p class="loading-sub">{{ loadingSubtitle }}</p>
           <div class="steps">
             <div class="step" v-for="(step, i) in steps" :key="i" :class="step.state">
               <div class="step-icon">
@@ -96,7 +96,7 @@
       <!-- ===== 机构抬头（读取报告设置）===== -->
       <div v-if="reportSettings.orgName" class="org-header">
         <div class="org-name">{{ reportSettings.orgName }}</div>
-        <div class="org-sub">四诊合参体质辨识报告</div>
+        <div class="org-sub">中医体质辨识报告</div>
         <div class="org-info" v-if="reportSettings.orgAddress || reportSettings.orgPhone">
           <span v-if="reportSettings.orgAddress">📍 {{ reportSettings.orgAddress }}</span>
           <span v-if="reportSettings.orgPhone">📞 {{ reportSettings.orgPhone }}</span>
@@ -121,7 +121,7 @@
 
       <!-- 四诊初步诊断章节 -->
       <section class="report-section diagnosis">
-        <h2>四诊初步诊断</h2>
+        <h2>分板块初步诊断</h2>
 
         <div class="diagnosis-item">
           <h3>望诊（舌象分析）</h3>
@@ -299,6 +299,7 @@ import {
   getConstitutionScoreRanking,
   getReportFocusModeLabel
 } from '@/utils/reportUtils';
+import { ENABLE_PULSE, REPORT_DIAG_KEYS } from '@/config/runtime';
 
 const router = useRouter();
 const route = useRoute();
@@ -316,8 +317,16 @@ const reportRef = ref(null);
 const idCardPhotoBase64 = ref(localStorage.getItem("current_idcard_photo_base64") || "");
 const idCardFullImageBase64 = ref(localStorage.getItem("current_idcard_image_base64") || "");
 
-const reportTitle = ref("四诊合参诊断报告");
+const reportTitle = ref(ENABLE_PULSE ? "四诊合参诊断报告" : "三诊综合诊断报告");
 const completionPercentage = ref(0);
+const totalReportItems = REPORT_DIAG_KEYS.length;
+const completeBadgeText = computed(() => `${totalReportItems}项完整`);
+const loadingTitle = computed(() => (ENABLE_PULSE ? '四诊合参 · 智慧分析中' : '三诊合参 · 智慧分析中'));
+const loadingSubtitle = computed(() =>
+  ENABLE_PULSE
+    ? '正在融合望闻问切数据，调用 AI 引擎生成综合诊断建议'
+    : '正在融合望闻问数据，调用 AI 引擎生成综合诊断建议'
+);
 
 // ===== 读取报告设置（localStorage）=====
 const reportSettings = computed(() => {
@@ -457,13 +466,15 @@ const calculateCompletion = () => {
   }
   const diagnosis = reportData.value.diagnosis;
   let count = 0;
-  ["wang", "wen_audio", "wen_questionnaire", "qie"].forEach(t => {
+  REPORT_DIAG_KEYS.forEach(t => {
     if (diagnosis[t]) count++;
   });
-  completionPercentage.value = Math.round((count / 4) * 100);
-  if (count === 4)      reportTitle.value = "四诊合参诊断报告";
+  completionPercentage.value = Math.round((count / totalReportItems) * 100);
+  if (count === totalReportItems) {
+    reportTitle.value = ENABLE_PULSE ? "四诊合参诊断报告" : "三诊综合诊断报告";
+  }
   else if (count === 1) reportTitle.value = `单板块诊断报告 - ${getCompletedType(diagnosis)}`;
-  else                  reportTitle.value = `部分诊断报告 (${count}/4板块)`;
+  else                  reportTitle.value = `部分诊断报告 (${count}/${totalReportItems}板块)`;
 };
 
 const getCompletedType = (diagnosis) => {
@@ -480,8 +491,8 @@ const ALL_STEPS = {
   wang:              { char: "望", label: "舌象分析" },
   wen_audio:         { char: "闻", label: "声纹识别" },
   wen_questionnaire: { char: "问", label: "问卷解析" },
-  qie:               { char: "切", label: "脉象推理" },
-}
+  ...(ENABLE_PULSE ? { qie: { char: "切", label: "脉象推理" } } : {}),
+};
 
 const buildSteps = () => {
   // 优先使用路由参数，若无则从 localStorage 读取已完成的诊法
@@ -495,7 +506,7 @@ const buildSteps = () => {
     if (localStorage.getItem('wang_finished_id') === pid) completed.push('wang')
     if (localStorage.getItem('wen_finished_id') === pid) completed.push('wen_audio')
     if (localStorage.getItem('wenjuan_finished_id') === pid) completed.push('wen_questionnaire')
-    if (localStorage.getItem('qie_finished_id') === pid) completed.push('qie')
+    if (ENABLE_PULSE && localStorage.getItem('qie_finished_id') === pid) completed.push('qie')
     param = completed.join(',')
   }
   
@@ -522,7 +533,7 @@ let stepTimer = null;
 let progressTimer = null;
 
 const progressStages = [
-  { width: "15%", text: "正在读取四诊数据..." },
+  { width: "15%", text: "正在读取诊断数据..." },
   { width: "30%", text: "正在构建辨证分析模型..." },
   { width: "48%", text: "AI 正在分析体质与证型..." },
   { width: "65%", text: "正在生成调理建议..." },

@@ -4,10 +4,10 @@ spring:
   # AI辅助生成：Google Gemini (大语言模型), 2026-01-28
   # 本地开发默认连接 localhost；生产环境建议结合 Spring Profiles 覆盖为独立配置
   datasource:
-    url: jdbc:mysql://localhost:3306/zhongyi?useUnicode=true&characterEncoding=utf8&useSSL=false&serverTimezone=Asia/Shanghai&allowPublicKeyRetrieval=true
+    url: ${DB_URL:jdbc:mysql://localhost:3306/zhongyi?useUnicode=true&characterEncoding=utf8&useSSL=false&serverTimezone=Asia/Shanghai&allowPublicKeyRetrieval=true}
     driver-class-name: com.mysql.cj.jdbc.Driver
-    username: root
-    password: 2018620530tX@
+    username: ${DB_USERNAME:root}
+    password: ${DB_PASSWORD:root}
     # 可选：Hikari连接池优化配置（提升性能）
     hikari:
       maximum-pool-size: 10
@@ -51,6 +51,14 @@ logging:
 
 jwt:
   # 密钥：至少32字符（256位），上线前务必换成随机字符串
-  secret: "ZhongYiAdminSecretKey2024@#$!xTx"
+  secret: ${JWT_SECRET:ZhongYiAdminSecretKey2024@#$!xTx}
   # Token 有效期：8小时（毫秒）
-  expiration: 28800000
+  expiration: ${JWT_EXPIRATION:28800000}
+
+app:
+  software-mode: ${APP_SOFTWARE_MODE:true}
+  services:
+    python-base-url: ${APP_PYTHON_BASE_URL:http://localhost:5000}
+    idcard-base-url: ${APP_IDCARD_BASE_URL:http://127.0.0.1:9009/api/idcard}
+  paths:
+    upload-root: ${APP_UPLOAD_ROOT:./zhongyi_uploads}

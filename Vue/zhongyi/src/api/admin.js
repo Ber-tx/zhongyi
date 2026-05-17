@@ -1,7 +1,7 @@
 // 路径：Vue/zhongyi/src/api/admin.js
 import axios from 'axios'
 
-const BASE = 'http://localhost:8080/api/admin'
+const BASE = '/api/admin'
 
 // 创建带 Token 的 axios 实例
 const adminHttp = axios.create({ baseURL: BASE })

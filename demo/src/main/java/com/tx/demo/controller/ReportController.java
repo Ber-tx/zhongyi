@@ -8,6 +8,7 @@ import com.tx.demo.mapper.DiagnosisMapper;
 import com.tx.demo.mapper.PatientMapper;
 import com.tx.demo.utils.Result;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.http.HttpEntity;
 import org.springframework.http.HttpHeaders;
 import org.springframework.http.MediaType;
@@ -45,6 +46,9 @@ public class ReportController {
 
     @Autowired
     private RestTemplate restTemplate;
+
+    @Value("${app.services.python-base-url:http://localhost:5000}")
+    private String pythonBaseUrl;
 
     /**
      * 请求体类
@@ -282,7 +286,7 @@ public class ReportController {
                         request.getCustomPromptTemplate(),
                         request.getFocusMode()
                 );
-                String pythonUrl = "http://localhost:5000/api/synthesis/llm/stream";
+                String pythonUrl = pythonBaseUrl + "/api/synthesis/llm/stream";
                 URL url = new URL(pythonUrl);
                 HttpURLConnection conn = (HttpURLConnection) url.openConnection();
                 conn.setRequestMethod("POST");
@@ -687,7 +691,7 @@ public class ReportController {
      */
     private String callPythonLlmService(Map<String, Object> diagnosisInfo) {
         try {
-            String pythonUrl = "http://localhost:5000/api/synthesis/llm";
+            String pythonUrl = pythonBaseUrl + "/api/synthesis/llm";
 
             HttpHeaders headers = new HttpHeaders();
             headers.setContentType(MediaType.APPLICATION_JSON);

@@ -244,6 +244,7 @@ import axios from 'axios';
 import * as echarts from 'echarts';
 import { navigateToDiagnosisReport } from '@/utils/reportUtils';
 import { algorithmReferences } from '@/constants/algorithmReferences';
+import { ENABLE_PULSE } from '@/config/runtime';
 
 // =====================================================================
 // 1. 基础状态
@@ -520,9 +521,12 @@ const oscilloscopeRender = () => {
 // =====================================================================
 let ws           = null;
 let progressTimer = null;
+const pulseApiBase = (import.meta.env.VITE_PULSE_API_BASE || '/pulse-api').replace(/\/$/, '');
+const pulseWsUrl = import.meta.env.VITE_PULSE_WS_URL
+  || `${window.location.protocol === 'https:' ? 'wss' : 'ws'}://${window.location.host}${pulseApiBase}/ws/pulse`;
 
 const connectWS = () => {
-  ws = new WebSocket('ws://localhost:8000/ws/pulse');
+  ws = new WebSocket(pulseWsUrl);
   ws.onmessage = (event) => {
     try {
       const data = JSON.parse(event.data);
@@ -560,7 +564,7 @@ const startDiagnosis = async () => {
   if (!patientId.value) return ElMessage.warning('无患者ID');
   isStarting.value = true;
   try {
-    await axios.post('http://localhost:8000/api/pulse/start');
+    await axios.post(`${pulseApiBase}/api/pulse/start`);
     analysisResult.value = null;
     waveBuffer.value    = [];
     renderQueue         = [];
@@ -583,7 +587,7 @@ const stopAndAnalyze = async () => {
   if (isAnalyzing.value) return;   // 防止重复调用
   try {
     isAnalyzing.value = true;
-    const pyRes = await axios.post('http://localhost:8000/api/pulse/stop', null, {
+    const pyRes = await axios.post(`${pulseApiBase}/api/pulse/stop`, null, {
       params: { user_id: patientId.value }
     });
     const report = pyRes.data;
@@ -639,7 +643,7 @@ async function persistQieToServer() {
     }),
     rawData: analysisResult.value.raw_wave
   };
-  const javaRes = await axios.post('http://localhost:8080/api/detect/qie/save', payload);
+  const javaRes = await axios.post('/api/detect/qie/save', payload);
   if (javaRes.data.code !== 200) throw new Error(javaRes.data.msg);
   localStorage.setItem('qie_finished_id', String(patientId.value));
 }
@@ -689,6 +693,11 @@ const resetMeasurement = () => {
 // 6. 生命周期
 // =====================================================================
 onMounted(() => {
+  if (!ENABLE_PULSE) {
+    ElMessage.info('软件模式下已关闭切诊')
+    router.replace('/detect')
+    return
+  }
   if (!patientId.value) {
     ElMessage.error('缺少患者信息');
     setTimeout(() => router.push('/detect'), 1500);

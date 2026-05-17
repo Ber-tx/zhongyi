@@ -5,6 +5,7 @@
 
 import axios from 'axios';
 import { ElMessage } from 'element-plus';
+import { ENABLE_PULSE } from '@/config/runtime';
 
 const CONSTITUTION_NAME_TO_CODE = {
   '平和质': 'ph',
@@ -275,7 +276,7 @@ export function getCompletedDiagnosisTypes() {
   if (localStorage.getItem('wen_questionnaire_finished_id')) {
     completed.push('wen_questionnaire');
   }
-  if (localStorage.getItem('qie_finished_id')) {
+  if (ENABLE_PULSE && localStorage.getItem('qie_finished_id')) {
     completed.push('qie');
   }
   
@@ -309,7 +310,7 @@ export function collectCompletedTypesForPatient(patientId) {
   if (localStorage.getItem('wang_finished_id') === pid) types.push('wang');
   if (localStorage.getItem('wen_finished_id') === pid) types.push('wen_audio');
   if (localStorage.getItem('wenjuan_finished_id') === pid) types.push('wen_questionnaire');
-  if (localStorage.getItem('qie_finished_id') === pid) types.push('qie');
+  if (ENABLE_PULSE && localStorage.getItem('qie_finished_id') === pid) types.push('qie');
   return types;
 }
 
