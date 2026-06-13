@@ -169,6 +169,20 @@ public class WangController {
                 resultMap.put("confidence", confidence);
                 resultMap.put("scores", scores);
 
+                // YOLO 检测结果透传
+                if (data.containsKey("yolo_detections")) {
+                    resultMap.put("yolo_detections", data.getJSONArray("yolo_detections"));
+                }
+                if (data.containsKey("annotation_match")) {
+                    resultMap.put("annotation_match", data.getJSONObject("annotation_match"));
+                }
+                if (data.containsKey("image_shape")) {
+                    resultMap.put("image_shape", data.getJSONObject("image_shape"));
+                }
+                if (data.containsKey("tongue_area")) {
+                    resultMap.put("tongue_area", data.getJSONObject("tongue_area"));
+                }
+
                 if(json.containsKey("data_depth")){
                     resultMap.put("details", json.getJSONObject("data_depth"));
                 }

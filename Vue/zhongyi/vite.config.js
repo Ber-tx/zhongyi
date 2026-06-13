@@ -41,6 +41,10 @@ export default defineConfig({
       changeOrigin: true,
       // 如果 Java 后端没有额外的前缀，这里不需要 rewrite
     },
+    '/tongue': {
+        target: 'http://localhost:5000',
+        changeOrigin: true,
+    },
     '/uploads': {
         target: 'http://localhost:8080',
         changeOrigin: true,
